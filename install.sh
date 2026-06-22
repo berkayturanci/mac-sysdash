@@ -10,6 +10,7 @@ LOG_DIR="$HOME/.local/log"
 LABEL="com.berkay.sysdash"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 PORT="${SYSDASH_PORT:-8765}"
+PUSH_TO="${SYSDASH_PUSH_TO:-}"     # optional: hub /api/push URL for nodes that can't accept inbound
 
 mkdir -p "$LOG_DIR" "$HOME/Library/LaunchAgents"
 
@@ -77,6 +78,8 @@ cat > "$PLIST" <<PLISTEOF
 	<dict>
 		<key>SYSDASH_PORT</key>
 		<string>$PORT</string>
+		<key>SYSDASH_PUSH_TO</key>
+		<string>$PUSH_TO</string>
 		<key>PATH</key>
 		<string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin</string>
 	</dict>

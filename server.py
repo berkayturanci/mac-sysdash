@@ -21,7 +21,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -227,7 +227,7 @@ def tailnet_peers(ttl=30):
 _PEER_PORTS = (8765, 8770)
 
 
-def _fetch_stats(url, timeout=2.5):
+def _fetch_stats(url, timeout=6.0):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             d = json.loads(r.read().decode("utf-8", "ignore"))
@@ -273,15 +273,58 @@ def _peer_sampler():
             _refresh_sysdash_peers()
         except Exception:
             pass
-        time.sleep(15)
+        time.sleep(6)
+
+
+# When this machine can't accept inbound connections, set SYSDASH_PUSH_TO to a
+# hub's /api/push URL and it will POST its own stats there every few seconds.
+PUSH_TO = os.environ.get("SYSDASH_PUSH_TO", "")
+
+
+def _pusher():
+    while True:
+        try:
+            data = json.dumps(cached_stats()).encode()
+            req = urllib.request.Request(
+                PUSH_TO, data=data, method="POST",
+                headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=6).read()
+        except Exception:
+            pass
+        time.sleep(3)
+
+
+# Pushed peers: machines that can't accept inbound connections POST their stats
+# here instead (see SYSDASH_PUSH_TO). Keyed by reported hostname.
+_PUSHED = {}        # host -> (ts, stats)
+_PUSH_TTL = 20
 
 
 def sysdash_peers():
-    return _SPEERS["data"]
+    """All peers the browser can render: pull-discovered + push-reported, each
+    with an opaque key the browser passes back to /api/peer."""
+    out = [{"name": p["name"], "key": "ip:" + p["ip"]} for p in _SPEERS["data"]]
+    seen = {p["name"] for p in out}
+    now = time.time()
+    for host, (ts, _d) in list(_PUSHED.items()):
+        if now - ts < _PUSH_TTL and host not in seen:
+            out.append({"name": host, "key": "push:" + host})
+    return out
 
 
-def peer_stats(ip, ttl=1.5):
-    """Cached proxy of a peer's /api/stats (only for known tailnet peers)."""
+def peer_by_key(key):
+    if key.startswith("push:"):
+        c = _PUSHED.get(key[5:])
+        return c[1] if c and time.time() - c[0] < _PUSH_TTL + 10 else None
+    if key.startswith("ip:"):
+        return peer_stats(key[3:])
+    return None
+
+
+def peer_stats(ip, ttl=10.0):
+    """Proxy a peer's /api/stats. Served from the cache that _peer_sampler keeps
+    warm (peer links can be slow over Tailscale), so the browser never blocks on
+    a slow fetch. Falls back to a one-off fetch, then to stale cache."""
     peers = {p["ip"]: p for p in tailnet_peers()}
     if ip not in peers:
         return None
@@ -295,7 +338,7 @@ def peer_stats(ip, ttl=1.5):
         if d:
             _PEER_CACHE[ip] = (now, d, u)
             return d
-    return None
+    return c[1] if c else None   # serve stale rather than nothing
 
 
 _HISTORY_CACHE = {}  # runner_dir -> (ts, list)
@@ -548,8 +591,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/peer"):
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                key = (q.get("key") or [""])[0]
                 ip = (q.get("ip") or [""])[0]
-                d = peer_stats(ip)
+                d = peer_by_key(key) if key else (peer_stats(ip) if ip else None)
                 if d is None:
                     self._send(404, b'{"error":"peer unreachable"}', "application/json")
                 else:
@@ -567,10 +611,26 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, b"not found", "text/plain")
 
+    def do_POST(self):
+        if self.path.startswith("/api/push"):
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(n) if 0 < n <= 200000 else b"{}"
+                d = json.loads(body.decode("utf-8", "ignore"))
+                host = d.get("host") or "peer"
+                _PUSHED[host] = (time.time(), d)
+                self._send(200, b'{"ok":true}', "application/json")
+            except Exception as e:
+                self._send(400, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
+        self._send(404, b"not found", "text/plain")
+
 
 if __name__ == "__main__":
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
+    if PUSH_TO:
+        threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {TAILSCALE_IP})")

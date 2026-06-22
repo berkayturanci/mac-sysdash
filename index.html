@@ -666,8 +666,8 @@ async function discover(){
   if(DEMO_MODE)return;
   try{
     const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json();
-    autoPeers=(list||[]).filter(p=>p&&p.ip).map(p=>({
-      base:'peer:'+p.ip, name:p.name||'', statsUrl:'/api/peer?ip='+encodeURIComponent(p.ip)}));
+    autoPeers=(list||[]).filter(p=>p&&p.key).map(p=>({
+      base:'peer:'+p.key, name:p.name||'', statsUrl:'/api/peer?key='+encodeURIComponent(p.key)}));
   }catch(_){}
 }
 

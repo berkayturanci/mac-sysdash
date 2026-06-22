@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-06-22
+
+### Added
+- **Push mode** (`SYSDASH_PUSH_TO`): a machine that can't accept inbound
+  connections POSTs its stats to a hub's new `/api/push` endpoint and appears on
+  the hub like any other peer. Opt-in; coexists with pull discovery.
+
+[1.5.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.5.0
+
+## [1.4.0] - 2026-06-22
+
+### Changed
+- **Server-side peer aggregation:** the browser fetches peers through the hub's
+  `/api/peer` proxy instead of contacting each peer directly. Removes HTTPS
+  mixed-content limits and works on phones that can only reach the hub.
+
+[1.4.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.4.0
+
 ## [1.3.3] - 2026-06-22
 
 ### Fixed

@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.4.0-blue)
+![version](https://img.shields.io/badge/version-1.5.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -99,15 +99,24 @@ changes.
 
 ## Multiple machines
 
-Run mac-sysdash on each machine, then add the others as peers from the page —
-click **＋ machine** in the host bar and enter an address (e.g. `100.121.169.10`;
-the `:8765` port is added automatically). Each machine is polled directly from
-your browser and rendered as its own panel; an unnamed peer shows its own
-hostname once reachable, and unreachable peers show an **offline** card.
+Run mac-sysdash on each machine; one machine acts as the **hub** you open in the
+browser. Peers are gathered two ways, and the browser only ever talks to the hub
+(so it works the same on a phone over HTTPS — no per-peer setup, no mixed content):
 
-This works because the server sends `Access-Control-Allow-Origin: *`, so the
-browser may read `/api/stats` from every peer. Peers are stored in your
-browser's `localStorage`, so they are per-viewer.
+1. **Pull (default).** The hub discovers online Tailscale peers, fetches each
+   peer's `/api/stats` server-side, and exposes them via its `/api/peer` proxy.
+   Works whenever the hub can reach the peer.
+
+2. **Push (opt-in).** A machine that **can't accept inbound connections** (strict
+   NAT/firewall, locked-down host, no `tailscale serve`) instead POSTs its own
+   stats to the hub. Enable it by pointing `SYSDASH_PUSH_TO` at the hub's push URL:
+
+   ```sh
+   SYSDASH_PUSH_TO=https://<hub-host>.<tailnet>.ts.net/api/push ./install.sh
+   ```
+
+   The node then streams its stats outbound every few seconds and shows up on the
+   hub like any other machine. Pull and push coexist; push is off unless set.
 
 ## Runner auto-discovery
 
