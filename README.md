@@ -34,9 +34,10 @@ the installer sets that up for you in an isolated virtualenv.
   - **Click a runner for a detail modal** — the current job plus the last 5 runs
     (workflow · branch · result · duration), each linking to that workflow's runs
     on GitHub, with shortcuts to the Actions page and runner settings.
-- **Multiple machines side by side**, filling the width and wrapping down. Peers are
-  **auto-discovered** on your tailnet (any reachable mac-sysdash), or added manually.
-  **Drag a panel by its header to reorder.**
+- **Multiple machines side by side**, filling the width and wrapping down. One
+  machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
+  can't accept inbound — the browser only talks to the hub, so it works on a phone
+  too. **Drag a panel by its header to reorder.**
 - **Collapsible sections** — fold Runner status / System / Top processes to keep just
   the CPU / memory / disk gauges in view.
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
@@ -197,9 +198,15 @@ python3 -m unittest discover -s tests -v
 
 ## Configuration
 
+Environment variables (set them before `./install.sh`; they are written into the
+launchd agent):
+
+- `SYSDASH_PORT` — listening port (default `8765`)
+- `SYSDASH_PUSH_TO` — a hub's `/api/push` URL; when set, this node streams its
+  stats to that hub (for machines that can't accept inbound). Off by default.
+
 At the top of `server.py`:
 
-- `PORT` / `SYSDASH_PORT` — listening port (default `8765`)
 - `RUNNER_ROOTS` — where to scan for runner installs
 - `VERSION` — shown in the page footer
 
@@ -212,6 +219,10 @@ At the top of `server.py`:
 - A busy runner's job context comes from
   `<runner>/_work/_temp/_github_workflow/event.json` — the webhook payload the
   runner already writes locally.
+- Peers are exposed via `/api/peers` (list) and `/api/peer?key=…` (one peer's
+  stats), both served from the hub so the browser never makes cross-origin calls.
+  The hub fills these by pulling reachable peers and by accepting pushes on
+  `/api/push`.
 
 ## Troubleshooting
 

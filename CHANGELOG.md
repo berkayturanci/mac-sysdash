@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.2] - 2026-06-22
+
+### Changed
+- Push interval lowered to 0.5s so pushed peers feel live.
+- Battery shows a low-battery icon (🪫) when unplugged and ≤20% (red text), with
+  amber text ≤40%.
+
+[1.5.2]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.5.2
+
+## [1.5.1] - 2026-06-22
+
+### Changed
+- Push every 1s (was 3s) so pushed peers update at the dashboard cadence.
+
+[1.5.1]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.5.1
+
 ## [1.5.0] - 2026-06-22
 
 ### Added
