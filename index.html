@@ -189,10 +189,9 @@
     .ring .pct{font-size:21px}
     .gmeta{font-size:10px;white-space:normal}
     .runners{grid-template-columns:1fr}
-    /* clock on its own line, top-left of the controls, with buttons below */
-    .right{width:100%;flex-wrap:wrap}
-    .clock{order:-1;flex-basis:100%;text-align:left}
-    .clock .live{justify-content:flex-start}
+    /* buttons left, clock pushed to the far right on the same row */
+    .right{width:100%}
+    .clock{margin-left:auto;text-align:right}
   }
   @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
 </style>
