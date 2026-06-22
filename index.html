@@ -672,7 +672,7 @@ async function discover(){
       // on HTTP, hit the peer directly on :8765.
       const base = secure ? (p.dns ? 'https://'+p.dns : null) : 'http://'+p.ip+':8765';
       if(!base)return;
-      try{const r=await fetch(base+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(2500)});
+      try{const r=await fetch(base+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(6000)});
         if(r.ok){lastData[base]={data:await r.json(),online:true};found.push({base});}}catch(_){}
     }));
     autoPeers=found;
