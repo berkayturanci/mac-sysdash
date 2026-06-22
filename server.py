@@ -21,7 +21,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -291,7 +291,7 @@ def _pusher():
             urllib.request.urlopen(req, timeout=6).read()
         except Exception:
             pass
-        time.sleep(3)
+        time.sleep(1)
 
 
 # Pushed peers: machines that can't accept inbound connections POST their stats
