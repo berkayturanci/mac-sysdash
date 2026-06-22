@@ -36,57 +36,71 @@
     color:var(--txt);font:14px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
     min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s;
   }
-  .wrap{max-width:1100px;margin:0 auto}
-  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px}
   .hl{display:flex;align-items:center;gap:14px}
   .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#4f8cff,#9b5cff);
     display:grid;place-items:center;font-size:22px;box-shadow:0 6px 20px rgba(79,140,255,.35);flex:0 0 auto}
   h1{font-size:18px;font-weight:650;letter-spacing:.2px}
   .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
-  .right{display:flex;align-items:center;gap:14px}
-  .themebtn{cursor:pointer;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);
-    background:var(--panel);color:var(--txt);font-size:18px;display:grid;place-items:center;
+  .right{display:flex;align-items:center;gap:10px}
+  .iconbtn{cursor:pointer;height:42px;min-width:42px;padding:0 12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);font-size:16px;display:grid;place-items:center;
     transition:transform .15s,background .3s,border-color .3s;box-shadow:var(--shadow);flex:0 0 auto}
-  .themebtn:hover{transform:translateY(-1px)}
-  .themebtn:active{transform:scale(.94)}
+  .iconbtn:hover{transform:translateY(-1px)}
+  .iconbtn:active{transform:scale(.94)}
   .clock{text-align:right}
   .clock .t{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
   .clock .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:2px}
   .dotlive{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 
+  .hostbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);font-size:12.5px;color:var(--muted)}
+  .chip b{color:var(--txt);font-weight:600}
+  .chip .x{cursor:pointer;color:var(--muted);font-weight:700;padding:0 2px}
+  .chip .x:hover{color:var(--red)}
+
   .banner{display:none;align-items:center;gap:10px;background:rgba(255,92,92,.13);
     border:1px solid rgba(255,92,92,.5);color:var(--red);padding:12px 16px;border-radius:14px;
     margin-bottom:16px;font-weight:650;font-size:14px;animation:pulse 1.8s infinite}
 
-  .grid{display:grid;gap:16px}
-  .gauges{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
+  .machine{display:flex;flex-direction:column;gap:0}
+  .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .mname{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700}
+  .mname .ic{font-size:20px}
+  .moff{opacity:.6}
+
+  .grid{display:grid;gap:14px}
+  .gauges{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
   .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-    border-radius:18px;padding:20px;box-shadow:var(--shadow);transition:background .3s,border-color .3s,transform .15s}
-  .gauge{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px}
-  .gauge .label{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:1px;font-weight:650}
-  .ring{position:relative;width:150px;height:150px}
+    border-radius:18px;padding:18px;box-shadow:var(--shadow);transition:background .3s,border-color .3s,transform .15s}
+  .gauge{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px}
+  .gauge .label{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.8px;font-weight:650;text-align:center}
+  .ring{position:relative;width:128px;height:128px}
   .ring svg{transform:rotate(-90deg)}
   .ring .track{stroke:var(--track)}
   .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .ring .pct{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
-  .ring .meta{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .ring .pct{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  .ring .meta{color:var(--muted);font-size:11px;margin-top:2px;text-align:center;padding:0 6px}
   .gauge.crit{border-color:rgba(255,92,92,.6);box-shadow:0 0 0 1px rgba(255,92,92,.35),0 10px 30px rgba(255,92,92,.18)}
-  .alert-badge{position:absolute;top:12px;right:12px;background:var(--red);color:#fff;font-size:11px;
-    font-weight:800;padding:4px 9px;border-radius:999px;letter-spacing:.3px;
+  .alert-badge{position:absolute;top:10px;right:10px;background:var(--red);color:#fff;font-size:10.5px;
+    font-weight:800;padding:4px 8px;border-radius:999px;letter-spacing:.3px;
     box-shadow:0 2px 10px rgba(255,92,92,.5);animation:pulse 1.1s infinite;z-index:2}
 
-  .section-title{display:flex;align-items:center;gap:8px;margin:26px 0 12px;font-size:13px;
-    text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700}
+  .section-title{display:flex;align-items:center;gap:8px;margin:22px 0 12px;font-size:12px;
+    text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);font-weight:700}
   .section-title::after{content:"";flex:1;height:1px;background:var(--line)}
 
-  .runners{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .runners{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
   .runner{position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block}
   a.runner:hover{transform:translateY(-2px);border-color:var(--accent)}
   .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .runner .name{font-weight:650;font-size:15px;display:flex;align-items:center;gap:6px}
+  .runner .name{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:6px}
   .runner .ext{color:var(--muted);font-size:13px;font-weight:400}
   .runner .repo{color:var(--muted);font-size:12px;margin-top:3px;word-break:break-all}
-  .runner .up{color:var(--muted);font-size:12px;margin-top:14px;font-variant-numeric:tabular-nums}
+  .runner .up{color:var(--muted);font-size:12px;margin-top:12px;font-variant-numeric:tabular-nums}
   .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
     font-size:12px;font-weight:700;border:1px solid transparent;flex:0 0 auto}
   .pill .d{width:9px;height:9px;border-radius:50%}
@@ -99,7 +113,6 @@
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
-  .mini{grid-template-columns:1fr 1fr}
   .kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .kv:last-child{border-bottom:0}
   .kv .k{color:var(--muted)}
@@ -111,17 +124,16 @@
   .proc .pn{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .proc .pm{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
   .cores{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
-  .core{flex:1;min-width:14px;height:34px;background:var(--track);border-radius:4px;position:relative;overflow:hidden}
+  .core{flex:1;min-width:12px;height:32px;background:var(--track);border-radius:4px;position:relative;overflow:hidden}
   .core>i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#9b5cff,#4f8cff);transition:height .4s}
+  .offline-card{color:var(--muted);text-align:center;padding:40px 18px}
   .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
 
-  @media(max-width:680px){
+  @media(max-width:520px){
     body{padding:14px}
-    .mini{grid-template-columns:1fr}
     h1{font-size:16px}
     .clock .t{font-size:18px}
-    .ring{width:128px;height:128px}
-    .ring .pct{font-size:25px}
+    .machines{grid-template-columns:1fr}
   }
   @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
 </style>
@@ -132,152 +144,245 @@
     <div class="hl">
       <div class="logo">💻</div>
       <div>
-        <h1 id="host">Mac Dashboard</h1>
-        <div class="sub" id="hostsub">yükleniyor…</div>
+        <h1 id="title">Mac Dashboard</h1>
+        <div class="sub" id="subtitle"></div>
       </div>
     </div>
     <div class="right">
-      <button id="themeBtn" class="themebtn" title="Tema">🌓</button>
+      <button id="langBtn" class="iconbtn" title="Language">🌐</button>
+      <button id="themeBtn" class="iconbtn" title="Theme">🌓</button>
       <div class="clock">
         <div class="t" id="clock">--:--:--</div>
-        <div class="live"><span class="dotlive"></span><span id="updated">canlı</span></div>
+        <div class="live"><span class="dotlive"></span><span id="updated">live</span></div>
       </div>
     </div>
   </header>
 
+  <div class="hostbar" id="hostbar"></div>
   <div class="banner" id="alertBanner"></div>
-
-  <div class="grid gauges">
-    <div class="card gauge" id="g-cpu"></div>
-    <div class="card gauge" id="g-mem"></div>
-    <div class="card gauge" id="g-disk"></div>
-  </div>
-
-  <div class="section-title">Runner Durumu</div>
-  <div class="grid runners" id="runners"></div>
-
-  <div class="section-title">Sistem</div>
-  <div class="grid mini">
-    <div class="card">
-      <div class="kv"><span class="k">CPU (her çekirdek)</span><span class="v" id="cpucount"></span></div>
-      <div class="cores" id="cores"></div>
-      <div class="kv" style="margin-top:14px"><span class="k">Load (1m / 5m / 15m)</span><span class="v" id="load"></span></div>
-      <div class="kv"><span class="k">RAM (dolu)</span><span class="v" id="memv"></span></div>
-      <div class="bar"><i id="membar"></i></div>
-      <div class="kv" style="margin-top:10px"><span class="k">Swap</span><span class="v" id="swapv"></span></div>
-      <div class="kv"><span class="k">Disk (dolu)</span><span class="v" id="diskv"></span></div>
-      <div class="kv"><span class="k">Açık kalma</span><span class="v" id="uptime"></span></div>
-    </div>
-    <div class="card">
-      <div class="kv" style="border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:6px">
-        <span class="k">En çok bellek kullanan süreçler</span><span class="v">RSS</span></div>
-      <div id="top"></div>
-    </div>
-  </div>
-
+  <div class="machines" id="machines"></div>
   <div class="foot" id="foot"></div>
 </div>
 
 <script>
-// --- theme: auto (system) -> light -> dark ---
+// ---------------- i18n ----------------
+const T = {
+  en: {
+    sub:(ip,c)=>`Tailscale ${ip||'-'} · ${c} cores`,
+    cpu:'CPU', mem:'Memory', diskUsed:'Disk · used',
+    runners:'Runner status', system:'System',
+    perCore:'CPU (per core)', load:'Load (1m / 5m / 15m)',
+    ramUsed:'RAM (used)', swap:'Swap', diskFull:'Disk (used)', uptime:'Uptime',
+    topMem:'Top memory processes',
+    st:{busy:'running', idle:'idle', offline:'stopped'},
+    notRunning:'not running', up:'up: ', noRunners:'No runners found',
+    live:'live', noConn:'no connection',
+    highUse:'High usage:', refresh:'refreshes every 1s',
+    online:'online', offline:'offline', unreachable:'unreachable',
+    addMachine:'＋ machine', addName:'Machine name?', addUrl:'URL (e.g. http://100.x.x.x:8765)',
+    themeNames:{auto:'system', light:'light', dark:'dark'},
+    langName:'Language', dunit:{d:'d', h:'h', m:'m'},
+  },
+  tr: {
+    sub:(ip,c)=>`Tailscale ${ip||'-'} · ${c} çekirdek`,
+    cpu:'CPU', mem:'Bellek', diskUsed:'Disk · dolu',
+    runners:'Runner durumu', system:'Sistem',
+    perCore:'CPU (her çekirdek)', load:'Load (1m / 5m / 15m)',
+    ramUsed:'RAM (dolu)', swap:'Swap', diskFull:'Disk (dolu)', uptime:'Açık kalma',
+    topMem:'En çok bellek kullanan süreçler',
+    st:{busy:'çalışıyor', idle:'boşta', offline:'durdu'},
+    notRunning:'çalışmıyor', up:'açık: ', noRunners:'Runner bulunamadı',
+    live:'canlı', noConn:'bağlantı yok',
+    highUse:'Yüksek kullanım:', refresh:'her 1 sn yenilenir',
+    online:'çevrimiçi', offline:'çevrimdışı', unreachable:'ulaşılamıyor',
+    addMachine:'＋ makine', addName:'Makine adı?', addUrl:'URL (örn. http://100.x.x.x:8765)',
+    themeNames:{auto:'sistem', light:'açık', dark:'koyu'},
+    langName:'Dil', dunit:{d:'g', h:'s', m:'d'},
+  },
+};
+const LKEY='sysdash-lang';
+function langPref(){return localStorage.getItem(LKEY)||'auto'}
+function resolveLang(){
+  const p=langPref();
+  if(p==='en'||p==='tr')return p;
+  return (navigator.language||'en').toLowerCase().startsWith('tr')?'tr':'en';
+}
+let L=resolveLang(), t=T[L];
+const langBtn=document.getElementById('langBtn');
+function applyLang(){
+  L=resolveLang(); t=T[L];
+  document.documentElement.lang=L;
+  const p=langPref();
+  langBtn.textContent = p==='auto'?'🌐':p.toUpperCase();
+  langBtn.title=t.langName+': '+(p==='auto'?t.themeNames.auto:p);
+}
+langBtn.addEventListener('click',()=>{
+  const order=['auto','en','tr'];
+  localStorage.setItem(LKEY, order[(order.indexOf(langPref())+1)%3]);
+  applyLang(); renderAll();
+});
+
+// ---------------- theme ----------------
 const TKEY='sysdash-theme';
 const tbtn=document.getElementById('themeBtn');
 const mq=window.matchMedia('(prefers-color-scheme: dark)');
-function pref(){return localStorage.getItem(TKEY)||'auto'}
+function themePref(){return localStorage.getItem(TKEY)||'auto'}
 function applyTheme(){
-  const p=pref(), resolved=p==='auto'?(mq.matches?'dark':'light'):p;
+  const p=themePref(), resolved=p==='auto'?(mq.matches?'dark':'light'):p;
   document.documentElement.dataset.theme=resolved;
   tbtn.textContent = p==='auto'?'🌓':p==='light'?'☀️':'🌙';
-  tbtn.title='Tema: '+(p==='auto'?'sistem':p==='light'?'açık':'koyu');
+  tbtn.title='Theme: '+t.themeNames[p];
 }
 tbtn.addEventListener('click',()=>{
   const order=['auto','light','dark'];
-  localStorage.setItem(TKEY, order[(order.indexOf(pref())+1)%3]);
+  localStorage.setItem(TKEY, order[(order.indexOf(themePref())+1)%3]);
   applyTheme();
 });
-mq.addEventListener('change',()=>{if(pref()==='auto')applyTheme();});
-applyTheme();
+mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
 
-const WARN=75, CRIT=90;
-const R=66, C=2*Math.PI*R;
-function ring(id,label,pct,meta){
+// ---------------- hosts (multi-machine) ----------------
+// host 0 is always "self" (served origin). Peers are stored in localStorage.
+const HKEY='sysdash-hosts';
+const DEFAULT_PEERS=[{name:'Ekos MacBook Pro', base:'http://100.121.169.10:8765'}];
+function peers(){
+  try{const v=JSON.parse(localStorage.getItem(HKEY)); if(Array.isArray(v))return v;}catch(e){}
+  return DEFAULT_PEERS;
+}
+function setPeers(p){localStorage.setItem(HKEY, JSON.stringify(p));}
+function hosts(){return [{name:'', base:'', self:true}, ...peers()];}
+const lastData={};  // base -> {data, online}
+
+function renderHostbar(){
+  const hb=document.getElementById('hostbar');
+  const ps=peers();
+  hb.innerHTML = ps.map((p,i)=>`<span class="chip"><b>${p.name||p.base}</b>
+    <span class="x" data-i="${i}" title="remove">✕</span></span>`).join('')
+    + `<button class="iconbtn" id="addHost" style="font-size:13px">${t.addMachine}</button>`;
+  hb.querySelectorAll('.x').forEach(x=>x.onclick=()=>{
+    const ps2=peers(); ps2.splice(+x.dataset.i,1); setPeers(ps2); renderHostbar(); renderAll();
+  });
+  document.getElementById('addHost').onclick=()=>{
+    const name=prompt(t.addName); if(!name)return;
+    let base=prompt(t.addUrl); if(!base)return;
+    base=base.replace(/\/+$/,'');
+    const ps2=peers(); ps2.push({name, base}); setPeers(ps2); renderHostbar(); renderAll();
+  };
+}
+
+// ---------------- rendering ----------------
+const WARN=75, CRIT=90, R=66, C=2*Math.PI*R;
+function gb(b){return (b/1073741824).toFixed(1)+' GB'}
+function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
+function ringHTML(label,pct,meta){
   const crit=pct>=CRIT, warn=pct>=WARN;
-  const col = crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
-  const off = C*(1-pct/100);
-  const el=document.getElementById(id);
-  el.classList.toggle('crit',crit);
-  el.innerHTML=`
+  const col=crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
+  const off=C*(1-pct/100);
+  return `<div class="card gauge ${crit?'crit':''}">
     ${crit?`<div class="alert-badge">⚠️ %${pct.toFixed(0)}</div>`:''}
     <div class="label">${label}</div>
-    <div class="ring">
-      <svg width="150" height="150" viewBox="0 0 150 150">
-        <circle class="track" cx="75" cy="75" r="${R}" stroke-width="13" fill="none"/>
-        <circle cx="75" cy="75" r="${R}" stroke="${col}" stroke-width="13" fill="none"
-          stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"
-          style="transition:stroke-dashoffset .6s,stroke .6s"/>
-      </svg>
-      <div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:15px">%</span></div>
-        <div class="meta">${meta}</div></div>
-    </div>`;
+    <div class="ring"><svg width="128" height="128" viewBox="0 0 150 150">
+      <circle class="track" cx="75" cy="75" r="${R}" stroke-width="13" fill="none"/>
+      <circle cx="75" cy="75" r="${R}" stroke="${col}" stroke-width="13" fill="none"
+        stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+    </svg><div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:14px">%</span></div>
+      <div class="meta">${meta}</div></div></div>
+  </div>`;
 }
-function gb(b){return (b/1073741824).toFixed(1)+' GB'}
-function dur(s){if(s==null)return '—';let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
-  if(d)return `${d}g ${h}s`; if(h)return `${h}s ${m}d`; return `${m}d`}
-const LBL={busy:'çalışıyor',idle:'boşta',offline:'durdu'};
-
-async function tick(){
-  try{
-    const s=await (await fetch('/api/stats',{cache:'no-store'})).json();
-    document.getElementById('host').textContent=s.host;
-    document.getElementById('hostsub').textContent=`Tailscale ${s.tailscale_ip||'-'} · ${s.cpu.count} çekirdek`;
-    ring('g-cpu','CPU',s.cpu.pct,`${s.cpu.count} çekirdek`);
-    ring('g-mem','Bellek',s.mem.pct,`${gb(s.mem.used)} / ${gb(s.mem.total)}`);
-    ring('g-disk','Disk · dolu',s.disk.pct,`${gb(s.disk.used)} / ${gb(s.disk.total)}`);
-
-    // high-usage (>=90%) alerts
-    const al=[];
-    if(s.cpu.pct>=CRIT)al.push('CPU %'+s.cpu.pct.toFixed(0));
-    if(s.mem.pct>=CRIT)al.push('RAM %'+s.mem.pct.toFixed(0));
-    if(s.disk.pct>=CRIT)al.push('Disk %'+s.disk.pct.toFixed(0));
-    const banner=document.getElementById('alertBanner');
-    if(al.length){banner.style.display='flex';banner.textContent='⚠️ Yüksek kullanım: '+al.join('  ·  ');
-      document.title='⚠️ ('+al.length+') Mac Dashboard';}
-    else{banner.style.display='none';document.title='Mac Dashboard';}
-
-    document.getElementById('runners').innerHTML=s.runners.length? s.runners.map(r=>`
+function machineHTML(host, entry){
+  const online = entry && entry.online;
+  const s = online ? entry.data : null;
+  const name = host.self ? (s?s.host:'Bu Mac') : (host.name||host.base);
+  let body;
+  if(!online){
+    body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
+  } else {
+    const kv=(label,pct,txt)=>`<div class="kv"><span class="k">${label}</span><span class="v ${pct>=CRIT?'crit':''}">${txt}</span></div>`;
+    const runners = s.runners.length ? s.runners.map(r=>`
       <a class="card runner ${r.status}" ${r.url?`href="${r.url}" target="_blank" rel="noopener"`:''} title="${r.dir||''}">
-        <div class="row1">
-          <div class="name">${r.name}${r.url?'<span class="ext">↗</span>':''}</div>
-          <span class="pill ${r.status}"><span class="d"></span>${LBL[r.status]}</span>
-        </div>
+        <div class="row1"><div class="name">${r.name}${r.url?'<span class="ext">↗</span>':''}</div>
+          <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span></div>
         <div class="repo">${r.repo||'—'}</div>
-        <div class="up">${r.status==='offline'?'çalışmıyor':'açık: '+dur(r.uptime)}</div>
-      </a>`).join('') : '<div class="card" style="color:var(--muted);grid-column:1/-1">Runner bulunamadı</div>';
-
-    document.getElementById('cpucount').textContent=s.cpu.pct.toFixed(0)+'%';
-    document.getElementById('cores').innerHTML=s.cpu.cores.map(c=>
-      `<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('');
-    document.getElementById('load').textContent=s.cpu.load.join('  /  ');
-    const setKV=(id,pct,txt)=>{const e=document.getElementById(id);e.textContent=txt;e.classList.toggle('crit',pct>=CRIT)};
-    setKV('memv',s.mem.pct,`${gb(s.mem.used)} / ${gb(s.mem.total)} (${s.mem.pct}%)`);
-    document.getElementById('membar').style.width=s.mem.pct+'%';
-    setKV('swapv',s.swap.pct,`${gb(s.swap.used)} / ${gb(s.swap.total)} (${s.swap.pct}%)`);
-    setKV('diskv',s.disk.pct,`${gb(s.disk.used)} / ${gb(s.disk.total)} (${s.disk.pct}%)`);
-    document.getElementById('uptime').textContent=dur(s.uptime);
-
+        <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
+      </a>`).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
-    document.getElementById('top').innerHTML=s.top.map(p=>`
-      <div class="proc"><span class="pn">${p.name}</span>
-        <span style="width:90px"><span class="bar"><i style="width:${p.rss/maxr*100}%"></i></span></span>
-        <span class="pm">${gb(p.rss)}</span></div>`).join('');
-
-    document.getElementById('updated').textContent='canlı · '+new Date().toLocaleTimeString('tr-TR');
-    document.getElementById('foot').textContent='sysdash · '+s.host+' · her 1 sn yenilenir';
-  }catch(e){document.getElementById('updated').textContent='bağlantı yok…'}
+    body = `
+      <div class="grid gauges">
+        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'))}
+        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total))}
+        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total))}
+      </div>
+      <div class="section-title">${t.runners}</div>
+      <div class="grid runners">${runners}</div>
+      <div class="section-title">${t.system}</div>
+      <div class="card">
+        <div class="kv"><span class="k">${t.perCore}</span><span class="v">${s.cpu.pct.toFixed(0)}%</span></div>
+        <div class="cores">${s.cpu.cores.map(c=>`<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('')}</div>
+        <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v">${s.cpu.load.join('  /  ')}</span></div>
+        ${kv(t.ramUsed, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total)+' ('+s.mem.pct+'%)')}
+        <div class="bar"><i style="width:${s.mem.pct}%"></i></div>
+        <div style="height:10px"></div>
+        ${kv(t.swap, s.swap.pct, gb(s.swap.used)+' / '+gb(s.swap.total)+' ('+s.swap.pct+'%)')}
+        ${kv(t.diskFull, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+' ('+s.disk.pct+'%)')}
+        <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="kv" style="padding-bottom:10px;margin-bottom:6px"><span class="k">${t.topMem}</span><span class="v">RSS</span></div>
+        ${s.top.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
+          <span style="width:80px"><span class="bar"><i style="width:${p.rss/maxr*100}%"></i></span></span>
+          <span class="pm">${gb(p.rss)}</span></div>`).join('')}
+      </div>`;
+  }
+  return `<div class="machine ${online?'':'moff'}">
+    <div class="mhead">
+      <div class="mname"><span class="ic">💻</span>${name}</div>
+      <span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>
+    </div>
+    ${body}
+  </div>`;
 }
-function clock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('tr-TR')}
-setInterval(clock,1000);clock();
-tick();setInterval(tick,1000);
+
+function computeAlerts(){
+  const al=[];
+  for(const h of hosts()){
+    const e=lastData[h.base]; if(!e||!e.online)continue;
+    const s=e.data, nm=h.self?(s.host):(h.name||h.base);
+    if(s.cpu.pct>=CRIT)al.push(`${nm} CPU %${s.cpu.pct.toFixed(0)}`);
+    if(s.mem.pct>=CRIT)al.push(`${nm} RAM %${s.mem.pct.toFixed(0)}`);
+    if(s.disk.pct>=CRIT)al.push(`${nm} Disk %${s.disk.pct.toFixed(0)}`);
+  }
+  const banner=document.getElementById('alertBanner');
+  if(al.length){banner.style.display='flex';banner.textContent='⚠️ '+t.highUse+' '+al.join('  ·  ');
+    document.title='⚠️ ('+al.length+') Mac Dashboard';}
+  else{banner.style.display='none';document.title='Mac Dashboard';}
+}
+
+function renderAll(){
+  document.getElementById('title').textContent='Mac Dashboard';
+  // subtitle from self
+  const self=lastData[''];
+  document.getElementById('subtitle').textContent = self&&self.online ? t.sub(self.data.tailscale_ip, self.data.cpu.count) : '';
+  document.getElementById('machines').innerHTML = hosts().map(h=>machineHTML(h, lastData[h.base])).join('');
+  document.getElementById('foot').textContent='sysdash · '+t.refresh;
+  computeAlerts();
+}
+
+async function pollHost(h){
+  try{
+    const r=await fetch((h.base||'')+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(4000)});
+    lastData[h.base]={data:await r.json(), online:true};
+  }catch(e){ lastData[h.base]={online:false}; }
+}
+async function tick(){
+  await Promise.all(hosts().map(pollHost));
+  renderAll();
+  document.getElementById('updated').textContent=t.live+' · '+new Date().toLocaleTimeString();
+}
+function clock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString()}
+
+applyLang(); applyTheme(); renderHostbar();
+setInterval(clock,1000); clock();
+tick(); setInterval(tick,1000);
 </script>
 </body>
 </html>

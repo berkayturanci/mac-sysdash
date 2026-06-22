@@ -200,7 +200,10 @@ def stats():
     cpu = _CPU["pct"]
     vm = psutil.virtual_memory()
     sw = psutil.swap_memory()
-    du = psutil.disk_usage("/")
+    # On macOS, "/" is the read-only system snapshot (looks ~empty). The real
+    # usage lives on the APFS data volume.
+    disk_path = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
+    du = psutil.disk_usage(disk_path)
     try:
         load = psutil.getloadavg()
     except Exception:

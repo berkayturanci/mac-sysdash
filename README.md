@@ -5,14 +5,20 @@ reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
 
 It serves a single polished HTML page that shows, refreshing every second:
 
-- **CPU / Memory / Disk** as colored ring gauges (blue → amber → red)
+- **CPU / Memory / Disk** as colored ring gauges (blue → amber → red). On macOS,
+  disk usage is read from the APFS **data volume** (`/System/Volumes/Data`), not
+  the read-only system snapshot at `/`, so the number reflects real fullness
 - **High-usage alerts** at ≥90%: a red badge on the gauge, a top banner, and a
   `⚠️` prefix in the browser tab title so you notice even from another tab
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
   (`busy` / `idle` / `offline`). Click a runner to open its GitHub runner settings
+- **Multiple machines side by side** — point the page at peer machines also running
+  mac-sysdash and watch them all in one view (see below)
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, uptime, and
   the top memory-consuming processes
 - **Light / dark / auto theme** that follows the system appearance, with a toggle
+- **English / Turkish UI** — defaults to the system language, with a selector
+  (auto / EN / TR)
 
 It is a single Python file (stdlib HTTP server) plus one HTML file. The only
 third-party dependency is [`psutil`](https://github.com/giampaolo/psutil).
@@ -68,6 +74,18 @@ Runners are discovered two ways, with no code changes when you add one:
 
 Status is derived from those processes: a `Runner.Worker` means **busy**, a
 `Runner.Listener` alone means **idle**, and neither means **offline**.
+
+## Multiple machines
+
+Run mac-sysdash on each machine, then add the others as peers from the page —
+click **＋ machine** in the host bar and enter a name and URL
+(e.g. `http://100.121.169.10:8765`, typically a Tailscale IP). Each machine is
+polled directly from your browser and rendered as its own panel; unreachable
+peers show an **offline** card.
+
+This works because the server sends `Access-Control-Allow-Origin: *`, so the
+browser may read `/api/stats` from every peer. Peers are stored in your
+browser's `localStorage` (key `sysdash-hosts`), so they are per-viewer.
 
 ## Configuration
 
