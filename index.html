@@ -87,6 +87,7 @@
   .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
   .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
   .batt.low{color:var(--red)}
+  .batt.warn{color:var(--amber)}
   .spark{width:100%;height:22px;margin-top:8px;opacity:.75;display:block}
   .moff{opacity:.6}
   .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
@@ -408,10 +409,12 @@ function gb(b){return (b/1073741824).toFixed(1)+' GB'}
 function rate(bps){if(bps==null)return '0';const u=['B','KB','MB','GB'];let i=0,v=bps;while(v>=1024&&i<u.length-1){v/=1024;i++}return (i?v.toFixed(1):v.toFixed(0))+' '+u[i]+'/s'}
 function batteryChip(b){
   if(!b)return '';
-  const low=!b.plugged&&b.pct<=20;
+  const low=!b.plugged&&b.pct<=20;          // red text + low-battery icon
+  const warn=!b.plugged&&b.pct<=40;         // amber text
+  const icon=low?'🪫':'🔋';                  // 🪫 = low battery
   let t='';
   if(b.secsleft){const h=Math.floor(b.secsleft/3600),m=Math.floor(b.secsleft%3600/60);t=' · '+(h?h+'s ':'')+m+'d';}
-  return `<span class="batt ${low?'low':''}" title="${b.plugged?'şarjda':'pil'}${t}">🔋 ${b.pct}%${b.plugged?' ⚡':''}</span>`;
+  return `<span class="batt ${low?'low':warn?'warn':''}" title="${b.plugged?'şarjda':'pil'}${t}">${icon} ${b.pct}%${b.plugged?' ⚡':''}</span>`;
 }
 function sparkSVG(arr,col){
   if(!arr||arr.length<2)return '';
