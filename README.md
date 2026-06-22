@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.3.2-blue)
+![version](https://img.shields.io/badge/version-1.3.3-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -168,6 +168,11 @@ This prints a clean `https://<host>.<tailnet>.ts.net` URL (no port). Open it,
 click the bell to grant permission, and you'll get alerts even from your phone.
 Stop sharing with `tailscale serve reset`. (Requires HTTPS enabled for your
 tailnet in the Tailscale admin console.)
+
+> **Multiple machines over HTTPS:** a browser on an HTTPS page can't fetch
+> `http://<peer>:8765` (mixed content), so run `./serve.sh` on *each* machine you
+> want to see. The dashboard then auto-discovers peers at their HTTPS Tailscale
+> name. Over plain `http://…:8765` on a LAN this isn't needed.
 
 ## Tests
 

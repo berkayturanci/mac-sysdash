@@ -19,7 +19,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -208,8 +208,9 @@ def tailnet_peers(ttl=30):
                 continue
             ip = next((a for a in (p.get("TailscaleIPs") or []) if ":" not in a), None)
             if ip:
-                nm = (p.get("HostName") or p.get("DNSName") or ip).split(".")[0]
-                peers.append({"ip": ip, "name": nm})
+                dns = (p.get("DNSName") or "").rstrip(".")
+                nm = (p.get("HostName") or dns or ip).split(".")[0]
+                peers.append({"ip": ip, "name": nm, "dns": dns})
     except Exception:
         pass
     _PEERS.update(ts=now, data=peers)

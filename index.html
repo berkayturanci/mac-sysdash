@@ -189,6 +189,10 @@
     .ring .pct{font-size:21px}
     .gmeta{font-size:10px;white-space:normal}
     .runners{grid-template-columns:1fr}
+    /* clock on its own line, top-left of the controls, with buttons below */
+    .right{width:100%;flex-wrap:wrap}
+    .clock{order:-1;flex-basis:100%;text-align:left}
+    .clock .live{justify-content:flex-start}
   }
   @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
 </style>
@@ -661,10 +665,14 @@ async function discover(){
   try{
     const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(4000)})).json();
     const selfIp=(lastData['']&&lastData[''].online)?lastData[''].data.tailscale_ip:null;
+    const secure=location.protocol==='https:';  // HTTPS page can't fetch http peers (mixed content)
     const found=[];
     await Promise.all((list||[]).map(async p=>{
       if(!p.ip||p.ip===selfIp)return;
-      const base='http://'+p.ip+':8765';
+      // on HTTPS, reach the peer over its Tailscale HTTPS name (needs serve.sh there);
+      // on HTTP, hit the peer directly on :8765.
+      const base = secure ? (p.dns ? 'https://'+p.dns : null) : 'http://'+p.ip+':8765';
+      if(!base)return;
       try{const r=await fetch(base+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(2500)});
         if(r.ok){lastData[base]={data:await r.json(),online:true};found.push({base});}}catch(_){}
     }));

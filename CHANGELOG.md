@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] - 2026-06-22
+
+### Fixed
+- Multi-machine over HTTPS: when the page is served over HTTPS, peers are now
+  probed at their Tailscale HTTPS name (`https://<host>.<tailnet>.ts.net`) instead
+  of `http://<ip>:8765`, which browsers block as mixed content. Each peer must run
+  `./serve.sh` to be reachable over HTTPS.
+
+### Changed
+- Mobile header: clock moves to the top-left on its own line above the buttons.
+
+[1.3.3]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.3.3
+
 ## [1.3.2] - 2026-06-22
 
 ### Fixed
