@@ -13,8 +13,9 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script>(function(){var u=new URLSearchParams(location.search).get('theme');
-  var p=(u==='light'||u==='dark')?u:(localStorage.getItem('sysdash-theme')||'auto');
-  var d=(p==='light'||p==='dark')?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  var x=function(v){return v==='light'||v==='dark'||v==='night'};
+  var p=x(u)?u:(localStorage.getItem('sysdash-theme')||'auto');
+  var d=x(p)?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
   document.documentElement.dataset.theme=d;})();</script>
 <style>
   :root{
@@ -39,6 +40,20 @@
     --pill-busy-fg:#0a7a3a; --pill-busy-bg:rgba(20,154,76,.13); --pill-busy-bd:rgba(20,154,76,.45);
     --pill-off-fg:#52607a; --pill-off-bg:rgba(90,102,120,.12); --pill-off-bd:rgba(90,102,120,.4);
   }
+  /* night: very dark, low-contrast, desaturated, no motion — for working at night */
+  :root[data-theme="night"]{
+    --bg:#04060a; --panel:#080b10; --panel2:#0a0e14; --line:#161c26;
+    --txt:#8b97a8; --muted:#525d6e; --accent:#5777a0;
+    --green:#487a5f; --amber:#8f7740; --red:#9e5a5a; --gray:#384150;
+    --track:#090d12;
+    --bggrad:#04060a;
+    --shadow:none;
+    --pill-idle-fg:#7e93b3; --pill-idle-bg:rgba(87,119,160,.12); --pill-idle-bd:rgba(87,119,160,.3);
+    --pill-busy-fg:#6fae8c; --pill-busy-bg:rgba(72,122,95,.12); --pill-busy-bd:rgba(72,122,95,.3);
+    --pill-off-fg:#5b6677; --pill-off-bg:rgba(60,70,86,.14); --pill-off-bd:rgba(60,70,86,.35);
+  }
+  :root[data-theme="night"] *{animation:none!important}          /* no pulsing/motion */
+  :root[data-theme="night"] .wrap{filter:saturate(.6)}          /* calmer, less colorful */
   *{box-sizing:border-box;margin:0;padding:0}
   body{
     background:var(--bggrad);
@@ -145,6 +160,9 @@
   .pill.idle{color:var(--pill-idle-fg);background:var(--pill-idle-bg);border-color:var(--pill-idle-bd)}
   .pill.idle .d{background:var(--accent)}
   .pill.offline{color:var(--pill-off-fg);background:var(--pill-off-bg);border-color:var(--pill-off-bd)}
+  .runfilter{display:flex;gap:6px;margin:-2px 0 10px}
+  .rf{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;transition:background .2s,color .2s}
+  .rf.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .pill.stale{color:var(--amber);background:rgba(245,166,35,.13);border-color:rgba(245,166,35,.4)}
   .pill.stale .d{background:var(--amber)}
   .pill.offline .d{background:var(--gray)}
@@ -254,8 +272,9 @@ const T = {
     live:'live', noConn:'no connection',
     highUse:'High usage:', refresh:'refreshes every 1s',
     online:'online', offline:'offline', stale:'stale', unreachable:'unreachable',
+    fAll:'all', fActive:'active', noActive:'No active runners',
     addMachine:'＋ machine', addUrl:'Machine address (IP or URL) — e.g. 100.121.169.10',
-    themeNames:{auto:'system', light:'light', dark:'dark'},
+    themeNames:{auto:'system', light:'light', dark:'dark', night:'night'},
     langName:'Language', dunit:{d:'d', h:'h', m:'m'},
   },
   tr: {
@@ -270,8 +289,9 @@ const T = {
     live:'canlı', noConn:'bağlantı yok',
     highUse:'Yüksek kullanım:', refresh:'her 1 sn yenilenir',
     online:'çevrimiçi', offline:'çevrimdışı', stale:'bayat', unreachable:'ulaşılamıyor',
+    fAll:'tümü', fActive:'aktif', noActive:'Aktif runner yok',
     addMachine:'＋ makine', addUrl:'Makine adresi (IP veya URL) — örn. 100.121.169.10',
-    themeNames:{auto:'sistem', light:'açık', dark:'koyu'},
+    themeNames:{auto:'sistem', light:'açık', dark:'koyu', night:'gece'},
     langName:'Dil', dunit:{d:'g', h:'s', m:'d'},
   },
 };
@@ -304,15 +324,15 @@ const mq=window.matchMedia('(prefers-color-scheme: dark)');
 function themePref(){return localStorage.getItem(TKEY)||'auto'}
 function applyTheme(){
   const u=new URLSearchParams(location.search).get('theme');
-  const p=(u==='light'||u==='dark')?u:themePref();
+  const p=(u==='light'||u==='dark'||u==='night')?u:themePref();
   const resolved=p==='auto'?(mq.matches?'dark':'light'):p;
   document.documentElement.dataset.theme=resolved;
-  tbtn.textContent = p==='auto'?'🌓':p==='light'?'☀️':'🌙';
+  tbtn.textContent = p==='auto'?'🌓':p==='light'?'☀️':p==='dark'?'🌙':'🌃';
   tbtn.title='Theme: '+t.themeNames[p];
 }
 tbtn.addEventListener('click',()=>{
-  const order=['auto','light','dark'];
-  localStorage.setItem(TKEY, order[(order.indexOf(themePref())+1)%3]);
+  const order=['auto','light','dark','night'];
+  localStorage.setItem(TKEY, order[(order.indexOf(themePref())+1)%order.length]);
   applyTheme();
 });
 mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
@@ -410,6 +430,8 @@ function ringHTML(label,pct,meta,spark,chart){
   </div>`;
 }
 // collapsible sections (global across machines)
+function runFilter(){return localStorage.getItem('sysdash-runfilter')||'all'}
+function setRunFilter(v){localStorage.setItem('sysdash-runfilter',v);renderAll();}
 function collapseState(){try{return JSON.parse(localStorage.getItem('sysdash-collapse'))||{}}catch(e){return {}}}
 function isCollapsed(k){return !!collapseState()[k]}
 function toggleCollapse(k){const s=collapseState();s[k]=!s[k];localStorage.setItem('sysdash-collapse',JSON.stringify(s));renderAll();}
@@ -432,7 +454,9 @@ function machineHTML(host, entry){
     body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
   } else {
     const kv=(label,pct,txt)=>`<div class="kv"><span class="k">${label}</span><span class="v ${pct>=CRIT?'crit':''}">${txt}</span></div>`;
-    const runners = s.runners.length ? s.runners.map((r,ri)=>{
+    const rf=runFilter();
+    const rows=s.runners.map((r,ri)=>{
+      if(rf==='active' && r.status!=='busy') return '';
       return `<div class="card runner clickable ${r.status}" data-base="${esc(host.base)}" data-ri="${ri}" title="${L==='tr'?'detay için tıkla':'click for details'}">
         <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div>
           <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span></div>
@@ -441,7 +465,13 @@ function machineHTML(host, entry){
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
       </div>`;
-    }).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
+    }).filter(Boolean);
+    const runners = rows.length ? rows.join('')
+      : `<div class="card" style="color:var(--muted);grid-column:1/-1">${rf==='active'?t.noActive:t.noRunners}</div>`;
+    const runnersInner = `<div class="runfilter">
+        <button class="rf ${rf==='all'?'on':''}" data-rf="all">${t.fAll}</button>
+        <button class="rf ${rf==='active'?'on':''}" data-rf="active">${t.fActive}</button>
+      </div><div class="grid runners">${runners}</div>`;
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
     const sysInner = `<div class="card">
         <div class="kv"><span class="k">${t.perCore}</span><span class="v">${s.cpu.pct.toFixed(0)}%</span></div>
@@ -466,7 +496,7 @@ function machineHTML(host, entry){
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
         ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
       </div>
-      ${sec('runners', t.runners, `<div class="grid runners">${runners}</div>`)}
+      ${sec('runners', t.runners, runnersInner)}
       ${sec('system', t.system, sysInner)}
       ${sec('procs', t.topMem, topInner)}`;
   }
@@ -512,7 +542,7 @@ function renderAll(){
   const self=lastData[''];
   document.getElementById('subtitle').textContent = self&&self.online ? t.sub(self.data.tailscale_ip, self.data.cpu.count) : '';
   document.getElementById('machines').innerHTML = hosts().map(h=>machineHTML(h, lastData[h.base])).join('');
-  document.getElementById('foot').textContent='sysdash'+(self&&self.online&&self.data.version?' v'+self.data.version:'')+' · '+t.refresh;
+  document.getElementById('foot').textContent='sysdash'+(self&&self.online&&self.data.version?' v'+self.data.version:'')+' · '+t.refresh+' · © Berkay Turancı';
   computeAlerts();
 }
 
@@ -546,6 +576,7 @@ mWrap.addEventListener('dragover',e=>{if(dragBase==null)return;e.preventDefault(
 mWrap.addEventListener('drop',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');if(m){const order=hosts().map(h=>h.base).filter(b=>b!==dragBase);const ti=order.indexOf(m.dataset.base);order.splice(ti<0?order.length:ti,0,dragBase);setOrder(order);}dragBase=null;isDragging=false;renderAll();});
 mWrap.addEventListener('dragend',()=>{dragBase=null;isDragging=false;mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));});
 mWrap.addEventListener('click',e=>{
+  const rfb=e.target.closest('.rf'); if(rfb){setRunFilter(rfb.dataset.rf);return;}
   const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
   const rn=e.target.closest('.runner.clickable'); if(rn){openRunner(rn.dataset.base,+rn.dataset.ri);return;}
   const g=e.target.closest('.gauge.clickable'); if(g&&g.dataset.chart){openChart(g.dataset.chart);}
@@ -563,7 +594,9 @@ function drawRunner(){
   const wfUrl=wf=>(r.repo&&wf)?'https://github.com/'+r.repo+'/actions/workflows/'+encodeURIComponent(wf):actions;
   const hist=(r.history&&r.history.length)?r.history.map(j=>{
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
-    return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener">
+    const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const tip=`${j.workflow||'workflow'}${j.branch?' · '+j.branch:''} · ${j.result||'?'} · ${dur(j.dur)} · ${when}`;
+    return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener" title="${esc(tip)}">
       <span class="hdot ${cls}"></span>
       <span class="rm-wf">${esc(j.workflow||'workflow')}${j.branch?' · '+esc(j.branch):''}</span>
       <span class="rm-meta">${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}</span>
@@ -584,20 +617,33 @@ document.getElementById('runnerClose').addEventListener('click',closeRunner);
 document.getElementById('runnerModal').addEventListener('click',e=>{if(e.target.id==='runnerModal')closeRunner();});
 
 // --- gauge chart modal ---
-let chartKey=null;
-function openChart(k){chartKey=k;drawChart();document.getElementById('chartModal').hidden=false;}
-function closeChart(){chartKey=null;document.getElementById('chartModal').hidden=true;}
+let chartKey=null, chartHover=null, _chartArr=[];
+const _CW=700,_CH=240,_CP=24;
+function openChart(k){chartKey=k;chartHover=null;drawChart();document.getElementById('chartModal').hidden=false;}
+function closeChart(){chartKey=null;chartHover=null;document.getElementById('chartModal').hidden=true;}
 function drawChart(){
   if(!chartKey)return;
   const [base,metric]=chartKey.split('|');
   const e=lastData[base]; if(!e||!e.online){closeChart();return;}
   const s=e.data, arr=(s.hist&&s.hist[metric])||[];
+  _chartArr=arr;
   const nm=base===''?s.host:(s.host||base), label=metric==='cpu'?t.cpu:metric==='mem'?t.mem:t.diskUsed;
   const cur=arr.length?arr[arr.length-1]:0, mx=arr.length?Math.max(...arr):0, mn=arr.length?Math.min(...arr):0;
   document.getElementById('chartTitle').textContent=nm+' · '+label;
-  const W=700,H=240,p=24;
-  const path=arr.length>1?arr.map((v,i)=>`${(p+i/(arr.length-1)*(W-2*p)).toFixed(1)},${(H-p-(Math.max(0,Math.min(100,v))/100)*(H-2*p)).toFixed(1)}`).join(' '):'';
-  const grid=[0,25,50,75,100].map(y=>{const yy=(H-p-(y/100)*(H-2*p)).toFixed(1);return `<line x1="${p}" y1="${yy}" x2="${W-p}" y2="${yy}" stroke="var(--line)" stroke-dasharray="3 4" opacity=".6"/><text x="2" y="${(+yy+4)}" fill="var(--muted)" font-size="10">${y}</text>`;}).join('');
+  const W=_CW,H=_CH,p=_CP;
+  const xat=i=>p+i/(Math.max(1,arr.length-1))*(W-2*p);
+  const yat=v=>H-p-(Math.max(0,Math.min(100,v))/100)*(H-2*p);
+  const path=arr.length>1?arr.map((v,i)=>`${xat(i).toFixed(1)},${yat(v).toFixed(1)}`).join(' '):'';
+  const grid=[0,25,50,75,100].map(y=>{const yy=yat(y).toFixed(1);return `<line x1="${p}" y1="${yy}" x2="${W-p}" y2="${yy}" stroke="var(--line)" stroke-dasharray="3 4" opacity=".6"/><text x="2" y="${(+yy+4)}" fill="var(--muted)" font-size="10">${y}</text>`;}).join('');
+  let cross='';
+  if(chartHover!=null && arr.length>1 && chartHover>=0 && chartHover<arr.length){
+    const i=chartHover, v=arr[i], x=xat(i), y=yat(v), age=arr.length-1-i;
+    const ageT=age<=0?(L==='tr'?'şimdi':'now'):age+'s'+(L==='tr'?' önce':' ago');
+    const anc=x>W*0.6?'end':'start', dx=x>W*0.6?-9:9;
+    cross=`<line x1="${x.toFixed(1)}" y1="${p}" x2="${x.toFixed(1)}" y2="${H-p}" stroke="var(--muted)" stroke-dasharray="3 3" opacity=".8"/>
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6" fill="#4f8cff"/>
+      <text x="${(x+dx).toFixed(1)}" y="${Math.max(p+12,y-9).toFixed(1)}" fill="var(--txt)" font-size="12.5" font-weight="700" text-anchor="${anc}">${v.toFixed(0)}% · ${ageT}</text>`;
+  }
   document.getElementById('chartBody').innerHTML=`
     <div style="display:flex;gap:18px;color:var(--muted);font-size:13px;margin-bottom:10px">
       <span>${L==='tr'?'şu an':'now'}: <b style="color:var(--txt)">${cur.toFixed(0)}%</b></span>
@@ -605,11 +651,19 @@ function drawChart(){
       <span>min: <b style="color:var(--txt)">${mn.toFixed(0)}%</b></span>
       <span style="margin-left:auto">${L==='tr'?'son':'last'} ~${Math.max(1,Math.round(arr.length/60))} ${L==='tr'?'dk':'min'}</span>
     </div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}
-      <polyline points="${path}" fill="none" stroke="#4f8cff" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+    <svg id="chartSvg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;cursor:crosshair">${grid}
+      <polyline points="${path}" fill="none" stroke="#4f8cff" stroke-width="2" vector-effect="non-scaling-stroke"/>${cross}</svg>`;
 }
 document.getElementById('chartClose').addEventListener('click',closeChart);
 document.getElementById('chartModal').addEventListener('click',e=>{if(e.target.id==='chartModal')closeChart();});
+document.getElementById('chartBody').addEventListener('mousemove',e=>{
+  const svg=document.getElementById('chartSvg'); if(!svg||_chartArr.length<2)return;
+  const r=svg.getBoundingClientRect();
+  const f=((e.clientX-r.left)/r.width - _CP/_CW)/((_CW-2*_CP)/_CW);
+  const idx=Math.round(Math.max(0,Math.min(1,f))*(_chartArr.length-1));
+  if(idx!==chartHover){chartHover=idx;drawChart();}
+});
+document.getElementById('chartBody').addEventListener('mouseleave',()=>{if(chartHover!=null){chartHover=null;drawChart();}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeChart();closeRunner();}});
 
 // --- notifications bell ---

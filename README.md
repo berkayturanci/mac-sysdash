@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.6.0-blue)
+![version](https://img.shields.io/badge/version-1.7.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -43,12 +43,15 @@ the installer sets that up for you in an isolated virtualenv.
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
   throughput, battery, uptime, and the top memory-consuming processes.
 - **Trends** — a 60-second sparkline under each gauge (CPU / memory / disk);
-  **click a gauge** for a larger ~5-minute time-series chart.
+  **click a gauge** for a larger ~5-minute time-series chart with a **hover
+  crosshair** (value + time at the cursor).
+- **Runner filter** — show **all** runners or only the **active** (busy) ones.
 - **Notifications** — desktop/phone alerts when a metric goes critical (needs HTTPS).
 - **Per-machine local time** (with timezone) — handy across timezones.
 - **Installable (PWA)** — "Add to Home Screen" on iOS/Android for an app-like,
   full-screen view from your phone.
-- **Light / dark / auto theme** following the system appearance, with a toggle.
+- **Light / dark / night / auto theme** following the system appearance, with a
+  toggle. **Night** is a dimmed, desaturated, motion-free mode for working late.
 - **English / Turkish UI** — defaults to the system language, with an
   auto / EN / TR selector.
 - **Light on resources** — ~20 MB RAM, ≈0 % CPU. Runs at login and self-restarts

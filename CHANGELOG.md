@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-06-23
+
+### Added
+- **Night theme** — a dimmed, desaturated, motion-free mode for working late
+  (theme toggle now cycles auto → light → dark → night).
+- **Runner filter** — show all runners or only the active (busy) ones.
+- **Chart hover crosshair** — hovering the time-series chart shows the value and
+  how long ago at the cursor.
+- **Runner history tooltips** — each recent run shows full workflow · branch/PR ·
+  result · duration · exact date-time on hover.
+- Footer credit.
+
+[1.7.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.7.0
+
 ## [1.6.0] - 2026-06-22
 
 ### Added
