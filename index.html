@@ -58,6 +58,7 @@
     transition:transform .15s,background .3s,border-color .3s;box-shadow:var(--shadow);flex:0 0 auto}
   .iconbtn:hover{transform:translateY(-1px)}
   .iconbtn:active{transform:scale(.94)}
+  .iconbtn.active{background:var(--accent);border-color:var(--accent);box-shadow:0 4px 14px rgba(79,140,255,.45)}
   .clock{text-align:right}
   .clock .t{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
   .clock .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:2px}
@@ -580,14 +581,22 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart();});
 
 // --- notifications bell ---
 const bell=document.getElementById('bellBtn');
-function bellState(){const on=localStorage.getItem('sysdash-notify')==='1';bell.textContent=on?'🔔':'🔕';
-  bell.title=on?(L==='tr'?'bildirim açık':'notifications on'):(L==='tr'?'bildirim kapalı':'notifications off');}
+function bellState(){const on=localStorage.getItem('sysdash-notify')==='1';
+  bell.textContent=on?'🔔':'🔕';
+  bell.classList.toggle('active',on);
+  bell.title=on?(L==='tr'?'Bildirim AÇIK (kapatmak için tıkla)':'Notifications ON (click to turn off)')
+               :(L==='tr'?'Bildirim kapalı (açmak için tıkla)':'Notifications off (click to turn on)');}
 bell.addEventListener('click',async()=>{
   if(!('Notification' in window)){alert(L==='tr'?'Tarayıcı bildirim desteklemiyor':'Notifications not supported');return;}
   if(localStorage.getItem('sysdash-notify')==='1'){localStorage.setItem('sysdash-notify','0');bellState();return;}
   let perm=Notification.permission; if(perm!=='granted')perm=await Notification.requestPermission();
-  if(perm!=='granted'){alert(L==='tr'?'İzin verilmedi (HTTPS gerekebilir)':'Permission denied (HTTPS may be required)');return;}
+  if(perm!=='granted'){
+    alert(L==='tr'?'İzin verilmedi. Bildirim için HTTPS gerekir — ./serve.sh ile açılan https://…ts.net adresinden dene.'
+                   :'Permission denied. Notifications require HTTPS — open the https://…ts.net URL from ./serve.sh.');
+    bellState();return;
+  }
   localStorage.setItem('sysdash-notify','1');bellState();
+  try{new Notification(L==='tr'?'🔔 Bildirimler açık':'🔔 Notifications enabled',{body:L==='tr'?'Kritik kullanımda haber vereceğim.':'You\'ll be alerted on critical usage.'});}catch(_){}
 });
 
 // --- tailnet peer auto-discovery ---
