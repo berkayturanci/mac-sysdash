@@ -110,6 +110,9 @@
   .pill.idle .d{background:var(--accent)}
   .pill.offline{color:var(--pill-off-fg);background:var(--pill-off-bg);border-color:var(--pill-off-bd)}
   .pill.offline .d{background:var(--gray)}
+  .jobinfo{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px}
+  .jline{font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jmuted{color:var(--muted);font-style:italic}
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
@@ -280,6 +283,17 @@ function renderHostbar(){
 
 // ---------------- rendering ----------------
 const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function jobHTML(j){
+  const p=[];
+  if(j.pr) p.push(`<div class="jline">🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}</div>`);
+  if(j.issue) p.push(`<div class="jline"># issue #${j.issue}</div>`);
+  if(j.branch) p.push(`<div class="jline">⎇ ${esc(j.branch)}${j.base?' → '+esc(j.base):''}</div>`);
+  if(j.tag) p.push(`<div class="jline">🏷 ${esc(j.tag)}</div>`);
+  if(j.workflow) p.push(`<div class="jline">⚙ ${esc(j.workflow)}</div>`);
+  if(j.commit) p.push(`<div class="jline jmuted">“${esc(j.commit)}”</div>`);
+  return p.length?`<div class="jobinfo">${p.join('')}</div>`:'';
+}
 function gb(b){return (b/1073741824).toFixed(1)+' GB'}
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
@@ -307,13 +321,16 @@ function machineHTML(host, entry){
     body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
   } else {
     const kv=(label,pct,txt)=>`<div class="kv"><span class="k">${label}</span><span class="v ${pct>=CRIT?'crit':''}">${txt}</span></div>`;
-    const runners = s.runners.length ? s.runners.map(r=>`
-      <a class="card runner ${r.status}" ${r.url?`href="${r.url}" target="_blank" rel="noopener"`:''} title="${r.dir||''}">
-        <div class="row1"><div class="name">${r.name}${r.url?'<span class="ext">↗</span>':''}</div>
+    const runners = s.runners.length ? s.runners.map(r=>{
+      const href = (r.job&&r.job.pr_url) ? r.job.pr_url : r.url;
+      return `<a class="card runner ${r.status}" ${href?`href="${href}" target="_blank" rel="noopener"`:''} title="${esc(r.dir||'')}">
+        <div class="row1"><div class="name">${esc(r.name)}${href?'<span class="ext">↗</span>':''}</div>
           <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span></div>
-        <div class="repo">${r.repo||'—'}</div>
+        <div class="repo">${esc(r.repo||'—')}</div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
-      </a>`).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
+        ${r.job?jobHTML(r.job):''}
+      </a>`;
+    }).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
     body = `
       <div class="grid gauges">

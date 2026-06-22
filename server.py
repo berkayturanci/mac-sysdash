@@ -148,6 +148,45 @@ def discover_runners(ttl=30):
     return runners
 
 
+def runner_job(runner_dir):
+    """Best-effort current-job context for a busy runner, read locally from the
+    runner's last-written webhook event payload — no GitHub token needed."""
+    ev = os.path.join(runner_dir, "_work", "_temp", "_github_workflow", "event.json")
+    try:
+        with open(ev, encoding="utf-8-sig") as f:
+            d = json.load(f)
+    except Exception:
+        return None
+    job = {}
+    pr = d.get("pull_request") or {}
+    if pr:
+        job["pr"] = pr.get("number")
+        job["pr_title"] = pr.get("title")
+        job["pr_url"] = pr.get("html_url")
+        job["branch"] = (pr.get("head") or {}).get("ref")
+        job["base"] = (pr.get("base") or {}).get("ref")
+    else:
+        ref = d.get("ref") or ""
+        if ref.startswith("refs/heads/"):
+            job["branch"] = ref[len("refs/heads/"):]
+        elif ref.startswith("refs/tags/"):
+            job["tag"] = ref[len("refs/tags/"):]
+    msg = ((d.get("head_commit") or {}).get("message") or "").splitlines()
+    if msg:
+        job["commit"] = msg[0][:90]
+    wf = d.get("workflow")
+    if isinstance(wf, str) and wf:
+        job["workflow"] = wf.rsplit("/", 1)[-1]
+    iss = d.get("issue") or {}
+    if iss.get("number"):
+        job["issue"] = iss.get("number")
+        job["issue_url"] = iss.get("html_url")
+    actor = (d.get("sender") or {}).get("login")
+    if actor:
+        job["actor"] = actor
+    return {k: v for k, v in job.items() if v} or None
+
+
 def runner_status():
     """Classify each discovered runner as busy / idle / offline."""
     runners = discover_runners()
@@ -174,12 +213,17 @@ def runner_status():
             status, since = "offline", None
         url = (f"https://github.com/{r['repo']}/settings/actions/runners"
                if r["repo"] else "")
-        result.append({
+        entry = {
             "id": r["id"], "name": r["name"], "repo": r["repo"],
             "status": status,
             "uptime": int(now - since) if since else None,
             "url": url, "dir": d,
-        })
+        }
+        if status == "busy":
+            j = runner_job(d)
+            if j:
+                entry["job"] = j
+        result.append(entry)
     return result
 
 
@@ -199,6 +243,11 @@ def stats():
     cores = _CPU["cores"]
     cpu = _CPU["pct"]
     vm = psutil.virtual_memory()
+    # Like disk: psutil's `used` (active only) disagrees with its `percent`
+    # (pressure = (total-available)/total, what Activity Monitor shows). Report
+    # used = total - available so the GB value and the % use the same basis.
+    mem_used = vm.total - vm.available
+    mem_pct = round(mem_used / vm.total * 100, 1) if vm.total else 0.0
     sw = psutil.swap_memory()
     # On macOS, "/" is the read-only system snapshot (looks ~empty). The real
     # usage lives on the APFS data volume.
@@ -221,7 +270,7 @@ def stats():
         "uptime": int(time.time() - psutil.boot_time()),
         "cpu": {"pct": cpu, "cores": cores,
                 "count": _CPU["count"], "load": [round(x, 2) for x in load]},
-        "mem": {"pct": vm.percent, "used": vm.used, "total": vm.total},
+        "mem": {"pct": mem_pct, "used": mem_used, "total": vm.total},
         "swap": {"pct": sw.percent, "used": sw.used, "total": sw.total},
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
         "runners": runner_status(),
