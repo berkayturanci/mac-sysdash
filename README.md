@@ -8,6 +8,11 @@
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
 
+<p align="center">
+  <img src="docs/hero.png" width="880"
+       alt="mac-sysdash dashboard: CPU/memory/disk ring gauges, self-hosted runner status, and system detail">
+</p>
+
 It is a single Python file (stdlib HTTP server) plus one HTML file. The only
 third-party dependency is [`psutil`](https://github.com/giampaolo/psutil) — and
 the installer sets that up for you in an isolated virtualenv.
