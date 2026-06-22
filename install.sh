@@ -9,12 +9,15 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 PORT="${SYSDASH_PORT:-8765}"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- locate a python that has psutil ---
+mkdir -p "$APP_DIR" "$LOG_DIR" "$HOME/Library/LaunchAgents"
+
+# --- find a python that already has psutil ---
 find_python() {
   for c in \
     "$(command -v python3 || true)" \
     "/opt/homebrew/opt/glances/libexec/bin/python3" \
-    "/usr/local/opt/glances/libexec/bin/python3"; do
+    "/usr/local/opt/glances/libexec/bin/python3" \
+    "/opt/homebrew/bin/python3"; do
     [ -n "$c" ] && [ -x "$c" ] || continue
     if "$c" -c "import psutil" >/dev/null 2>&1; then echo "$c"; return 0; fi
   done
@@ -22,14 +25,29 @@ find_python() {
 }
 
 PYTHON="$(find_python || true)"
+
+# --- otherwise bootstrap a self-contained venv with psutil ---
 if [ -z "$PYTHON" ]; then
-  echo "error: no python with psutil found. Install it with: pip3 install psutil" >&2
-  exit 1
+  VENV="$APP_DIR/venv"
+  if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c "import psutil" >/dev/null 2>&1; then
+    PYTHON="$VENV/bin/python"
+  else
+    BASE="$(command -v python3 || true)"
+    if [ -z "$BASE" ]; then
+      echo "error: python3 not found. Install the Xcode Command Line Tools" >&2
+      echo "       (xcode-select --install) or Homebrew python, then re-run." >&2
+      exit 1
+    fi
+    echo "no psutil found — creating a virtualenv at $VENV …"
+    "$BASE" -m venv "$VENV"
+    "$VENV/bin/python" -m pip install --quiet --upgrade pip
+    "$VENV/bin/python" -m pip install --quiet psutil
+    PYTHON="$VENV/bin/python"
+  fi
 fi
 echo "using python: $PYTHON"
 
 # --- copy app files ---
-mkdir -p "$APP_DIR" "$LOG_DIR" "$HOME/Library/LaunchAgents"
 cp "$SRC_DIR/server.py" "$APP_DIR/server.py"
 cp "$SRC_DIR/index.html" "$APP_DIR/index.html"
 echo "installed app to: $APP_DIR"
