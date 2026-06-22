@@ -113,6 +113,8 @@
   .jobinfo{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px}
   .jline{font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .jmuted{color:var(--muted);font-style:italic}
+  /* on hover, reveal everything that was truncated */
+  a.runner:hover .jline,a.runner:hover .repo{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word}
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
@@ -286,12 +288,13 @@ const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function jobHTML(j){
   const p=[];
-  if(j.pr) p.push(`<div class="jline">🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}</div>`);
+  if(j.pr) p.push(`<div class="jline" title="PR #${j.pr}${j.pr_title?' — '+esc(j.pr_title):''}">🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}</div>`);
   if(j.issue) p.push(`<div class="jline"># issue #${j.issue}</div>`);
-  if(j.branch) p.push(`<div class="jline">⎇ ${esc(j.branch)}${j.base?' → '+esc(j.base):''}</div>`);
-  if(j.tag) p.push(`<div class="jline">🏷 ${esc(j.tag)}</div>`);
-  if(j.workflow) p.push(`<div class="jline">⚙ ${esc(j.workflow)}</div>`);
-  if(j.commit) p.push(`<div class="jline jmuted">“${esc(j.commit)}”</div>`);
+  if(j.branch) p.push(`<div class="jline" title="${esc(j.branch)}${j.base?' → '+esc(j.base):''}">⎇ ${esc(j.branch)}${j.base?' → '+esc(j.base):''}</div>`);
+  if(j.tag) p.push(`<div class="jline" title="${esc(j.tag)}">🏷 ${esc(j.tag)}</div>`);
+  if(j.workflow) p.push(`<div class="jline" title="${esc(j.workflow)}">⚙ ${esc(j.workflow)}</div>`);
+  if(j.actor) p.push(`<div class="jline jmuted">👤 ${esc(j.actor)}</div>`);
+  if(j.commit) p.push(`<div class="jline jmuted" title="${esc(j.commit)}">“${esc(j.commit)}”</div>`);
   return p.length?`<div class="jobinfo">${p.join('')}</div>`:'';
 }
 function gb(b){return (b/1073741824).toFixed(1)+' GB'}
