@@ -595,7 +595,9 @@ function drawRunner(){
   const hist=(r.history&&r.history.length)?r.history.map(j=>{
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
     const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-    const tip=`${j.workflow||'workflow'}${j.branch?' · '+j.branch:''} · ${j.result||'?'} · ${dur(j.dur)} · ${when}`;
+    const brTxt=j.branch?(j.head?`${j.branch} (${j.head})`:j.branch):'';
+    const tip=[j.workflow||'workflow', brTxt, j.result||'?', dur(j.dur), when,
+               j.actor?('👤 '+j.actor):''].filter(Boolean).join(' · ');
     return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener" title="${esc(tip)}">
       <span class="hdot ${cls}"></span>
       <span class="rm-wf">${esc(j.workflow||'workflow')}${j.branch?' · '+esc(j.branch):''}</span>

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-06-23
+
+### Added
+- Recent-run history now also parses the **actor** (who triggered) and the PR's
+  real **head branch** from the runner logs; the run tooltip shows
+  `workflow · branch (head) · result · duration · date · 👤 actor`.
+
+[1.7.1]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.7.1
+
 ## [1.7.0] - 2026-06-23
 
 ### Added

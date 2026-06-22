@@ -21,7 +21,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -376,7 +376,7 @@ def runner_history(runner_dir, n=5, ttl=45):
             m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)",
                           tail or head)
             wf = br = None
-            # the job context serializes workflow_ref as a {"k":...,"v":...} pair
+            # the job context serializes fields as {"k":...,"v":...} pairs
             wm = re.search(r'"workflow_ref",\s*"v":\s*"([^"]+)"', head)
             if wm:
                 ref = wm.group(1)
@@ -388,9 +388,13 @@ def runner_history(runner_dir, n=5, ttl=45):
                         br = "PR #" + pr.group(1)
                     else:
                         br = raw.replace("refs/heads/", "").replace("refs/tags/", "")
+            am = re.search(r'"k":\s*"actor"\s*,\s*"v":\s*"([^"]*)"', head)
+            hm = re.search(r'"k":\s*"head_ref"\s*,\s*"v":\s*"([^"]*)"', head)
+            actor = am.group(1) if am and am.group(1) else None
+            headref = hm.group(1) if hm and hm.group(1) else None
             out.append({"result": (m.group(1) if m else None),
                         "dur": max(0, dur), "ago": int(now - st.st_mtime),
-                        "workflow": wf, "branch": br})
+                        "workflow": wf, "branch": br, "actor": actor, "head": headref})
     except Exception:
         pass
     _HISTORY_CACHE[runner_dir] = (now, out)
