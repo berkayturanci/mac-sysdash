@@ -123,6 +123,36 @@ Runners are discovered two ways, with no code changes when you add one:
 Status: a `Runner.Worker` means **busy**, a `Runner.Listener` alone means
 **idle**, neither means **offline**.
 
+The displayed runner name comes from each runner's own `.runner` config
+(`agentName`), so renaming a runner is reflected here automatically.
+
+## Runner naming (recommended)
+
+The dashboard reads each runner's registered name, so a consistent scheme makes
+a multi-machine fleet readable at a glance:
+
+- **Name = `<machine>-<role>`** — a stable per-machine token plus its purpose
+  (e.g. `mbp-ingreview`, `ekos-web-ci`). Names are unique per repo and exist for
+  humans to tell machines apart, so avoid generic tokens like `mac` when you run
+  more than one Mac.
+- **Labels do the routing, not the name.** Workflows target
+  `runs-on: [self-hosted, macOS, ARM64, <custom>]`; the default labels plus any
+  capability labels (`android`, `web`, …) decide which runner picks up a job, so
+  you can rename a runner without breaking any workflow.
+- Lowercase, hyphen-separated; keep the same machine token across every repo a
+  machine serves.
+
+To rename an existing runner, re-register it (no workflow changes needed):
+
+```sh
+cd <runner-dir>
+TOKEN=$(gh api -X POST repos/<owner>/<repo>/actions/runners/registration-token --jq .token)
+./svc.sh stop && ./svc.sh uninstall
+./config.sh remove --token "$(gh api -X POST repos/<owner>/<repo>/actions/runners/remove-token --jq .token)"
+./config.sh --url https://github.com/<owner>/<repo> --token "$TOKEN" --name <new-name> --unattended --replace
+./svc.sh install && ./svc.sh start
+```
+
 ## HTTPS & notifications (optional)
 
 The bell in the header can push a desktop/phone notification when a machine goes
