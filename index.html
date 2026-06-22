@@ -70,6 +70,8 @@
   .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
   .mname{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700}
   .mname .ic{font-size:20px}
+  .mright{display:flex;align-items:center;gap:10px}
+  .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
   .moff{opacity:.6}
 
   .grid{display:grid;gap:14px}
@@ -365,7 +367,10 @@ function machineHTML(host, entry){
   return `<div class="machine ${online?'':'moff'}">
     <div class="mhead">
       <div class="mname"><span class="ic">💻</span>${name}</div>
-      <span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>
+      <div class="mright">
+        ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
+        <span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>
+      </div>
     </div>
     ${body}
   </div>`;
@@ -405,7 +410,7 @@ async function pollHost(h){
 async function tick(){
   await Promise.all(hosts().map(pollHost));
   renderAll();
-  document.getElementById('updated').textContent=t.live+' · '+fmtTime(new Date());
+  document.getElementById('updated').textContent=t.live;
 }
 // clock: 24-hour by default; click to toggle 24h <-> AM/PM (persisted)
 const CFKEY='sysdash-clock';

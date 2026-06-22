@@ -267,6 +267,8 @@ def stats():
     return {
         "version": VERSION,
         "host": HOSTNAME,
+        "localtime": time.strftime("%H:%M:%S"),
+        "tz": time.strftime("%Z"),
         "tailscale_ip": TAILSCALE_IP,
         "ts": time.time(),
         "uptime": int(time.time() - psutil.boot_time()),
