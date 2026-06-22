@@ -4,7 +4,6 @@
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![version](https://img.shields.io/badge/version-1.3.1-blue)
-![tests](https://github.com/berkayturanci/mac-sysdash/actions/workflows/test.yml/badge.svg)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -181,8 +180,6 @@ python3 -m unittest discover -s tests -v
 # or, if the installer created one:
 ./venv/bin/python -m unittest discover -s tests -v
 ```
-
-CI runs the same suite on every push/PR (`.github/workflows/test.yml`).
 
 ## Configuration
 

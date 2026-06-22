@@ -8,7 +8,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 - A `unittest` test suite (`tests/`) covering parsing, stats invariants, peer
-  discovery, battery, and HTTP routes, plus a GitHub Actions workflow to run it.
+  discovery, battery, and HTTP routes. Run locally with
+  `python3 -m unittest discover -s tests`.
 
 ### Fixed
 - Runner job result is now read correctly from short Worker logs (the result line
