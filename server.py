@@ -17,6 +17,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
+VERSION = "1.0.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -264,6 +265,7 @@ def stats():
     except Exception:
         load = (0, 0, 0)
     return {
+        "version": VERSION,
         "host": HOSTNAME,
         "tailscale_ip": TAILSCALE_IP,
         "ts": time.time(),

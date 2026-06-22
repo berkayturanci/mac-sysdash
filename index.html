@@ -392,7 +392,7 @@ function renderAll(){
   const self=lastData[''];
   document.getElementById('subtitle').textContent = self&&self.online ? t.sub(self.data.tailscale_ip, self.data.cpu.count) : '';
   document.getElementById('machines').innerHTML = hosts().map(h=>machineHTML(h, lastData[h.base])).join('');
-  document.getElementById('foot').textContent='sysdash · '+t.refresh;
+  document.getElementById('foot').textContent='sysdash'+(self&&self.online&&self.data.version?' v'+self.data.version:'')+' · '+t.refresh;
   computeAlerts();
 }
 
