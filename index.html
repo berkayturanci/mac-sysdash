@@ -11,13 +11,14 @@
 <meta name="apple-mobile-web-app-title" content="Mac Dashboard">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<script>(function(){var p=localStorage.getItem('sysdash-theme')||'auto';
-  var d=p==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;
+<script>(function(){var u=new URLSearchParams(location.search).get('theme');
+  var p=(u==='light'||u==='dark')?u:(localStorage.getItem('sysdash-theme')||'auto');
+  var d=(p==='light'||p==='dark')?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
   document.documentElement.dataset.theme=d;})();</script>
 <style>
   :root{
     --bg:#0a0e14; --panel:#131822; --panel2:#1a212e; --line:#222b3a;
-    --txt:#e6edf3; --muted:#8493a8; --accent:#4f8cff;
+    --txt:#ccd6e2; --muted:#8493a8; --accent:#4f8cff;
     --green:#2ecc71; --amber:#f5a623; --red:#ff5c5c; --gray:#56627a;
     --track:#0d1320;
     --bggrad:radial-gradient(1200px 700px at 80% -10%,#16203a 0%,#0a0e14 55%);
@@ -43,7 +44,7 @@
     color:var(--txt);font:14px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
     min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s;
   }
-  .wrap{max-width:1180px;margin:0 auto}
+  .wrap{max-width:1680px;margin:0 auto}
   header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px}
   .hl{display:flex;align-items:center;gap:14px}
   .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#4f8cff,#9b5cff);
@@ -72,7 +73,10 @@
     border:1px solid rgba(255,92,92,.5);color:var(--red);padding:12px 16px;border-radius:14px;
     margin-bottom:16px;font-weight:650;font-size:14px;animation:pulse 1.8s infinite}
 
+  /* fit as many machines side by side as the width allows, then wrap down */
   .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
+  /* cap a panel's content width so a lone machine doesn't stretch awkwardly */
+  .machine{max-width:760px;width:100%;margin:0 auto}
   .machine{display:flex;flex-direction:column;gap:0}
   .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
   .mname{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700}
@@ -245,7 +249,9 @@ const tbtn=document.getElementById('themeBtn');
 const mq=window.matchMedia('(prefers-color-scheme: dark)');
 function themePref(){return localStorage.getItem(TKEY)||'auto'}
 function applyTheme(){
-  const p=themePref(), resolved=p==='auto'?(mq.matches?'dark':'light'):p;
+  const u=new URLSearchParams(location.search).get('theme');
+  const p=(u==='light'||u==='dark')?u:themePref();
+  const resolved=p==='auto'?(mq.matches?'dark':'light'):p;
   document.documentElement.dataset.theme=resolved;
   tbtn.textContent = p==='auto'?'🌓':p==='light'?'☀️':'🌙';
   tbtn.title='Theme: '+t.themeNames[p];
