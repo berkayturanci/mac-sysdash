@@ -204,6 +204,12 @@ def stats():
     # usage lives on the APFS data volume.
     disk_path = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
     du = psutil.disk_usage(disk_path)
+    # On APFS the data volume's own `used` excludes system/VM/other volumes, so
+    # it disagrees with Finder's Storage figure. Treat everything that is not
+    # free in the shared container as used (total - free), which matches what
+    # macOS Storage shows and keeps the % consistent with the GB text.
+    disk_used = du.total - du.free
+    disk_pct = round(disk_used / du.total * 100, 1) if du.total else 0.0
     try:
         load = psutil.getloadavg()
     except Exception:
@@ -217,7 +223,7 @@ def stats():
                 "count": _CPU["count"], "load": [round(x, 2) for x in load]},
         "mem": {"pct": vm.percent, "used": vm.used, "total": vm.total},
         "swap": {"pct": sw.percent, "used": sw.used, "total": sw.total},
-        "disk": {"pct": du.percent, "used": du.used, "total": du.total},
+        "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
         "runners": runner_status(),
         "top": top_processes(),
     }
