@@ -68,10 +68,10 @@ cd mac-sysdash
 ./install.sh
 ```
 
-The installer copies the app to `~/.local/share/sysdash`, ensures `psutil` (using
-an existing interpreter that has it, otherwise a fresh venv), generates a
-per-user `launchd` agent, and starts it. The dashboard then runs at login,
-restarts on crash, and listens on all interfaces:
+The installer runs the app **in place from this repo clone** (no copy), ensures
+`psutil` (using an existing interpreter that has it, otherwise a fresh venv under
+`venv/`), generates a per-user `launchd` agent, and starts it. The dashboard then
+runs at login, restarts on crash, and listens on all interfaces:
 
 ```
 http://localhost:8765
@@ -79,6 +79,16 @@ http://<your-tailscale-ip>:8765   # from another device on your tailnet
 ```
 
 Change the port with `SYSDASH_PORT=8770 ./install.sh`.
+
+## Updating
+
+```sh
+git pull && ./install.sh
+```
+
+The page (`index.html`) is read live on each request, so a `git pull` updates the
+UI immediately; re-running `install.sh` restarts the agent to pick up `server.py`
+changes.
 
 ## Uninstall
 

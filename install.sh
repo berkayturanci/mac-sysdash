@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Install mac-sysdash as a per-user launchd agent.
+# Install mac-sysdash as a per-user launchd agent that runs *in place* from this
+# repository directory. After a `git pull`, re-run ./install.sh (or just let the
+# served index.html update live) to pick up changes.
 set -euo pipefail
 
-APP_DIR="$HOME/.local/share/sysdash"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$SRC_DIR"                 # run directly from the repo clone
 LOG_DIR="$HOME/.local/log"
 LABEL="com.berkay.sysdash"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 PORT="${SYSDASH_PORT:-8765}"
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mkdir -p "$APP_DIR" "$LOG_DIR" "$HOME/Library/LaunchAgents"
+mkdir -p "$LOG_DIR" "$HOME/Library/LaunchAgents"
 
 # --- find a python that already has psutil ---
 find_python() {
@@ -26,7 +28,7 @@ find_python() {
 
 PYTHON="$(find_python || true)"
 
-# --- otherwise bootstrap a self-contained venv with psutil ---
+# --- otherwise bootstrap a self-contained venv (inside the repo, gitignored) ---
 if [ -z "$PYTHON" ]; then
   VENV="$APP_DIR/venv"
   if [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c "import psutil" >/dev/null 2>&1; then
@@ -46,11 +48,7 @@ if [ -z "$PYTHON" ]; then
   fi
 fi
 echo "using python: $PYTHON"
-
-# --- copy app files ---
-cp "$SRC_DIR/server.py" "$APP_DIR/server.py"
-cp "$SRC_DIR/index.html" "$APP_DIR/index.html"
-echo "installed app to: $APP_DIR"
+echo "running in place from: $APP_DIR"
 
 # --- generate launchd plist ---
 cat > "$PLIST" <<PLISTEOF
@@ -69,6 +67,8 @@ cat > "$PLIST" <<PLISTEOF
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<key>WorkingDirectory</key>
+	<string>$APP_DIR</string>
 	<key>StandardOutPath</key>
 	<string>$LOG_DIR/sysdash.log</string>
 	<key>StandardErrorPath</key>
