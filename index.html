@@ -129,7 +129,8 @@
 
   .runners{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
   .runner{position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block}
-  a.runner:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .runner.clickable{cursor:pointer}
+  .runner.clickable:hover{transform:translateY(-2px);border-color:var(--accent)}
   .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .runner .name{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:6px}
   .runner .ext{color:var(--muted);font-size:13px;font-weight:400}
@@ -148,7 +149,16 @@
   .jline{font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .jmuted{color:var(--muted);font-style:italic}
   /* on hover, reveal everything that was truncated */
-  a.runner:hover .jline,a.runner:hover .repo{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word}
+  .runner.clickable:hover .jline,.runner.clickable:hover .repo{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word}
+  .rm-repo{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .rm-job{margin-bottom:14px}
+  .rm-h{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:6px 0 8px}
+  .rm-run{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
+  .rm-run:hover{background:var(--track);border-color:var(--line)}
+  .rm-run .rm-wf{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+  .rm-run .rm-meta{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+  .rm-links{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .rm-links a{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
@@ -208,6 +218,13 @@
   <div class="modal-card">
     <div class="modal-head"><span id="chartTitle"></span><span id="chartClose" class="mclose">✕</span></div>
     <div id="chartBody"></div>
+  </div>
+</div>
+
+<div id="runnerModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><span id="runnerTitle"></span><span id="runnerClose" class="mclose">✕</span></div>
+    <div id="runnerBody"></div>
   </div>
 </div>
 
@@ -320,8 +337,8 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
-    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600},{result:'Succeeded',dur:205,ago:3600},{result:'Failed',dur:88,ago:8000},{result:'Succeeded',dur:176,ago:12000},{result:'Succeeded',dur:210,ago:20000}]},
-    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800},{result:'Succeeded',dur:280,ago:9000},{result:'Succeeded',dur:265,ago:18000}]}],
+    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',branch:'main'}]},
+    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',branch:'develop'}]}],
   top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
@@ -433,16 +450,15 @@ function machineHTML(host, entry){
     body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
   } else {
     const kv=(label,pct,txt)=>`<div class="kv"><span class="k">${label}</span><span class="v ${pct>=CRIT?'crit':''}">${txt}</span></div>`;
-    const runners = s.runners.length ? s.runners.map(r=>{
-      const href = (r.job&&r.job.pr_url) ? r.job.pr_url : r.url;
-      return `<a class="card runner ${r.status}" ${href?`href="${href}" target="_blank" rel="noopener"`:''} title="${esc(r.dir||'')}">
-        <div class="row1"><div class="name">${esc(r.name)}${href?'<span class="ext">↗</span>':''}</div>
+    const runners = s.runners.length ? s.runners.map((r,ri)=>{
+      return `<div class="card runner clickable ${r.status}" data-base="${esc(host.base)}" data-ri="${ri}" title="${L==='tr'?'detay için tıkla':'click for details'}">
+        <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div>
           <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span></div>
         <div class="repo">${esc(r.repo||'—')}</div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
-      </a>`;
+      </div>`;
     }).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
     const sysInner = `<div class="card">
@@ -524,10 +540,11 @@ async function pollHost(h){
   }catch(e){ lastData[h.base]={online:false}; }
 }
 async function tick(){
-  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); if(!isDragging)renderAll(); if(chartKey)drawChart(); document.getElementById('updated').textContent=t.live; return; }
+  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); if(!isDragging)renderAll(); if(chartKey)drawChart(); if(runnerKey)drawRunner(); document.getElementById('updated').textContent=t.live; return; }
   await Promise.all(hosts().map(pollHost));
   if(!isDragging)renderAll();
   if(chartKey)drawChart();
+  if(runnerKey)drawRunner();
   document.getElementById('updated').textContent=t.live;
 }
 // clock: 24-hour by default; click to toggle 24h <-> AM/PM (persisted)
@@ -547,8 +564,41 @@ mWrap.addEventListener('drop',e=>{if(dragBase==null)return;e.preventDefault();co
 mWrap.addEventListener('dragend',()=>{dragBase=null;isDragging=false;mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));});
 mWrap.addEventListener('click',e=>{
   const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
+  const rn=e.target.closest('.runner.clickable'); if(rn){openRunner(rn.dataset.base,+rn.dataset.ri);return;}
   const g=e.target.closest('.gauge.clickable'); if(g&&g.dataset.chart){openChart(g.dataset.chart);}
 });
+
+// --- runner detail modal ---
+let runnerKey=null;
+function openRunner(base,ri){runnerKey={base,ri};drawRunner();document.getElementById('runnerModal').hidden=false;}
+function closeRunner(){runnerKey=null;document.getElementById('runnerModal').hidden=true;}
+function drawRunner(){
+  if(!runnerKey)return;
+  const e=lastData[runnerKey.base]; if(!e||!e.online){closeRunner();return;}
+  const r=(e.data.runners||[])[runnerKey.ri]; if(!r){closeRunner();return;}
+  const actions=r.repo?'https://github.com/'+r.repo+'/actions':'';
+  const wfUrl=wf=>(r.repo&&wf)?'https://github.com/'+r.repo+'/actions/workflows/'+encodeURIComponent(wf):actions;
+  const hist=(r.history&&r.history.length)?r.history.map(j=>{
+    const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
+    return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener">
+      <span class="hdot ${cls}"></span>
+      <span class="rm-wf">${esc(j.workflow||'workflow')}${j.branch?' · '+esc(j.branch):''}</span>
+      <span class="rm-meta">${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}</span>
+      <span class="ext">↗</span></a>`;
+  }).join(''):`<div style="color:var(--muted);font-size:13px">${L==='tr'?'geçmiş çalışma bulunamadı':'no recent runs found'}</div>`;
+  document.getElementById('runnerTitle').innerHTML=`${esc(r.name)} <span class="pill ${r.status}" style="margin-left:8px"><span class="d"></span>${t.st[r.status]}</span>`;
+  document.getElementById('runnerBody').innerHTML=`
+    <div class="rm-repo">${esc(r.repo||'—')}</div>
+    ${r.job?`<div class="rm-job">${jobHTML(r.job)}</div>`:''}
+    <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
+    ${hist}
+    <div class="rm-links">
+      ${actions?`<a href="${actions}" target="_blank" rel="noopener">${L==='tr'?'Actions sayfası':'Actions'} ↗</a>`:''}
+      ${r.url?`<a href="${r.url}" target="_blank" rel="noopener">${L==='tr'?'Runner ayarları':'Runner settings'} ↗</a>`:''}
+    </div>`;
+}
+document.getElementById('runnerClose').addEventListener('click',closeRunner);
+document.getElementById('runnerModal').addEventListener('click',e=>{if(e.target.id==='runnerModal')closeRunner();});
 
 // --- gauge chart modal ---
 let chartKey=null;
@@ -577,7 +627,7 @@ function drawChart(){
 }
 document.getElementById('chartClose').addEventListener('click',closeChart);
 document.getElementById('chartModal').addEventListener('click',e=>{if(e.target.id==='chartModal')closeChart();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeChart();closeRunner();}});
 
 // --- notifications bell ---
 const bell=document.getElementById('bellBtn');

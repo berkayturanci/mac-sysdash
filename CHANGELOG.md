@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-06-22
+
+### Added
+- Click a runner to open a **detail modal**: the current job plus the last 5 runs
+  with workflow, branch (PR # for pull-request runs), result, duration and "ago",
+  each linking to that workflow's runs on GitHub, plus Actions / runner-settings
+  shortcuts. Job history now carries the workflow and branch per run.
+
+### Changed
+- Clearer notification toggle: the bell turns accent-colored when on, with a
+  confirmation notification and an HTTPS hint when permission is blocked.
+
+### Fixed
+- Silence `BrokenPipeError` tracebacks from clients disconnecting mid-response.
+
+[1.3.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.3.0
+
 ## [1.2.0] - 2026-06-22
 
 ### Added

@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.2.0-blue)
+![version](https://img.shields.io/badge/version-1.3.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -31,8 +31,9 @@ the installer sets that up for you in an isolated virtualenv.
     **workflow**, **PR / issue**, **commit**, and the triggering **actor** —
     read locally from the runner's event payload (no GitHub token needed).
   - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
-  - Click a runner to open its PR (when building one) or its GitHub runner
-    settings. Hover to reveal any truncated detail.
+  - **Click a runner for a detail modal** — the current job plus the last 5 runs
+    (workflow · branch · result · duration), each linking to that workflow's runs
+    on GitHub, with shortcuts to the Actions page and runner settings.
 - **Multiple machines side by side**, filling the width and wrapping down. Peers are
   **auto-discovered** on your tailnet (any reachable mac-sysdash), or added manually.
   **Drag a panel by its header to reorder.**

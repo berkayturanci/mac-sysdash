@@ -19,7 +19,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -234,12 +234,27 @@ def runner_history(runner_dir, n=5, ttl=45):
             st = os.stat(lg)
             dur = int(st.st_mtime - getattr(st, "st_birthtime", st.st_ctime))
             with open(lg, "rb") as f:
-                if st.st_size > 8192:
-                    f.seek(st.st_size - 8192)
+                head = f.read(262144).decode("utf-8", "ignore")
+                if st.st_size > 16384:
+                    f.seek(st.st_size - 16384)
                 tail = f.read().decode("utf-8", "ignore")
             m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)", tail)
+            wf = br = None
+            # the job context serializes workflow_ref as a {"k":...,"v":...} pair
+            wm = re.search(r'"workflow_ref",\s*"v":\s*"([^"]+)"', head)
+            if wm:
+                ref = wm.group(1)
+                wf = ref.split("@")[0].rsplit("/", 1)[-1]
+                if "@" in ref:
+                    raw = ref.split("@", 1)[1]
+                    pr = re.match(r"refs/pull/(\d+)/", raw)
+                    if pr:
+                        br = "PR #" + pr.group(1)
+                    else:
+                        br = raw.replace("refs/heads/", "").replace("refs/tags/", "")
             out.append({"result": (m.group(1) if m else None),
-                        "dur": max(0, dur), "ago": int(now - st.st_mtime)})
+                        "dur": max(0, dur), "ago": int(now - st.st_mtime),
+                        "workflow": wf, "branch": br})
     except Exception:
         pass
     _HISTORY_CACHE[runner_dir] = (now, out)
@@ -413,6 +428,14 @@ _CTYPES = {
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
+
+    def handle_one_request(self):
+        # clients (browser polls, headless screenshots) disconnect mid-response
+        # all the time; don't dump a traceback for it.
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
 
     def _send(self, code, body, ctype):
         self.send_response(code)
