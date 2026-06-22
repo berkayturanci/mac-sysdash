@@ -36,13 +36,18 @@ def write_event(runner_dir, payload):
         json.dump(payload, f)
 
 
-def write_worker_log(runner_dir, name, workflow_ref=None, result="Succeeded"):
+def write_worker_log(runner_dir, name, workflow_ref=None, result="Succeeded",
+                     actor=None, head_ref=None):
     diag = os.path.join(runner_dir, "_diag")
     os.makedirs(diag, exist_ok=True)
     parts = ["[2026-06-22 10:00:00Z INFO Worker] Job started.\n"]
     if workflow_ref:
         parts.append('          "k": "workflow_ref",\n')
         parts.append('          "v": "%s"\n' % workflow_ref)
+    if actor is not None:
+        parts.append('          "k": "actor",\n          "v": "%s"\n' % actor)
+    if head_ref is not None:
+        parts.append('          "k": "head_ref",\n          "v": "%s"\n' % head_ref)
     if result:
         parts.append(
             "[2026-06-22 10:05:00Z INFO JobRunner] Job result after all job "
@@ -130,6 +135,27 @@ class RunnerHistoryTests(unittest.TestCase):
             self.assertEqual(h[0]["workflow"], "ci.yml")
             self.assertEqual(h[0]["branch"], "main")
             self.assertGreaterEqual(h[0]["dur"], 0)
+
+    def test_parses_actor_and_pr_head_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-120000-utc.log",
+                workflow_ref="acme/web/.github/workflows/ci.yml@refs/pull/628/merge",
+                result="Succeeded", actor="octocat", head_ref="feature/login")
+            h = server.runner_history(tmp, ttl=0)
+            self.assertEqual(h[0]["branch"], "PR #628")
+            self.assertEqual(h[0]["head"], "feature/login")
+            self.assertEqual(h[0]["actor"], "octocat")
+
+    def test_empty_actor_head_become_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-130000-utc.log",
+                workflow_ref="acme/web/.github/workflows/ci.yml@refs/heads/main",
+                result="Succeeded", actor="", head_ref="")
+            h = server.runner_history(tmp, ttl=0)
+            self.assertIsNone(h[0]["actor"])
+            self.assertIsNone(h[0]["head"])
 
     def test_pull_request_ref_becomes_pr_number(self):
         with tempfile.TemporaryDirectory() as tmp:

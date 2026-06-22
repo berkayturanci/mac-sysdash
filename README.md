@@ -31,9 +31,10 @@ the installer sets that up for you in an isolated virtualenv.
     **workflow**, **PR / issue**, **commit**, and the triggering **actor** —
     read locally from the runner's event payload (no GitHub token needed).
   - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
-  - **Click a runner for a detail modal** — the current job plus the last 5 runs
-    (workflow · branch · result · duration), each linking to that workflow's runs
-    on GitHub, with shortcuts to the Actions page and runner settings.
+  - **Click a runner for a detail modal** — the current job plus the last 5 runs;
+    each row links to that workflow's runs on GitHub, and **hovering shows the full
+    detail** (workflow · branch / PR head · result · duration · date · 👤 actor).
+    Plus shortcuts to the Actions page and runner settings.
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
   can't accept inbound — the browser only talks to the hub, so it works on a phone
@@ -202,9 +203,11 @@ tailnet in the Tailscale admin console.)
 
 ## Tests
 
-A `unittest` suite (no third-party deps beyond `psutil`) covers config/event/log
-parsing, the disk/memory invariants, tailnet peer discovery, battery, and the
-HTTP routes. Run it with any Python that has `psutil`:
+A `unittest` suite (no third-party deps beyond `psutil`) covers the server:
+config/event/log parsing (including runner history: result, workflow, PR/branch,
+actor, PR head), the disk/memory invariants, tailnet peer discovery, push/proxy
+endpoints, battery, and the HTTP routes. The browser UI (themes, filters, charts)
+isn't unit-tested. Run it with any Python that has `psutil`:
 
 ```sh
 python3 -m unittest discover -s tests -v
