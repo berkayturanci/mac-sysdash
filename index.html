@@ -145,6 +145,8 @@
   .pill.idle{color:var(--pill-idle-fg);background:var(--pill-idle-bg);border-color:var(--pill-idle-bd)}
   .pill.idle .d{background:var(--accent)}
   .pill.offline{color:var(--pill-off-fg);background:var(--pill-off-bg);border-color:var(--pill-off-bd)}
+  .pill.stale{color:var(--amber);background:rgba(245,166,35,.13);border-color:rgba(245,166,35,.4)}
+  .pill.stale .d{background:var(--amber)}
   .pill.offline .d{background:var(--gray)}
   .jobinfo{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px}
   .jline{font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -218,7 +220,6 @@
     </div>
   </header>
 
-  <div class="hostbar" id="hostbar"></div>
   <div class="banner" id="alertBanner"></div>
   <div class="machines" id="machines"></div>
   <div class="foot" id="foot"></div>
@@ -252,7 +253,7 @@ const T = {
     notRunning:'not running', up:'up: ', noRunners:'No runners found',
     live:'live', noConn:'no connection',
     highUse:'High usage:', refresh:'refreshes every 1s',
-    online:'online', offline:'offline', unreachable:'unreachable',
+    online:'online', offline:'offline', stale:'stale', unreachable:'unreachable',
     addMachine:'＋ machine', addUrl:'Machine address (IP or URL) — e.g. 100.121.169.10',
     themeNames:{auto:'system', light:'light', dark:'dark'},
     langName:'Language', dunit:{d:'d', h:'h', m:'m'},
@@ -268,7 +269,7 @@ const T = {
     notRunning:'çalışmıyor', up:'açık: ', noRunners:'Runner bulunamadı',
     live:'canlı', noConn:'bağlantı yok',
     highUse:'Yüksek kullanım:', refresh:'her 1 sn yenilenir',
-    online:'çevrimiçi', offline:'çevrimdışı', unreachable:'ulaşılamıyor',
+    online:'çevrimiçi', offline:'çevrimdışı', stale:'bayat', unreachable:'ulaşılamıyor',
     addMachine:'＋ makine', addUrl:'Makine adresi (IP veya URL) — örn. 100.121.169.10',
     themeNames:{auto:'sistem', light:'açık', dark:'koyu'},
     langName:'Dil', dunit:{d:'g', h:'s', m:'d'},
@@ -317,23 +318,8 @@ tbtn.addEventListener('click',()=>{
 mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
 
 // ---------------- hosts (multi-machine) ----------------
-// host 0 is always "self" (served origin). Peers are stored in localStorage.
-const HKEY='sysdash-hosts';
-const DEFAULT_PEERS=[];  // start with just this Mac; add peers via "+ machine"
-function normalizeBase(s){
-  s=(s||'').trim().replace(/\/+$/,'');
-  if(!s)return s;
-  if(!/^https?:\/\//i.test(s)) s='http://'+s;
-  // add the default port if the host has none
-  if(!/^https?:\/\/[^/:]+:\d+/i.test(s)) s=s.replace(/^(https?:\/\/[^/:]+)/i,'$1:8765');
-  return s;
-}
-function peers(){
-  let raw=DEFAULT_PEERS;
-  try{const v=JSON.parse(localStorage.getItem(HKEY)); if(Array.isArray(v))raw=v;}catch(e){}
-  return raw.map(p=>({name:p.name, base:normalizeBase(p.base)}));
-}
-function setPeers(p){localStorage.setItem(HKEY, JSON.stringify(p));}
+// "self" is the served origin; every other machine is auto-discovered by the
+// hub (pull) or reported via push — no manual peer list.
 const lastData={};  // base -> {data, online}
 
 // Demo mode (?demo) renders brandless sample data — used for screenshots/docs.
@@ -364,9 +350,8 @@ const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',s
 let autoPeers=[];  // tailnet peers discovered to be running sysdash
 function hosts(){
   if(DEMO_MODE) return DEMO_HOSTS;
-  const manual=peers(), mb=new Set(manual.map(p=>p.base));
-  const list=[{name:'',base:'',self:true},...manual,
-    ...autoPeers.filter(a=>!mb.has(a.base)).map(a=>({name:a.name||'',base:a.base,auto:true,statsUrl:a.statsUrl}))];
+  const list=[{name:'',base:'',self:true},
+    ...autoPeers.map(a=>({name:a.name||'',base:a.base,auto:true,statsUrl:a.statsUrl}))];
   return orderHosts(list);
 }
 function getOrder(){try{return JSON.parse(localStorage.getItem('sysdash-order'))||[]}catch(e){return []}}
@@ -374,22 +359,6 @@ function setOrder(b){localStorage.setItem('sysdash-order',JSON.stringify(b));}
 function orderHosts(list){const ord=getOrder();const ix=b=>{const i=ord.indexOf(b);return i<0?1e6:i};
   return list.map((h,i)=>[h,i]).sort((a,b)=>(ix(a[0].base)-ix(b[0].base))||(a[1]-b[1])).map(x=>x[0]);}
 
-function renderHostbar(){
-  const hb=document.getElementById('hostbar');
-  const ps=peers();
-  hb.innerHTML = ps.map((p,i)=>`<span class="chip"><b>${p.name||p.base}</b>
-    <span class="x" data-i="${i}" title="remove">✕</span></span>`).join('')
-    + `<button class="iconbtn" id="addHost" style="font-size:13px">${t.addMachine}</button>`;
-  hb.querySelectorAll('.x').forEach(x=>x.onclick=()=>{
-    const ps2=peers(); ps2.splice(+x.dataset.i,1); setPeers(ps2); renderHostbar(); renderAll();
-  });
-  document.getElementById('addHost').onclick=()=>{
-    let base=prompt(t.addUrl); if(!base)return;
-    base=normalizeBase(base);
-    // name is left blank; it auto-fills from the machine's own hostname once reachable
-    const ps2=peers(); ps2.push({name:'', base}); setPeers(ps2); renderHostbar(); renderAll();
-  };
-}
 
 // ---------------- rendering ----------------
 const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
@@ -457,6 +426,7 @@ function machineHTML(host, entry){
   const online = entry && entry.online;
   const s = online ? entry.data : null;
   const name = host.self ? (s?s.host:'Bu Mac') : (host.name || (s?s.host:host.base));
+  const stale = online && s && s._age != null && s._age > 6;  // pushed peer stopped updating
   let body;
   if(!online){
     body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
@@ -494,19 +464,20 @@ function machineHTML(host, entry){
       <div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
-        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total))}
+        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
       </div>
       ${sec('runners', t.runners, `<div class="grid runners">${runners}</div>`)}
       ${sec('system', t.system, sysInner)}
       ${sec('procs', t.topMem, topInner)}`;
   }
-  return `<div class="machine ${online?'':'moff'}" data-base="${esc(host.base)}">
+  return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
       <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${name}</div>
       <div class="mright">
-        ${online&&s.battery?batteryChip(s.battery):''}
+        ${online&&!stale&&s.battery?batteryChip(s.battery):''}
         ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
-        <span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>
+        ${stale ? `<span class="pill stale"><span class="d"></span>${t.stale} · ${s._age}s</span>`
+                : `<span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>`}
       </div>
     </div>
     ${body}
@@ -621,7 +592,7 @@ function drawChart(){
   const [base,metric]=chartKey.split('|');
   const e=lastData[base]; if(!e||!e.online){closeChart();return;}
   const s=e.data, arr=(s.hist&&s.hist[metric])||[];
-  const nm=base===''?s.host:(s.host||base), label=metric==='cpu'?t.cpu:t.mem;
+  const nm=base===''?s.host:(s.host||base), label=metric==='cpu'?t.cpu:metric==='mem'?t.mem:t.diskUsed;
   const cur=arr.length?arr[arr.length-1]:0, mx=arr.length?Math.max(...arr):0, mn=arr.length?Math.min(...arr):0;
   document.getElementById('chartTitle').textContent=nm+' · '+label;
   const W=700,H=240,p=24;
@@ -674,7 +645,7 @@ async function discover(){
   }catch(_){}
 }
 
-applyLang(); applyTheme(); bellState(); if(!DEMO_MODE) renderHostbar();
+applyLang(); applyTheme(); bellState();
 setInterval(clock,1000); clock();
 tick(); setInterval(tick,1000);
 discover(); setInterval(discover,30000);

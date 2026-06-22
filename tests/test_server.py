@@ -150,14 +150,15 @@ class TailnetPeerTests(unittest.TestCase):
     def test_returns_online_ipv4_peers_only(self):
         fake = {"Peer": {
             "a": {"Online": True, "TailscaleIPs": ["100.1.2.3", "fd7a::1"],
-                  "HostName": "studio.tailnet.ts.net"},
+                  "HostName": "studio", "DNSName": "studio.tailnet.ts.net."},
             "b": {"Online": False, "TailscaleIPs": ["100.9.9.9"],
                   "HostName": "offline-box"}}}
         server._PEERS["ts"] = 0.0
         with mock.patch("server.subprocess.run",
                         return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
             peers = server.tailnet_peers(ttl=0)
-        self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio"}])
+        self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio",
+                                  "dns": "studio.tailnet.ts.net"}])
 
     def test_handles_tailscale_failure(self):
         server._PEERS["ts"] = 0.0
@@ -173,6 +174,8 @@ class StatsTests(unittest.TestCase):
             self.assertIn(key, s)
         self.assertEqual(s["version"], server.VERSION)
         self.assertIsInstance(s["runners"], list)
+        for k in ("cpu", "mem", "disk"):           # history feeds the sparklines
+            self.assertIn(k, s["hist"])
 
     def test_disk_used_is_total_minus_free(self):
         du = types.SimpleNamespace(total=460, used=300, free=60, percent=83.0)
@@ -257,6 +260,37 @@ class HttpRouteTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             self.get("/../server.py")
         self.assertEqual(cm.exception.code, 404)
+
+    def test_push_then_serve_over_http(self):
+        server._PUSHED.clear()
+        payload = {"version": "9.9.9", "host": "HttpPush", "cpu": {"pct": 1}}
+        urllib.request.urlopen(self.base + "/api/push",
+                               data=json.dumps(payload).encode(), timeout=10)
+        peers = json.load(self.get("/api/peers"))
+        self.assertIn("push:HttpPush", [p["key"] for p in peers])
+        d = json.load(self.get("/api/peer?key=push:HttpPush"))
+        self.assertEqual(d["host"], "HttpPush")
+        self.assertIn("_age", d)
+
+
+class PushTests(unittest.TestCase):
+    def setUp(self):
+        server._PUSHED.clear()
+
+    def test_pushed_peer_listed_and_served_with_age(self):
+        server._PUSHED["Box"] = (server.time.time(), {"host": "Box", "cpu": {}})
+        self.assertIn("push:Box", [p["key"] for p in server.sysdash_peers()])
+        d = server.peer_by_key("push:Box")
+        self.assertEqual(d["host"], "Box")
+        self.assertGreaterEqual(d["_age"], 0)
+
+    def test_pushed_peer_expires(self):
+        server._PUSHED["Old"] = (server.time.time() - 1000, {"host": "Old"})
+        self.assertNotIn("push:Old", [p["key"] for p in server.sysdash_peers()])
+        self.assertIsNone(server.peer_by_key("push:Old"))
+
+    def test_unknown_key_returns_none(self):
+        self.assertIsNone(server.peer_by_key("bogus"))
 
 
 if __name__ == "__main__":

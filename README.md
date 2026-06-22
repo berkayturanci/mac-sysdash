@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.5.2-blue)
+![version](https://img.shields.io/badge/version-1.6.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -42,8 +42,8 @@ the installer sets that up for you in an isolated virtualenv.
   the CPU / memory / disk gauges in view.
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
   throughput, battery, uptime, and the top memory-consuming processes.
-- **Trends** — a 60-second sparkline under each gauge; **click a gauge** for a larger
-  ~5-minute CPU/memory chart.
+- **Trends** — a 60-second sparkline under each gauge (CPU / memory / disk);
+  **click a gauge** for a larger ~5-minute time-series chart.
 - **Notifications** — desktop/phone alerts when a metric goes critical (needs HTTPS).
 - **Per-machine local time** (with timezone) — handy across timezones.
 - **Installable (PWA)** — "Add to Home Screen" on iOS/Android for an app-like,
@@ -53,6 +53,12 @@ the installer sets that up for you in an isolated virtualenv.
   auto / EN / TR selector.
 - **Light on resources** — ~20 MB RAM, ≈0 % CPU. Runs at login and self-restarts
   via a per-user `launchd` agent.
+
+## Screenshots
+
+Light (above) and dark themes, two machines side by side:
+
+<p align="center"><img src="docs/dark.png" width="880" alt="mac-sysdash in dark mode"></p>
 
 ## Requirements
 
@@ -117,7 +123,14 @@ browser. Peers are gathered two ways, and the browser only ever talks to the hub
    ```
 
    The node then streams its stats outbound every few seconds and shows up on the
-   hub like any other machine. Pull and push coexist; push is off unless set.
+   hub like any other machine. Pull and push coexist; push is off unless set. A
+   peer that stops pushing is shown as **stale** (amber, with "Ns ago") before it
+   drops off.
+
+> **Security.** The dashboard has no authentication and `/api/push` accepts any
+> POST. It is meant for a private tailnet — keep it tailnet-only (don't expose it
+> publicly with Tailscale **Funnel**). The `/api/peer` proxy only fetches IPs that
+> are already your tailnet peers.
 
 ## Runner auto-discovery
 

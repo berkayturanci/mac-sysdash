@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-06-22
+
+### Added
+- **Stale indicator:** a pushed peer that stops updating shows an amber "stale ·
+  Ns" pill and dims, instead of silently freezing, before it drops off.
+- **Disk sparkline + chart** for consistency with CPU and memory (disk history is
+  now sampled too).
+- Tests for the push/proxy paths (`/api/push`, `/api/peer?key=`, peer listing and
+  expiry) and a disk-history check.
+
+### Changed
+- Removed the manual "＋ machine" host bar — peers are fully handled by pull
+  discovery and push, so it's no longer needed.
+
+### Docs
+- Security note: the dashboard is unauthenticated and meant for a private tailnet
+  (don't expose via Funnel). Added a dark-mode screenshot.
+
+[1.6.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.6.0
+
 ## [1.5.2] - 2026-06-22
 
 ### Changed

@@ -21,7 +21,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.5.2"
+VERSION = "1.6.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -72,7 +72,7 @@ HOSTNAME = computer_name()
 # UI sparklines.
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
-_HIST = {"cpu": [], "mem": []}
+_HIST = {"cpu": [], "mem": [], "disk": []}
 _HIST_LEN = 300  # ~5 min of 1s samples (sparkline uses the last 60; chart uses all)
 _prev_net = None
 
@@ -95,8 +95,12 @@ def _cpu_sampler():
         try:
             vm = psutil.virtual_memory()
             mp = round((vm.total - vm.available) / vm.total * 100, 1) if vm.total else 0.0
+            dpath = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
+            du = psutil.disk_usage(dpath)
+            dp = round((du.total - du.free) / du.total * 100, 1) if du.total else 0.0
             _HIST["cpu"].append(_CPU["pct"])
             _HIST["mem"].append(mp)
+            _HIST["disk"].append(dp)
             for k in _HIST:
                 if len(_HIST[k]) > _HIST_LEN:
                     del _HIST[k][:-_HIST_LEN]
@@ -297,7 +301,7 @@ def _pusher():
 # Pushed peers: machines that can't accept inbound connections POST their stats
 # here instead (see SYSDASH_PUSH_TO). Keyed by reported hostname.
 _PUSHED = {}        # host -> (ts, stats)
-_PUSH_TTL = 20
+_PUSH_LIST = 90     # keep listing a pushed peer (shown as stale) this long after its last push
 
 
 def sysdash_peers():
@@ -307,7 +311,7 @@ def sysdash_peers():
     seen = {p["name"] for p in out}
     now = time.time()
     for host, (ts, _d) in list(_PUSHED.items()):
-        if now - ts < _PUSH_TTL and host not in seen:
+        if now - ts < _PUSH_LIST and host not in seen:
             out.append({"name": host, "key": "push:" + host})
     return out
 
@@ -315,7 +319,11 @@ def sysdash_peers():
 def peer_by_key(key):
     if key.startswith("push:"):
         c = _PUSHED.get(key[5:])
-        return c[1] if c and time.time() - c[0] < _PUSH_TTL + 10 else None
+        if c and time.time() - c[0] < _PUSH_LIST:
+            d = dict(c[1])
+            d["_age"] = int(time.time() - c[0])   # seconds since last push (for stale UI)
+            return d
+        return None
     if key.startswith("ip:"):
         return peer_stats(key[3:])
     return None
@@ -520,7 +528,8 @@ def stats():
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
         "net": dict(_NET),
         "battery": battery_info(),
-        "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"])},
+        "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
+                 "disk": list(_HIST["disk"])},
         "runners": runner_status(),
         "top": top_processes(),
     }
