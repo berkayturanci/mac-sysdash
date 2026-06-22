@@ -19,7 +19,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -238,7 +238,10 @@ def runner_history(runner_dir, n=5, ttl=45):
                 if st.st_size > 16384:
                     f.seek(st.st_size - 16384)
                 tail = f.read().decode("utf-8", "ignore")
-            m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)", tail)
+            # large logs keep the result in the tail; small logs were fully read
+            # into head (tail is then empty), so fall back to head.
+            m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)",
+                          tail or head)
             wf = br = None
             # the job context serializes workflow_ref as a {"k":...,"v":...} pair
             wm = re.search(r'"workflow_ref",\s*"v":\s*"([^"]+)"', head)

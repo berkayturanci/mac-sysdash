@@ -3,7 +3,8 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.3.0-blue)
+![version](https://img.shields.io/badge/version-1.3.1-blue)
+![tests](https://github.com/berkayturanci/mac-sysdash/actions/workflows/test.yml/badge.svg)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -168,6 +169,20 @@ This prints a clean `https://<host>.<tailnet>.ts.net` URL (no port). Open it,
 click the bell to grant permission, and you'll get alerts even from your phone.
 Stop sharing with `tailscale serve reset`. (Requires HTTPS enabled for your
 tailnet in the Tailscale admin console.)
+
+## Tests
+
+A `unittest` suite (no third-party deps beyond `psutil`) covers config/event/log
+parsing, the disk/memory invariants, tailnet peer discovery, battery, and the
+HTTP routes. Run it with any Python that has `psutil`:
+
+```sh
+python3 -m unittest discover -s tests -v
+# or, if the installer created one:
+./venv/bin/python -m unittest discover -s tests -v
+```
+
+CI runs the same suite on every push/PR (`.github/workflows/test.yml`).
 
 ## Configuration
 

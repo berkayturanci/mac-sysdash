@@ -1,0 +1,263 @@
+"""Tests for mac-sysdash server.py — parsing, stats invariants, HTTP routes.
+
+Run with a Python that has psutil:
+    python3 -m unittest discover -s tests -v
+"""
+import json
+import os
+import sys
+import tempfile
+import threading
+import types
+import unittest
+import urllib.request
+from http.server import ThreadingHTTPServer
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import server  # noqa: E402
+
+
+def write_runner(parent, name="runner1", agent="mbp-ci",
+                 url="https://github.com/acme/web", bom=True):
+    d = os.path.join(parent, name)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, ".runner"), "w", encoding="utf-8") as f:
+        if bom:
+            f.write("﻿")  # GitHub writes .runner with a UTF-8 BOM
+        json.dump({"agentName": agent, "gitHubUrl": url}, f)
+    return d
+
+
+def write_event(runner_dir, payload):
+    ev = os.path.join(runner_dir, "_work", "_temp", "_github_workflow")
+    os.makedirs(ev, exist_ok=True)
+    with open(os.path.join(ev, "event.json"), "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+
+
+def write_worker_log(runner_dir, name, workflow_ref=None, result="Succeeded"):
+    diag = os.path.join(runner_dir, "_diag")
+    os.makedirs(diag, exist_ok=True)
+    parts = ["[2026-06-22 10:00:00Z INFO Worker] Job started.\n"]
+    if workflow_ref:
+        parts.append('          "k": "workflow_ref",\n')
+        parts.append('          "v": "%s"\n' % workflow_ref)
+    if result:
+        parts.append(
+            "[2026-06-22 10:05:00Z INFO JobRunner] Job result after all job "
+            "steps finish: %s\n" % result)
+    parts.append("[2026-06-22 10:05:01Z INFO Worker] Job completed.\n")
+    p = os.path.join(diag, name)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("".join(parts))
+    return p
+
+
+class RunnerConfigTests(unittest.TestCase):
+    def test_reads_name_and_repo_despite_bom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = write_runner(tmp, agent="mbp-ingreview",
+                             url="https://github.com/acme/web/")
+            name, repo = server._read_runner_cfg(d)
+            self.assertEqual(name, "mbp-ingreview")
+            self.assertEqual(repo, "acme/web")
+
+    def test_non_runner_dir_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(server._read_runner_cfg(tmp))
+
+    def test_falls_back_to_dirname_on_bad_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = os.path.join(tmp, "weird")
+            os.makedirs(d)
+            with open(os.path.join(d, ".runner"), "w") as f:
+                f.write("not json")
+            name, repo = server._read_runner_cfg(d)
+            self.assertEqual(name, "weird")
+            self.assertEqual(repo, "")
+
+
+class RunnerJobTests(unittest.TestCase):
+    def test_push_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_event(tmp, {"ref": "refs/heads/main",
+                              "head_commit": {"message": "fix: thing\n\nbody"},
+                              "workflow": ".github/workflows/ci.yml",
+                              "sender": {"login": "octocat"}})
+            j = server.runner_job(tmp)
+            self.assertEqual(j["branch"], "main")
+            self.assertEqual(j["commit"], "fix: thing")
+            self.assertEqual(j["workflow"], "ci.yml")
+            self.assertEqual(j["actor"], "octocat")
+
+    def test_pull_request_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_event(tmp, {"pull_request": {
+                "number": 42, "title": "Add checkout",
+                "html_url": "https://github.com/acme/web/pull/42",
+                "head": {"ref": "feature/x"}, "base": {"ref": "main"}}})
+            j = server.runner_job(tmp)
+            self.assertEqual(j["pr"], 42)
+            self.assertEqual(j["pr_title"], "Add checkout")
+            self.assertEqual(j["branch"], "feature/x")
+            self.assertEqual(j["base"], "main")
+            self.assertTrue(j["pr_url"].endswith("/pull/42"))
+
+    def test_tag_event(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_event(tmp, {"ref": "refs/tags/v1.2.3"})
+            self.assertEqual(server.runner_job(tmp)["tag"], "v1.2.3")
+
+    def test_missing_event_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(server.runner_job(tmp))
+
+
+class RunnerHistoryTests(unittest.TestCase):
+    def setUp(self):
+        server._HISTORY_CACHE.clear()
+
+    def test_parses_result_workflow_and_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-100000-utc.log",
+                workflow_ref="acme/web/.github/workflows/ci.yml@refs/heads/main",
+                result="Succeeded")
+            h = server.runner_history(tmp, ttl=0)
+            self.assertEqual(len(h), 1)
+            self.assertEqual(h[0]["result"], "Succeeded")
+            self.assertEqual(h[0]["workflow"], "ci.yml")
+            self.assertEqual(h[0]["branch"], "main")
+            self.assertGreaterEqual(h[0]["dur"], 0)
+
+    def test_pull_request_ref_becomes_pr_number(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-110000-utc.log",
+                workflow_ref="acme/web/.github/workflows/test.yml@refs/pull/2451/merge",
+                result="Failed")
+            h = server.runner_history(tmp, ttl=0)
+            self.assertEqual(h[0]["branch"], "PR #2451")
+            self.assertEqual(h[0]["result"], "Failed")
+
+    def test_no_logs_returns_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(server.runner_history(tmp, ttl=0), [])
+
+
+class TailnetPeerTests(unittest.TestCase):
+    def test_returns_online_ipv4_peers_only(self):
+        fake = {"Peer": {
+            "a": {"Online": True, "TailscaleIPs": ["100.1.2.3", "fd7a::1"],
+                  "HostName": "studio.tailnet.ts.net"},
+            "b": {"Online": False, "TailscaleIPs": ["100.9.9.9"],
+                  "HostName": "offline-box"}}}
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.subprocess.run",
+                        return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
+            peers = server.tailnet_peers(ttl=0)
+        self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio"}])
+
+    def test_handles_tailscale_failure(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.subprocess.run", side_effect=OSError):
+            self.assertEqual(server.tailnet_peers(ttl=0), [])
+
+
+class StatsTests(unittest.TestCase):
+    def test_stats_has_expected_shape(self):
+        s = server.stats()
+        for key in ["version", "host", "localtime", "cpu", "mem", "disk",
+                    "net", "battery", "hist", "runners", "top", "uptime"]:
+            self.assertIn(key, s)
+        self.assertEqual(s["version"], server.VERSION)
+        self.assertIsInstance(s["runners"], list)
+
+    def test_disk_used_is_total_minus_free(self):
+        du = types.SimpleNamespace(total=460, used=300, free=60, percent=83.0)
+        with mock.patch("server.psutil.disk_usage", return_value=du):
+            s = server.stats()
+        self.assertEqual(s["disk"]["used"], 460 - 60)        # 400, not psutil's 300
+        self.assertEqual(s["disk"]["pct"], round(400 / 460 * 100, 1))
+
+    def test_mem_used_is_total_minus_available(self):
+        vm = types.SimpleNamespace(total=16, available=4, used=2, percent=99.0)
+        with mock.patch("server.psutil.virtual_memory", return_value=vm):
+            s = server.stats()
+        self.assertEqual(s["mem"]["used"], 16 - 4)           # 12, not psutil's 2
+        self.assertEqual(s["mem"]["pct"], round(12 / 16 * 100, 1))
+
+
+class BatteryTests(unittest.TestCase):
+    def test_battery_normalizes_unknown_time(self):
+        b = types.SimpleNamespace(percent=83.6, power_plugged=True, secsleft=-2)
+        with mock.patch("server.psutil.sensors_battery", return_value=b):
+            info = server.battery_info()
+        self.assertEqual(info["pct"], 84)
+        self.assertTrue(info["plugged"])
+        self.assertIsNone(info["secsleft"])
+
+    def test_no_battery_returns_none(self):
+        with mock.patch("server.psutil.sensors_battery", return_value=None):
+            self.assertIsNone(server.battery_info())
+
+
+class HttpRouteTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+        cls.t = threading.Thread(target=cls.srv.serve_forever, daemon=True)
+        cls.t.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+
+    def get(self, path):
+        return urllib.request.urlopen(self.base + path, timeout=10)
+
+    def test_api_stats_json(self):
+        r = self.get("/api/stats")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.headers.get("Access-Control-Allow-Origin"), "*")
+        d = json.load(r)
+        self.assertEqual(d["version"], server.VERSION)
+
+    def test_api_peers_json(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.subprocess.run",
+                        return_value=types.SimpleNamespace(stdout="{}")):
+            r = self.get("/api/peers")
+        self.assertEqual(r.status, 200)
+        self.assertIsInstance(json.load(r), list)
+
+    def test_index_served(self):
+        r = self.get("/")
+        self.assertEqual(r.status, 200)
+        self.assertIn("text/html", r.headers.get("Content-Type", ""))
+        self.assertIn("Mac Dashboard", r.read().decode("utf-8", "ignore"))
+
+    def test_svg_content_type(self):
+        r = self.get("/icon.svg")
+        self.assertEqual(r.headers.get("Content-Type"), "image/svg+xml")
+
+    def test_sw_content_type(self):
+        r = self.get("/sw.js")
+        self.assertEqual(r.headers.get("Content-Type"), "application/javascript")
+
+    def test_unknown_path_404(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get("/does-not-exist")
+        self.assertEqual(cm.exception.code, 404)
+
+    def test_path_traversal_blocked(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get("/../server.py")
+        self.assertEqual(cm.exception.code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

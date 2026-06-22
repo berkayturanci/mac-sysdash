@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-06-22
+
+### Added
+- A `unittest` test suite (`tests/`) covering parsing, stats invariants, peer
+  discovery, battery, and HTTP routes, plus a GitHub Actions workflow to run it.
+
+### Fixed
+- Runner job result is now read correctly from short Worker logs (the result line
+  could be missed when the whole log fit in the head read).
+
+[1.3.1]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.3.1
+
 ## [1.3.0] - 2026-06-22
 
 ### Added
