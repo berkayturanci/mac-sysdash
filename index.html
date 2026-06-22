@@ -83,7 +83,7 @@
   .ring .track{stroke:var(--track)}
   .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .ring .pct{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
-  .ring .meta{color:var(--muted);font-size:11px;margin-top:2px;text-align:center;padding:0 6px}
+  .gmeta{color:var(--muted);font-size:12px;margin-top:4px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
   .gauge.crit{border-color:rgba(255,92,92,.6);box-shadow:0 0 0 1px rgba(255,92,92,.35),0 10px 30px rgba(255,92,92,.18)}
   .alert-badge{position:absolute;top:10px;right:10px;background:var(--red);color:#fff;font-size:10.5px;
     font-weight:800;padding:4px 8px;border-radius:999px;letter-spacing:.3px;
@@ -243,7 +243,7 @@ mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
 // ---------------- hosts (multi-machine) ----------------
 // host 0 is always "self" (served origin). Peers are stored in localStorage.
 const HKEY='sysdash-hosts';
-const DEFAULT_PEERS=[{name:'Ekos MacBook Pro', base:'http://100.121.169.10:8765'}];
+const DEFAULT_PEERS=[];  // start with just this Mac; add peers via "+ machine"
 function peers(){
   try{const v=JSON.parse(localStorage.getItem(HKEY)); if(Array.isArray(v))return v;}catch(e){}
   return DEFAULT_PEERS;
@@ -285,8 +285,8 @@ function ringHTML(label,pct,meta){
       <circle class="track" cx="75" cy="75" r="${R}" stroke-width="13" fill="none"/>
       <circle cx="75" cy="75" r="${R}" stroke="${col}" stroke-width="13" fill="none"
         stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
-    </svg><div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:14px">%</span></div>
-      <div class="meta">${meta}</div></div></div>
+    </svg><div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:14px">%</span></div></div></div>
+    <div class="gmeta">${meta}</div>
   </div>`;
 }
 function machineHTML(host, entry){
