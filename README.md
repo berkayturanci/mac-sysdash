@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.0.0-blue)
+![version](https://img.shields.io/badge/version-1.1.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -34,8 +34,12 @@ the installer sets that up for you in an isolated virtualenv.
     settings. Hover to reveal any truncated detail.
 - **Multiple machines side by side** — add peer machines (e.g. via their
   Tailscale IP) and watch them all in one view.
-- **System detail** — per-core CPU bars, load average, RAM/swap/disk, uptime,
-  and the top memory-consuming processes.
+- **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
+  throughput, battery, uptime, and the top memory-consuming processes.
+- **Trends** — a 60-second CPU and memory sparkline under each gauge.
+- **Per-machine local time** (with timezone) — handy across timezones.
+- **Installable (PWA)** — "Add to Home Screen" on iOS/Android for an app-like,
+  full-screen view from your phone.
 - **Light / dark / auto theme** following the system appearance, with a toggle.
 - **English / Turkish UI** — defaults to the system language, with an
   auto / EN / TR selector.

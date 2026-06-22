@@ -17,7 +17,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -63,16 +63,54 @@ def computer_name():
 
 HOSTNAME = computer_name()
 
-# Background CPU sampler so HTTP requests never block on cpu_percent().
+# Background sampler so HTTP requests never block. It also derives network
+# throughput (per-second deltas) and keeps a short CPU/memory history for the
+# UI sparklines.
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
+_NET = {"up": 0.0, "down": 0.0}
+_HIST = {"cpu": [], "mem": []}
+_HIST_LEN = 60
+_prev_net = None
 
 
 def _cpu_sampler():
+    global _prev_net
     while True:
         cores = psutil.cpu_percent(interval=1.0, percpu=True)
         _CPU["cores"] = [round(c, 1) for c in cores]
         _CPU["pct"] = round(sum(cores) / len(cores), 1) if cores else 0.0
         _CPU["count"] = len(cores)
+        try:
+            n = psutil.net_io_counters()
+            if _prev_net is not None:
+                _NET["up"] = max(0, n.bytes_sent - _prev_net.bytes_sent)
+                _NET["down"] = max(0, n.bytes_recv - _prev_net.bytes_recv)
+            _prev_net = n
+        except Exception:
+            pass
+        try:
+            vm = psutil.virtual_memory()
+            mp = round((vm.total - vm.available) / vm.total * 100, 1) if vm.total else 0.0
+            _HIST["cpu"].append(_CPU["pct"])
+            _HIST["mem"].append(mp)
+            for k in _HIST:
+                if len(_HIST[k]) > _HIST_LEN:
+                    del _HIST[k][:-_HIST_LEN]
+        except Exception:
+            pass
+
+
+def battery_info():
+    try:
+        b = psutil.sensors_battery()
+    except Exception:
+        b = None
+    if b is None:
+        return None
+    secs = b.secsleft
+    if secs is None or secs < 0:
+        secs = None
+    return {"pct": round(b.percent), "plugged": bool(b.power_plugged), "secsleft": secs}
 
 
 def _read_runner_cfg(runner_dir):
@@ -221,9 +259,9 @@ def runner_status():
             "url": url, "dir": d,
         }
         if status == "busy":
-            j = runner_job(d)
-            if j:
-                entry["job"] = j
+            j = runner_job(d) or {}
+            j["elapsed"] = int(now - worker[d])  # job runtime from Worker start
+            entry["job"] = j
         result.append(entry)
     return result
 
@@ -277,6 +315,9 @@ def stats():
         "mem": {"pct": mem_pct, "used": mem_used, "total": vm.total},
         "swap": {"pct": sw.percent, "used": sw.used, "total": sw.total},
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
+        "net": dict(_NET),
+        "battery": battery_info(),
+        "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"])},
         "runners": runner_status(),
         "top": top_processes(),
     }
@@ -295,6 +336,18 @@ def cached_stats(ttl=0.8):
             _STATS["data"] = stats()
             _STATS["ts"] = now
         return _STATS["data"]
+
+
+_CTYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript",
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".css": "text/css",
+}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -318,13 +371,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": str(e)}).encode(),
                            "application/json")
             return
-        path = "/index.html" if self.path in ("/", "") else self.path
+        req = self.path.split("?", 1)[0]
+        path = "/index.html" if req in ("/", "") else req
         fp = os.path.normpath(os.path.join(HERE, path.lstrip("/")))
         if fp.startswith(HERE) and os.path.isfile(fp):
             with open(fp, "rb") as f:
                 body = f.read()
-            ctype = "text/html; charset=utf-8" if fp.endswith(".html") else "text/plain"
-            self._send(200, body, ctype)
+            self._send(200, body, _CTYPES.get(os.path.splitext(fp)[1], "text/plain"))
         else:
             self._send(404, b"not found", "text/plain")
 

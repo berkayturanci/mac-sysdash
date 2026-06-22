@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mac Dashboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mac Dashboard">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <script>(function(){var p=localStorage.getItem('sysdash-theme')||'auto';
   var d=p==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;
   document.documentElement.dataset.theme=d;})();</script>
@@ -72,6 +79,9 @@
   .mname .ic{font-size:20px}
   .mright{display:flex;align-items:center;gap:10px}
   .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
+  .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
+  .batt.low{color:var(--red)}
+  .spark{width:100%;height:22px;margin-top:8px;opacity:.75;display:block}
   .moff{opacity:.6}
 
   .grid{display:grid;gap:14px}
@@ -180,7 +190,7 @@ const T = {
     runners:'Runner status', system:'System',
     perCore:'CPU (per core)', load:'Load (1m / 5m / 15m)',
     ramUsed:'RAM (used)', swap:'Swap', diskFull:'Disk (used)', uptime:'Uptime',
-    topMem:'Top memory processes',
+    network:'Network', topMem:'Top memory processes',
     st:{busy:'running', idle:'idle', offline:'stopped'},
     notRunning:'not running', up:'up: ', noRunners:'No runners found',
     live:'live', noConn:'no connection',
@@ -196,7 +206,7 @@ const T = {
     runners:'Runner durumu', system:'Sistem',
     perCore:'CPU (her çekirdek)', load:'Load (1m / 5m / 15m)',
     ramUsed:'RAM (dolu)', swap:'Swap', diskFull:'Disk (dolu)', uptime:'Açık kalma',
-    topMem:'En çok bellek kullanan süreçler',
+    network:'Ağ', topMem:'En çok bellek kullanan süreçler',
     st:{busy:'çalışıyor', idle:'boşta', offline:'durdu'},
     notRunning:'çalışmıyor', up:'açık: ', noRunners:'Runner bulunamadı',
     live:'canlı', noConn:'bağlantı yok',
@@ -265,8 +275,34 @@ function peers(){
   return raw.map(p=>({name:p.name, base:normalizeBase(p.base)}));
 }
 function setPeers(p){localStorage.setItem(HKEY, JSON.stringify(p));}
-function hosts(){return [{name:'', base:'', self:true}, ...peers()];}
 const lastData={};  // base -> {data, online}
+
+// Demo mode (?demo) renders brandless sample data — used for screenshots/docs.
+const DEMO_MODE=new URLSearchParams(location.search).has('demo');
+const GiB=1073741824;
+function demoHist(base,amp,seed){return Array.from({length:60},(_,i)=>Math.max(4,Math.min(97,base+amp*Math.sin((i+seed)/6.5)+(i%4)*1.2)));}
+const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',tailscale_ip:'100.x.y.z',
+  uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
+  mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
+  disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
+  net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
+  runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
+      job:{branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
+    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:''},
+    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:''}],
+  top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
+const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
+  uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
+  mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
+  disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
+  net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1)},
+  runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
+      job:{branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
+    {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:''}],
+  top:[{name:'python',rss:4.2*GiB},{name:'node',rss:0.8*GiB},{name:'Xcode',rss:0.6*GiB},{name:'Chrome',rss:0.4*GiB},{name:'Docker',rss:0.3*GiB},{name:'java',rss:0.2*GiB},{name:'Finder',rss:0.1*GiB},{name:'Notes',rss:0.08*GiB}]};
+const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
+
+function hosts(){return DEMO_MODE?DEMO_HOSTS:[{name:'', base:'', self:true}, ...peers()];}
 
 function renderHostbar(){
   const hb=document.getElementById('hostbar');
@@ -300,9 +336,23 @@ function jobHTML(j){
   return p.length?`<div class="jobinfo">${p.join('')}</div>`:'';
 }
 function gb(b){return (b/1073741824).toFixed(1)+' GB'}
+function rate(bps){if(bps==null)return '0';const u=['B','KB','MB','GB'];let i=0,v=bps;while(v>=1024&&i<u.length-1){v/=1024;i++}return (i?v.toFixed(1):v.toFixed(0))+' '+u[i]+'/s'}
+function batteryChip(b){
+  if(!b)return '';
+  const low=!b.plugged&&b.pct<=20;
+  let t='';
+  if(b.secsleft){const h=Math.floor(b.secsleft/3600),m=Math.floor(b.secsleft%3600/60);t=' · '+(h?h+'s ':'')+m+'d';}
+  return `<span class="batt ${low?'low':''}" title="${b.plugged?'şarjda':'pil'}${t}">🔋 ${b.pct}%${b.plugged?' ⚡':''}</span>`;
+}
+function sparkSVG(arr,col){
+  if(!arr||arr.length<2)return '';
+  const n=arr.length;
+  const pts=arr.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(23-(Math.max(0,Math.min(100,v))/100*21)).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+}
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
-function ringHTML(label,pct,meta){
+function ringHTML(label,pct,meta,spark){
   const crit=pct>=CRIT, warn=pct>=WARN;
   const col=crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
   const off=C*(1-pct/100);
@@ -315,6 +365,7 @@ function ringHTML(label,pct,meta){
         stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
     </svg><div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:14px">%</span></div></div></div>
     <div class="gmeta">${meta}</div>
+    ${sparkSVG(spark,col)}
   </div>`;
 }
 function machineHTML(host, entry){
@@ -339,8 +390,8 @@ function machineHTML(host, entry){
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
     body = `
       <div class="grid gauges">
-        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'))}
-        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total))}
+        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu)}
+        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem)}
         ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total))}
       </div>
       <div class="section-title">${t.runners}</div>
@@ -350,6 +401,7 @@ function machineHTML(host, entry){
         <div class="kv"><span class="k">${t.perCore}</span><span class="v">${s.cpu.pct.toFixed(0)}%</span></div>
         <div class="cores">${s.cpu.cores.map(c=>`<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('')}</div>
         <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v">${s.cpu.load.join('  /  ')}</span></div>
+        ${s.net?`<div class="kv"><span class="k">${t.network}</span><span class="v">↓ ${rate(s.net.down)}　↑ ${rate(s.net.up)}</span></div>`:''}
         ${kv(t.ramUsed, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total)+' ('+s.mem.pct+'%)')}
         <div class="bar"><i style="width:${s.mem.pct}%"></i></div>
         <div style="height:10px"></div>
@@ -368,6 +420,7 @@ function machineHTML(host, entry){
     <div class="mhead">
       <div class="mname"><span class="ic">💻</span>${name}</div>
       <div class="mright">
+        ${online&&s.battery?batteryChip(s.battery):''}
         ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
         <span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>
       </div>
@@ -408,6 +461,7 @@ async function pollHost(h){
   }catch(e){ lastData[h.base]={online:false}; }
 }
 async function tick(){
+  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); renderAll(); document.getElementById('updated').textContent=t.live; return; }
   await Promise.all(hosts().map(pollHost));
   renderAll();
   document.getElementById('updated').textContent=t.live;
@@ -420,9 +474,10 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
 (function(){const el=document.getElementById('clock');el.style.cursor='pointer';el.title='12 / 24 saat';
   el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
-applyLang(); applyTheme(); renderHostbar();
+applyLang(); applyTheme(); if(!DEMO_MODE) renderHostbar();
 setInterval(clock,1000); clock();
 tick(); setInterval(tick,1000);
+if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>

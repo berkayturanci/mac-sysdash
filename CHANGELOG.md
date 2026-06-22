@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-06-22
+
+### Added
+- Battery (percent / charging / time left) and live network throughput (↓/↑).
+- 60-second CPU and memory sparklines under the gauges.
+- Per-busy-runner job runtime (elapsed since the job started).
+- Per-machine local time with timezone in each panel header.
+- Progressive Web App: manifest, service worker, and icons — installable to the
+  home screen for a full-screen, app-like view.
+- 24-hour clock by default, click to toggle 12h/24h.
+- `?demo` mode rendering brandless sample data (used for the screenshot).
+
+### Changed
+- Disk usage now measured as `total − free` on the APFS data volume, and memory
+  as `total − available`, so percentages match Finder Storage and Activity
+  Monitor (the figure and the GB text now share one basis).
+- Critical (red) alert threshold raised from 90% to 95%.
+- Header shows a single viewer clock; redundant timestamp removed.
+
+[1.1.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.1.0
+
 ## [1.0.0] - 2026-06-22
 
 First public release.
