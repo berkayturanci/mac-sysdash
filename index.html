@@ -405,9 +405,15 @@ async function pollHost(h){
 async function tick(){
   await Promise.all(hosts().map(pollHost));
   renderAll();
-  document.getElementById('updated').textContent=t.live+' · '+new Date().toLocaleTimeString();
+  document.getElementById('updated').textContent=t.live+' · '+fmtTime(new Date());
 }
-function clock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString()}
+// clock: 24-hour by default; click to toggle 24h <-> AM/PM (persisted)
+const CFKEY='sysdash-clock';
+function clock12(){return localStorage.getItem(CFKEY)==='12'}
+function fmtTime(d){return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:clock12()})}
+function clock(){document.getElementById('clock').textContent=fmtTime(new Date())}
+(function(){const el=document.getElementById('clock');el.style.cursor='pointer';el.title='12 / 24 saat';
+  el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
 applyLang(); applyTheme(); renderHostbar();
 setInterval(clock,1000); clock();
