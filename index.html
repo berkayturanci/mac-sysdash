@@ -244,9 +244,18 @@ mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
 // host 0 is always "self" (served origin). Peers are stored in localStorage.
 const HKEY='sysdash-hosts';
 const DEFAULT_PEERS=[];  // start with just this Mac; add peers via "+ machine"
+function normalizeBase(s){
+  s=(s||'').trim().replace(/\/+$/,'');
+  if(!s)return s;
+  if(!/^https?:\/\//i.test(s)) s='http://'+s;
+  // add the default port if the host has none
+  if(!/^https?:\/\/[^/:]+:\d+/i.test(s)) s=s.replace(/^(https?:\/\/[^/:]+)/i,'$1:8765');
+  return s;
+}
 function peers(){
-  try{const v=JSON.parse(localStorage.getItem(HKEY)); if(Array.isArray(v))return v;}catch(e){}
-  return DEFAULT_PEERS;
+  let raw=DEFAULT_PEERS;
+  try{const v=JSON.parse(localStorage.getItem(HKEY)); if(Array.isArray(v))raw=v;}catch(e){}
+  return raw.map(p=>({name:p.name, base:normalizeBase(p.base)}));
 }
 function setPeers(p){localStorage.setItem(HKEY, JSON.stringify(p));}
 function hosts(){return [{name:'', base:'', self:true}, ...peers()];}
@@ -264,7 +273,7 @@ function renderHostbar(){
   document.getElementById('addHost').onclick=()=>{
     const name=prompt(t.addName); if(!name)return;
     let base=prompt(t.addUrl); if(!base)return;
-    base=base.replace(/\/+$/,'');
+    base=normalizeBase(base);
     const ps2=peers(); ps2.push({name, base}); setPeers(ps2); renderHostbar(); renderAll();
   };
 }
