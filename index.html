@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mac Dashboard</title>
+<script>(function(){var p=localStorage.getItem('sysdash-theme')||'auto';
+  var d=p==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;
+  document.documentElement.dataset.theme=d;})();</script>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#131822; --panel2:#1a212e; --line:#222b3a;
+    --txt:#e6edf3; --muted:#8493a8; --accent:#4f8cff;
+    --green:#2ecc71; --amber:#f5a623; --red:#ff5c5c; --gray:#56627a;
+    --track:#0d1320;
+    --bggrad:radial-gradient(1200px 700px at 80% -10%,#16203a 0%,#0a0e14 55%);
+    --shadow:0 10px 30px rgba(0,0,0,.25);
+    --pill-idle-fg:#bcd3ff; --pill-idle-bg:rgba(79,140,255,.15); --pill-idle-bd:rgba(79,140,255,.4);
+    --pill-busy-fg:#aee9c8; --pill-busy-bg:rgba(46,204,113,.15); --pill-busy-bd:rgba(46,204,113,.4);
+    --pill-off-fg:#c2cad8; --pill-off-bg:rgba(120,135,160,.16); --pill-off-bd:rgba(120,135,160,.4);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f8; --panel:#ffffff; --panel2:#f6f9fd; --line:#e1e8f1;
+    --txt:#16202e; --muted:#5a6678; --accent:#2f6bf0;
+    --green:#149a4c; --amber:#c8810b; --red:#df3b3b; --gray:#7a879d;
+    --track:#e6ecf4;
+    --bggrad:radial-gradient(1200px 700px at 80% -10%,#dbe7ff 0%,#eef2f8 55%);
+    --shadow:0 8px 24px rgba(40,60,100,.10);
+    --pill-idle-fg:#1948b3; --pill-idle-bg:rgba(47,107,240,.12); --pill-idle-bd:rgba(47,107,240,.45);
+    --pill-busy-fg:#0a7a3a; --pill-busy-bg:rgba(20,154,76,.13); --pill-busy-bd:rgba(20,154,76,.45);
+    --pill-off-fg:#52607a; --pill-off-bg:rgba(90,102,120,.12); --pill-off-bd:rgba(90,102,120,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bggrad);
+    color:var(--txt);font:14px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+    min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased;transition:background .4s,color .4s;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .hl{display:flex;align-items:center;gap:14px}
+  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#4f8cff,#9b5cff);
+    display:grid;place-items:center;font-size:22px;box-shadow:0 6px 20px rgba(79,140,255,.35);flex:0 0 auto}
+  h1{font-size:18px;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .right{display:flex;align-items:center;gap:14px}
+  .themebtn{cursor:pointer;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);font-size:18px;display:grid;place-items:center;
+    transition:transform .15s,background .3s,border-color .3s;box-shadow:var(--shadow);flex:0 0 auto}
+  .themebtn:hover{transform:translateY(-1px)}
+  .themebtn:active{transform:scale(.94)}
+  .clock{text-align:right}
+  .clock .t{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  .clock .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:2px}
+  .dotlive{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+
+  .banner{display:none;align-items:center;gap:10px;background:rgba(255,92,92,.13);
+    border:1px solid rgba(255,92,92,.5);color:var(--red);padding:12px 16px;border-radius:14px;
+    margin-bottom:16px;font-weight:650;font-size:14px;animation:pulse 1.8s infinite}
+
+  .grid{display:grid;gap:16px}
+  .gauges{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:18px;padding:20px;box-shadow:var(--shadow);transition:background .3s,border-color .3s,transform .15s}
+  .gauge{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .gauge .label{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:1px;font-weight:650}
+  .ring{position:relative;width:150px;height:150px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .track{stroke:var(--track)}
+  .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .pct{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+  .ring .meta{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .gauge.crit{border-color:rgba(255,92,92,.6);box-shadow:0 0 0 1px rgba(255,92,92,.35),0 10px 30px rgba(255,92,92,.18)}
+  .alert-badge{position:absolute;top:12px;right:12px;background:var(--red);color:#fff;font-size:11px;
+    font-weight:800;padding:4px 9px;border-radius:999px;letter-spacing:.3px;
+    box-shadow:0 2px 10px rgba(255,92,92,.5);animation:pulse 1.1s infinite;z-index:2}
+
+  .section-title{display:flex;align-items:center;gap:8px;margin:26px 0 12px;font-size:13px;
+    text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700}
+  .section-title::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  .runners{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .runner{position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block}
+  a.runner:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .runner .name{font-weight:650;font-size:15px;display:flex;align-items:center;gap:6px}
+  .runner .ext{color:var(--muted);font-size:13px;font-weight:400}
+  .runner .repo{color:var(--muted);font-size:12px;margin-top:3px;word-break:break-all}
+  .runner .up{color:var(--muted);font-size:12px;margin-top:14px;font-variant-numeric:tabular-nums}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:700;border:1px solid transparent;flex:0 0 auto}
+  .pill .d{width:9px;height:9px;border-radius:50%}
+  .pill.busy{color:var(--pill-busy-fg);background:var(--pill-busy-bg);border-color:var(--pill-busy-bd)}
+  .pill.busy .d{background:var(--green);animation:pulse 1.2s infinite}
+  .pill.idle{color:var(--pill-idle-fg);background:var(--pill-idle-bg);border-color:var(--pill-idle-bd)}
+  .pill.idle .d{background:var(--accent)}
+  .pill.offline{color:var(--pill-off-fg);background:var(--pill-off-bg);border-color:var(--pill-off-bd)}
+  .pill.offline .d{background:var(--gray)}
+  .runner.busy{border-color:var(--pill-busy-bd)}
+  .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
+
+  .mini{grid-template-columns:1fr 1fr}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--muted)}
+  .kv .v{font-variant-numeric:tabular-nums;font-weight:650}
+  .kv .v.crit{color:var(--red)}
+  .bar{height:7px;border-radius:6px;background:var(--track);overflow:hidden;margin-top:6px}
+  .bar>i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#4f8cff,#9b5cff);transition:width .5s}
+  .proc{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px}
+  .proc .pn{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .proc .pm{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .cores{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+  .core{flex:1;min-width:14px;height:34px;background:var(--track);border-radius:4px;position:relative;overflow:hidden}
+  .core>i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#9b5cff,#4f8cff);transition:height .4s}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
+
+  @media(max-width:680px){
+    body{padding:14px}
+    .mini{grid-template-columns:1fr}
+    h1{font-size:16px}
+    .clock .t{font-size:18px}
+    .ring{width:128px;height:128px}
+    .ring .pct{font-size:25px}
+  }
+  @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="hl">
+      <div class="logo">💻</div>
+      <div>
+        <h1 id="host">Mac Dashboard</h1>
+        <div class="sub" id="hostsub">yükleniyor…</div>
+      </div>
+    </div>
+    <div class="right">
+      <button id="themeBtn" class="themebtn" title="Tema">🌓</button>
+      <div class="clock">
+        <div class="t" id="clock">--:--:--</div>
+        <div class="live"><span class="dotlive"></span><span id="updated">canlı</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="banner" id="alertBanner"></div>
+
+  <div class="grid gauges">
+    <div class="card gauge" id="g-cpu"></div>
+    <div class="card gauge" id="g-mem"></div>
+    <div class="card gauge" id="g-disk"></div>
+  </div>
+
+  <div class="section-title">Runner Durumu</div>
+  <div class="grid runners" id="runners"></div>
+
+  <div class="section-title">Sistem</div>
+  <div class="grid mini">
+    <div class="card">
+      <div class="kv"><span class="k">CPU (her çekirdek)</span><span class="v" id="cpucount"></span></div>
+      <div class="cores" id="cores"></div>
+      <div class="kv" style="margin-top:14px"><span class="k">Load (1m / 5m / 15m)</span><span class="v" id="load"></span></div>
+      <div class="kv"><span class="k">RAM (dolu)</span><span class="v" id="memv"></span></div>
+      <div class="bar"><i id="membar"></i></div>
+      <div class="kv" style="margin-top:10px"><span class="k">Swap</span><span class="v" id="swapv"></span></div>
+      <div class="kv"><span class="k">Disk (dolu)</span><span class="v" id="diskv"></span></div>
+      <div class="kv"><span class="k">Açık kalma</span><span class="v" id="uptime"></span></div>
+    </div>
+    <div class="card">
+      <div class="kv" style="border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:6px">
+        <span class="k">En çok bellek kullanan süreçler</span><span class="v">RSS</span></div>
+      <div id="top"></div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+// --- theme: auto (system) -> light -> dark ---
+const TKEY='sysdash-theme';
+const tbtn=document.getElementById('themeBtn');
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+function pref(){return localStorage.getItem(TKEY)||'auto'}
+function applyTheme(){
+  const p=pref(), resolved=p==='auto'?(mq.matches?'dark':'light'):p;
+  document.documentElement.dataset.theme=resolved;
+  tbtn.textContent = p==='auto'?'🌓':p==='light'?'☀️':'🌙';
+  tbtn.title='Tema: '+(p==='auto'?'sistem':p==='light'?'açık':'koyu');
+}
+tbtn.addEventListener('click',()=>{
+  const order=['auto','light','dark'];
+  localStorage.setItem(TKEY, order[(order.indexOf(pref())+1)%3]);
+  applyTheme();
+});
+mq.addEventListener('change',()=>{if(pref()==='auto')applyTheme();});
+applyTheme();
+
+const WARN=75, CRIT=90;
+const R=66, C=2*Math.PI*R;
+function ring(id,label,pct,meta){
+  const crit=pct>=CRIT, warn=pct>=WARN;
+  const col = crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
+  const off = C*(1-pct/100);
+  const el=document.getElementById(id);
+  el.classList.toggle('crit',crit);
+  el.innerHTML=`
+    ${crit?`<div class="alert-badge">⚠️ %${pct.toFixed(0)}</div>`:''}
+    <div class="label">${label}</div>
+    <div class="ring">
+      <svg width="150" height="150" viewBox="0 0 150 150">
+        <circle class="track" cx="75" cy="75" r="${R}" stroke-width="13" fill="none"/>
+        <circle cx="75" cy="75" r="${R}" stroke="${col}" stroke-width="13" fill="none"
+          stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"
+          style="transition:stroke-dashoffset .6s,stroke .6s"/>
+      </svg>
+      <div class="val"><div class="pct">${pct.toFixed(0)}<span style="font-size:15px">%</span></div>
+        <div class="meta">${meta}</div></div>
+    </div>`;
+}
+function gb(b){return (b/1073741824).toFixed(1)+' GB'}
+function dur(s){if(s==null)return '—';let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  if(d)return `${d}g ${h}s`; if(h)return `${h}s ${m}d`; return `${m}d`}
+const LBL={busy:'çalışıyor',idle:'boşta',offline:'durdu'};
+
+async function tick(){
+  try{
+    const s=await (await fetch('/api/stats',{cache:'no-store'})).json();
+    document.getElementById('host').textContent=s.host;
+    document.getElementById('hostsub').textContent=`Tailscale ${s.tailscale_ip||'-'} · ${s.cpu.count} çekirdek`;
+    ring('g-cpu','CPU',s.cpu.pct,`${s.cpu.count} çekirdek`);
+    ring('g-mem','Bellek',s.mem.pct,`${gb(s.mem.used)} / ${gb(s.mem.total)}`);
+    ring('g-disk','Disk · dolu',s.disk.pct,`${gb(s.disk.used)} / ${gb(s.disk.total)}`);
+
+    // high-usage (>=90%) alerts
+    const al=[];
+    if(s.cpu.pct>=CRIT)al.push('CPU %'+s.cpu.pct.toFixed(0));
+    if(s.mem.pct>=CRIT)al.push('RAM %'+s.mem.pct.toFixed(0));
+    if(s.disk.pct>=CRIT)al.push('Disk %'+s.disk.pct.toFixed(0));
+    const banner=document.getElementById('alertBanner');
+    if(al.length){banner.style.display='flex';banner.textContent='⚠️ Yüksek kullanım: '+al.join('  ·  ');
+      document.title='⚠️ ('+al.length+') Mac Dashboard';}
+    else{banner.style.display='none';document.title='Mac Dashboard';}
+
+    document.getElementById('runners').innerHTML=s.runners.length? s.runners.map(r=>`
+      <a class="card runner ${r.status}" ${r.url?`href="${r.url}" target="_blank" rel="noopener"`:''} title="${r.dir||''}">
+        <div class="row1">
+          <div class="name">${r.name}${r.url?'<span class="ext">↗</span>':''}</div>
+          <span class="pill ${r.status}"><span class="d"></span>${LBL[r.status]}</span>
+        </div>
+        <div class="repo">${r.repo||'—'}</div>
+        <div class="up">${r.status==='offline'?'çalışmıyor':'açık: '+dur(r.uptime)}</div>
+      </a>`).join('') : '<div class="card" style="color:var(--muted);grid-column:1/-1">Runner bulunamadı</div>';
+
+    document.getElementById('cpucount').textContent=s.cpu.pct.toFixed(0)+'%';
+    document.getElementById('cores').innerHTML=s.cpu.cores.map(c=>
+      `<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('');
+    document.getElementById('load').textContent=s.cpu.load.join('  /  ');
+    const setKV=(id,pct,txt)=>{const e=document.getElementById(id);e.textContent=txt;e.classList.toggle('crit',pct>=CRIT)};
+    setKV('memv',s.mem.pct,`${gb(s.mem.used)} / ${gb(s.mem.total)} (${s.mem.pct}%)`);
+    document.getElementById('membar').style.width=s.mem.pct+'%';
+    setKV('swapv',s.swap.pct,`${gb(s.swap.used)} / ${gb(s.swap.total)} (${s.swap.pct}%)`);
+    setKV('diskv',s.disk.pct,`${gb(s.disk.used)} / ${gb(s.disk.total)} (${s.disk.pct}%)`);
+    document.getElementById('uptime').textContent=dur(s.uptime);
+
+    const maxr=Math.max(...s.top.map(p=>p.rss),1);
+    document.getElementById('top').innerHTML=s.top.map(p=>`
+      <div class="proc"><span class="pn">${p.name}</span>
+        <span style="width:90px"><span class="bar"><i style="width:${p.rss/maxr*100}%"></i></span></span>
+        <span class="pm">${gb(p.rss)}</span></div>`).join('');
+
+    document.getElementById('updated').textContent='canlı · '+new Date().toLocaleTimeString('tr-TR');
+    document.getElementById('foot').textContent='sysdash · '+s.host+' · her 1 sn yenilenir';
+  }catch(e){document.getElementById('updated').textContent='bağlantı yok…'}
+}
+function clock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('tr-TR')}
+setInterval(clock,1000);clock();
+tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
