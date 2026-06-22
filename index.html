@@ -279,7 +279,7 @@ function renderHostbar(){
 }
 
 // ---------------- rendering ----------------
-const WARN=75, CRIT=90, R=66, C=2*Math.PI*R;
+const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
 function gb(b){return (b/1073741824).toFixed(1)+' GB'}
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
