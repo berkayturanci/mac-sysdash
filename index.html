@@ -78,12 +78,12 @@
   /* fit as many machines side by side as the width allows, then wrap down */
   .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
   /* cap a panel's content width so a lone machine doesn't stretch awkwardly */
-  .machine{max-width:760px;width:100%;margin:0 auto}
+  .machine{max-width:760px;width:100%;margin:0 auto;min-width:0}
   .machine{display:flex;flex-direction:column;gap:0}
-  .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .mname{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700}
   .mname .ic{font-size:20px}
-  .mright{display:flex;align-items:center;gap:10px}
+  .mright{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
   .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
   .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
   .batt.low{color:var(--red)}
@@ -109,11 +109,11 @@
   .grid{display:grid;gap:14px}
   .gauges{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
   .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-    border-radius:18px;padding:18px;box-shadow:var(--shadow);transition:background .3s,border-color .3s,transform .15s}
+    border-radius:18px;padding:18px;box-shadow:var(--shadow);transition:background .3s,border-color .3s,transform .15s;min-width:0}
   .gauge{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px}
   .gauge .label{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.8px;font-weight:650;text-align:center}
-  .ring{position:relative;width:128px;height:128px}
-  .ring svg{transform:rotate(-90deg)}
+  .ring{position:relative;width:100%;max-width:128px;aspect-ratio:1;height:auto}
+  .ring svg{transform:rotate(-90deg);width:100%;height:100%;display:block}
   .ring .track{stroke:var(--track)}
   .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .ring .pct{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
@@ -183,6 +183,12 @@
     h1{font-size:16px}
     .clock .t{font-size:18px}
     .machines{grid-template-columns:1fr}
+    .gauges{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .gauge{padding:12px 6px}
+    .gauge .label{font-size:10px;letter-spacing:.3px}
+    .ring .pct{font-size:21px}
+    .gmeta{font-size:10px;white-space:normal}
+    .runners{grid-template-columns:1fr}
   }
   @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
 </style>

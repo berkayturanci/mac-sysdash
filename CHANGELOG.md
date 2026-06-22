@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] - 2026-06-22
+
+### Fixed
+- Mobile layout: gauges use `minmax(0,1fr)` so the three rings shrink to fit
+  narrow screens (no more clipped Disk gauge); rings are now fluid, the machine
+  header wraps, and panels stack full-width on phones.
+
+[1.3.2]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.3.2
+
 ## [1.3.1] - 2026-06-22
 
 ### Added
