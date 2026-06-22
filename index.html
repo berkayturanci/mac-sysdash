@@ -179,7 +179,7 @@ const T = {
     live:'live', noConn:'no connection',
     highUse:'High usage:', refresh:'refreshes every 1s',
     online:'online', offline:'offline', unreachable:'unreachable',
-    addMachine:'＋ machine', addName:'Machine name?', addUrl:'URL (e.g. http://100.x.x.x:8765)',
+    addMachine:'＋ machine', addUrl:'Machine address (IP or URL) — e.g. 100.121.169.10',
     themeNames:{auto:'system', light:'light', dark:'dark'},
     langName:'Language', dunit:{d:'d', h:'h', m:'m'},
   },
@@ -195,7 +195,7 @@ const T = {
     live:'canlı', noConn:'bağlantı yok',
     highUse:'Yüksek kullanım:', refresh:'her 1 sn yenilenir',
     online:'çevrimiçi', offline:'çevrimdışı', unreachable:'ulaşılamıyor',
-    addMachine:'＋ makine', addName:'Makine adı?', addUrl:'URL (örn. http://100.x.x.x:8765)',
+    addMachine:'＋ makine', addUrl:'Makine adresi (IP veya URL) — örn. 100.121.169.10',
     themeNames:{auto:'sistem', light:'açık', dark:'koyu'},
     langName:'Dil', dunit:{d:'g', h:'s', m:'d'},
   },
@@ -271,10 +271,10 @@ function renderHostbar(){
     const ps2=peers(); ps2.splice(+x.dataset.i,1); setPeers(ps2); renderHostbar(); renderAll();
   });
   document.getElementById('addHost').onclick=()=>{
-    const name=prompt(t.addName); if(!name)return;
     let base=prompt(t.addUrl); if(!base)return;
     base=normalizeBase(base);
-    const ps2=peers(); ps2.push({name, base}); setPeers(ps2); renderHostbar(); renderAll();
+    // name is left blank; it auto-fills from the machine's own hostname once reachable
+    const ps2=peers(); ps2.push({name:'', base}); setPeers(ps2); renderHostbar(); renderAll();
   };
 }
 
@@ -301,7 +301,7 @@ function ringHTML(label,pct,meta){
 function machineHTML(host, entry){
   const online = entry && entry.online;
   const s = online ? entry.data : null;
-  const name = host.self ? (s?s.host:'Bu Mac') : (host.name||host.base);
+  const name = host.self ? (s?s.host:'Bu Mac') : (host.name || (s?s.host:host.base));
   let body;
   if(!online){
     body = `<div class="card offline-card">⚠️ ${t.unreachable}<br><span style="font-size:12px">${host.base||''}</span></div>`;
@@ -355,7 +355,7 @@ function computeAlerts(){
   const al=[];
   for(const h of hosts()){
     const e=lastData[h.base]; if(!e||!e.online)continue;
-    const s=e.data, nm=h.self?(s.host):(h.name||h.base);
+    const s=e.data, nm=h.self?s.host:(h.name||s.host||h.base);
     if(s.cpu.pct>=CRIT)al.push(`${nm} CPU %${s.cpu.pct.toFixed(0)}`);
     if(s.mem.pct>=CRIT)al.push(`${nm} RAM %${s.mem.pct.toFixed(0)}`);
     if(s.disk.pct>=CRIT)al.push(`${nm} Disk %${s.disk.pct.toFixed(0)}`);
