@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-06-22
+
+### Added
+- Auto-discovery of tailnet peers running mac-sysdash — reachable machines appear
+  automatically, no manual add.
+- Drag a machine panel by its header to reorder; order is persisted.
+- Collapsible sections (Runner status / System / Top processes) to keep just the
+  gauges in view.
+- Recent-job history dots per runner (green = succeeded, red = failed), parsed from
+  the runner's `_diag` logs.
+- Click a CPU/memory gauge for a larger ~5-minute time-series chart.
+- Desktop/phone notifications when a metric goes critical, plus `serve.sh` to expose
+  the dashboard over HTTPS via Tailscale Serve (required for notifications).
+- `?theme=light|dark` URL override for sharing/screenshots.
+- New activity-pulse app icon and crisp SVG favicon.
+
+### Changed
+- Machines fill the available width and wrap down; a lone panel's content is capped.
+- Dark-mode text softened to reduce glare on the large gauge numbers.
+
+[1.2.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.2.0
+
 ## [1.1.0] - 2026-06-22
 
 ### Added

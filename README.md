@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.1.0-blue)
+![version](https://img.shields.io/badge/version-1.2.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -30,13 +30,19 @@ the installer sets that up for you in an isolated virtualenv.
   - For a **busy** runner, the card shows what it is working on — **branch**,
     **workflow**, **PR / issue**, **commit**, and the triggering **actor** —
     read locally from the runner's event payload (no GitHub token needed).
+  - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
   - Click a runner to open its PR (when building one) or its GitHub runner
     settings. Hover to reveal any truncated detail.
-- **Multiple machines side by side** — add peer machines (e.g. via their
-  Tailscale IP) and watch them all in one view.
+- **Multiple machines side by side**, filling the width and wrapping down. Peers are
+  **auto-discovered** on your tailnet (any reachable mac-sysdash), or added manually.
+  **Drag a panel by its header to reorder.**
+- **Collapsible sections** — fold Runner status / System / Top processes to keep just
+  the CPU / memory / disk gauges in view.
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
   throughput, battery, uptime, and the top memory-consuming processes.
-- **Trends** — a 60-second CPU and memory sparkline under each gauge.
+- **Trends** — a 60-second sparkline under each gauge; **click a gauge** for a larger
+  ~5-minute CPU/memory chart.
+- **Notifications** — desktop/phone alerts when a metric goes critical (needs HTTPS).
 - **Per-machine local time** (with timezone) — handy across timezones.
 - **Installable (PWA)** — "Add to Home Screen" on iOS/Android for an app-like,
   full-screen view from your phone.
@@ -106,6 +112,21 @@ Runners are discovered two ways, with no code changes when you add one:
 
 Status: a `Runner.Worker` means **busy**, a `Runner.Listener` alone means
 **idle**, neither means **offline**.
+
+## HTTPS & notifications (optional)
+
+The bell in the header can push a desktop/phone notification when a machine goes
+critical — but browsers only allow notifications in a **secure context**. Expose
+mac-sysdash over HTTPS on your tailnet with [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve):
+
+```sh
+./serve.sh
+```
+
+This prints a clean `https://<host>.<tailnet>.ts.net` URL (no port). Open it,
+click the bell to grant permission, and you'll get alerts even from your phone.
+Stop sharing with `tailscale serve reset`. (Requires HTTPS enabled for your
+tailnet in the Tailscale admin console.)
 
 ## Configuration
 

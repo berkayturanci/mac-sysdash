@@ -5,8 +5,10 @@ Serves a single polished HTML page plus a /api/stats JSON endpoint.
 Designed to run under the glances virtualenv python (has psutil) and be
 reached over Tailscale. No external deps beyond psutil + stdlib.
 """
+import glob
 import json
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -17,7 +19,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -69,7 +71,7 @@ HOSTNAME = computer_name()
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
 _HIST = {"cpu": [], "mem": []}
-_HIST_LEN = 60
+_HIST_LEN = 300  # ~5 min of 1s samples (sparkline uses the last 60; chart uses all)
 _prev_net = None
 
 
@@ -187,6 +189,63 @@ def discover_runners(ttl=30):
     return runners
 
 
+_PEERS = {"ts": 0.0, "data": []}
+
+
+def tailnet_peers(ttl=30):
+    """Online Tailscale peers (ipv4 + short name), cached. The browser probes
+    each for a sysdash on :8765 and auto-adds the ones that answer."""
+    now = time.time()
+    if now - _PEERS["ts"] < ttl and _PEERS["data"]:
+        return _PEERS["data"]
+    peers = []
+    try:
+        out = subprocess.run(["/usr/local/bin/tailscale", "status", "--json"],
+                             capture_output=True, text=True, timeout=4)
+        data = json.loads(out.stdout)
+        for p in (data.get("Peer") or {}).values():
+            if not p.get("Online"):
+                continue
+            ip = next((a for a in (p.get("TailscaleIPs") or []) if ":" not in a), None)
+            if ip:
+                nm = (p.get("HostName") or p.get("DNSName") or ip).split(".")[0]
+                peers.append({"ip": ip, "name": nm})
+    except Exception:
+        pass
+    _PEERS.update(ts=now, data=peers)
+    return peers
+
+
+_HISTORY_CACHE = {}  # runner_dir -> (ts, list)
+
+
+def runner_history(runner_dir, n=5, ttl=45):
+    """Recent finished jobs for a runner (result + duration), parsed cheaply
+    from its _diag Worker logs (tail read + file stat)."""
+    cached = _HISTORY_CACHE.get(runner_dir)
+    now = time.time()
+    if cached and now - cached[0] < ttl:
+        return cached[1]
+    out = []
+    try:
+        logs = sorted(glob.glob(os.path.join(runner_dir, "_diag", "Worker_*.log")),
+                      key=os.path.getmtime, reverse=True)[:n]
+        for lg in logs:
+            st = os.stat(lg)
+            dur = int(st.st_mtime - getattr(st, "st_birthtime", st.st_ctime))
+            with open(lg, "rb") as f:
+                if st.st_size > 8192:
+                    f.seek(st.st_size - 8192)
+                tail = f.read().decode("utf-8", "ignore")
+            m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)", tail)
+            out.append({"result": (m.group(1) if m else None),
+                        "dur": max(0, dur), "ago": int(now - st.st_mtime)})
+    except Exception:
+        pass
+    _HISTORY_CACHE[runner_dir] = (now, out)
+    return out
+
+
 def runner_job(runner_dir):
     """Best-effort current-job context for a busy runner, read locally from the
     runner's last-written webhook event payload — no GitHub token needed."""
@@ -262,6 +321,7 @@ def runner_status():
             j = runner_job(d) or {}
             j["elapsed"] = int(now - worker[d])  # job runtime from Worker start
             entry["job"] = j
+        entry["history"] = runner_history(d)
         result.append(entry)
     return result
 
@@ -370,6 +430,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(),
                            "application/json")
+            return
+        if self.path.startswith("/api/peers"):
+            try:
+                self._send(200, json.dumps(tailnet_peers()).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
         req = self.path.split("?", 1)[0]
         path = "/index.html" if req in ("/", "") else req

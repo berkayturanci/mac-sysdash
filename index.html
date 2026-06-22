@@ -9,8 +9,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mac Dashboard">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script>(function(){var u=new URLSearchParams(location.search).get('theme');
   var p=(u==='light'||u==='dark')?u:(localStorage.getItem('sysdash-theme')||'auto');
   var d=(p==='light'||p==='dark')?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
@@ -87,6 +88,22 @@
   .batt.low{color:var(--red)}
   .spark{width:100%;height:22px;margin-top:8px;opacity:.75;display:block}
   .moff{opacity:.6}
+  .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
+  .grip{color:var(--muted);opacity:.45;font-size:14px;margin-right:2px}
+  .machine.dragover{outline:2px dashed var(--accent);outline-offset:5px;border-radius:18px}
+  .section-title.collapsible{cursor:pointer;user-select:none}
+  .section-title.collapsible:hover{color:var(--txt)}
+  .chev{margin-left:8px;font-size:11px;color:var(--muted)}
+  .histrow{display:flex;gap:5px;margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)}
+  .hdot{width:9px;height:9px;border-radius:3px;background:var(--gray)}
+  .hdot.ok{background:var(--green)} .hdot.fail{background:var(--red)}
+  .gauge.clickable{cursor:pointer} .gauge.clickable:hover{border-color:var(--accent)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal[hidden]{display:none}
+  .modal-card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:22px;max-width:760px;width:100%;box-shadow:var(--shadow)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-weight:650;font-size:15px}
+  .mclose{cursor:pointer;color:var(--muted);font-size:18px;line-height:1}
+  .mclose:hover{color:var(--txt)}
 
   .grid{display:grid;gap:14px}
   .gauges{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
@@ -170,6 +187,7 @@
       </div>
     </div>
     <div class="right">
+      <button id="bellBtn" class="iconbtn" title="Notifications">🔕</button>
       <button id="langBtn" class="iconbtn" title="Language">🌐</button>
       <button id="themeBtn" class="iconbtn" title="Theme">🌓</button>
       <div class="clock">
@@ -183,6 +201,13 @@
   <div class="banner" id="alertBanner"></div>
   <div class="machines" id="machines"></div>
   <div class="foot" id="foot"></div>
+</div>
+
+<div id="chartModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><span id="chartTitle"></span><span id="chartClose" class="mclose">✕</span></div>
+    <div id="chartBody"></div>
+  </div>
 </div>
 
 <script>
@@ -294,8 +319,8 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
-    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:''},
-    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:''}],
+    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600},{result:'Succeeded',dur:205,ago:3600},{result:'Failed',dur:88,ago:8000},{result:'Succeeded',dur:176,ago:12000},{result:'Succeeded',dur:210,ago:20000}]},
+    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800},{result:'Succeeded',dur:280,ago:9000},{result:'Succeeded',dur:265,ago:18000}]}],
   top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
@@ -304,11 +329,22 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
-    {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:''}],
+    {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200},{result:'Failed',dur:1200,ago:30000},{result:'Succeeded',dur:4800,ago:60000},{result:'Succeeded',dur:5100,ago:90000}]}],
   top:[{name:'python',rss:4.2*GiB},{name:'node',rss:0.8*GiB},{name:'Xcode',rss:0.6*GiB},{name:'Chrome',rss:0.4*GiB},{name:'Docker',rss:0.3*GiB},{name:'java',rss:0.2*GiB},{name:'Finder',rss:0.1*GiB},{name:'Notes',rss:0.08*GiB}]};
 const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
 
-function hosts(){return DEMO_MODE?DEMO_HOSTS:[{name:'', base:'', self:true}, ...peers()];}
+let autoPeers=[];  // tailnet peers discovered to be running sysdash
+function hosts(){
+  if(DEMO_MODE) return DEMO_HOSTS;
+  const manual=peers(), mb=new Set(manual.map(p=>p.base));
+  const list=[{name:'',base:'',self:true},...manual,
+    ...autoPeers.filter(a=>!mb.has(a.base)).map(a=>({name:'',base:a.base,auto:true}))];
+  return orderHosts(list);
+}
+function getOrder(){try{return JSON.parse(localStorage.getItem('sysdash-order'))||[]}catch(e){return []}}
+function setOrder(b){localStorage.setItem('sysdash-order',JSON.stringify(b));}
+function orderHosts(list){const ord=getOrder();const ix=b=>{const i=ord.indexOf(b);return i<0?1e6:i};
+  return list.map((h,i)=>[h,i]).sort((a,b)=>(ix(a[0].base)-ix(b[0].base))||(a[1]-b[1])).map(x=>x[0]);}
 
 function renderHostbar(){
   const hb=document.getElementById('hostbar');
@@ -358,11 +394,11 @@ function sparkSVG(arr,col){
 }
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
-function ringHTML(label,pct,meta,spark){
+function ringHTML(label,pct,meta,spark,chart){
   const crit=pct>=CRIT, warn=pct>=WARN;
   const col=crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
   const off=C*(1-pct/100);
-  return `<div class="card gauge ${crit?'crit':''}">
+  return `<div class="card gauge ${crit?'crit':''} ${chart?'clickable':''}"${chart?` data-chart="${esc(chart)}"`:''}>
     ${crit?`<div class="alert-badge">⚠️ %${pct.toFixed(0)}</div>`:''}
     <div class="label">${label}</div>
     <div class="ring"><svg width="128" height="128" viewBox="0 0 150 150">
@@ -374,6 +410,19 @@ function ringHTML(label,pct,meta,spark){
     ${sparkSVG(spark,col)}
   </div>`;
 }
+// collapsible sections (global across machines)
+function collapseState(){try{return JSON.parse(localStorage.getItem('sysdash-collapse'))||{}}catch(e){return {}}}
+function isCollapsed(k){return !!collapseState()[k]}
+function toggleCollapse(k){const s=collapseState();s[k]=!s[k];localStorage.setItem('sysdash-collapse',JSON.stringify(s));renderAll();}
+function sec(key,title,inner){const c=isCollapsed(key);
+  return `<div class="section-title collapsible" data-sec="${key}">${title}<span class="chev">${c?'▸':'▾'}</span></div>${c?'':inner}`;}
+// recent job history dots
+function historyHTML(h){
+  if(!h||!h.length)return '';
+  return `<div class="histrow">${h.map(j=>{const ok=(j.result||'').toLowerCase()==='succeeded';
+    return `<span class="hdot ${j.result?(ok?'ok':'fail'):'unk'}" title="${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}"></span>`;}).join('')}</div>`;
+}
+
 function machineHTML(host, entry){
   const online = entry && entry.online;
   const s = online ? entry.data : null;
@@ -391,19 +440,11 @@ function machineHTML(host, entry){
         <div class="repo">${esc(r.repo||'—')}</div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
         ${r.job?jobHTML(r.job):''}
+        ${historyHTML(r.history)}
       </a>`;
     }).join('') : `<div class="card" style="color:var(--muted);grid-column:1/-1">${t.noRunners}</div>`;
     const maxr=Math.max(...s.top.map(p=>p.rss),1);
-    body = `
-      <div class="grid gauges">
-        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu)}
-        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem)}
-        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total))}
-      </div>
-      <div class="section-title">${t.runners}</div>
-      <div class="grid runners">${runners}</div>
-      <div class="section-title">${t.system}</div>
-      <div class="card">
+    const sysInner = `<div class="card">
         <div class="kv"><span class="k">${t.perCore}</span><span class="v">${s.cpu.pct.toFixed(0)}%</span></div>
         <div class="cores">${s.cpu.cores.map(c=>`<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('')}</div>
         <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v">${s.cpu.load.join('  /  ')}</span></div>
@@ -414,17 +455,25 @@ function machineHTML(host, entry){
         ${kv(t.swap, s.swap.pct, gb(s.swap.used)+' / '+gb(s.swap.total)+' ('+s.swap.pct+'%)')}
         ${kv(t.diskFull, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+' ('+s.disk.pct+'%)')}
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <div class="kv" style="padding-bottom:10px;margin-bottom:6px"><span class="k">${t.topMem}</span><span class="v">RSS</span></div>
+      </div>`;
+    const topInner = `<div class="card">
         ${s.top.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
           <span style="width:80px"><span class="bar"><i style="width:${p.rss/maxr*100}%"></i></span></span>
           <span class="pm">${gb(p.rss)}</span></div>`).join('')}
       </div>`;
+    body = `
+      <div class="grid gauges">
+        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
+        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
+        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total))}
+      </div>
+      ${sec('runners', t.runners, `<div class="grid runners">${runners}</div>`)}
+      ${sec('system', t.system, sysInner)}
+      ${sec('procs', t.topMem, topInner)}`;
   }
-  return `<div class="machine ${online?'':'moff'}">
-    <div class="mhead">
-      <div class="mname"><span class="ic">💻</span>${name}</div>
+  return `<div class="machine ${online?'':'moff'}" data-base="${esc(host.base)}">
+    <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
+      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${name}</div>
       <div class="mright">
         ${online&&s.battery?batteryChip(s.battery):''}
         ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
@@ -448,6 +497,13 @@ function computeAlerts(){
   if(al.length){banner.style.display='flex';banner.textContent='⚠️ '+t.highUse+' '+al.join('  ·  ');
     document.title='⚠️ ('+al.length+') Mac Dashboard';}
   else{banner.style.display='none';document.title='Mac Dashboard';}
+  notifyAlerts(al);
+}
+let prevAlerts=new Set();
+function notifyAlerts(al){
+  if(localStorage.getItem('sysdash-notify')!=='1'||!('Notification' in window)||Notification.permission!=='granted'){prevAlerts=new Set(al);return;}
+  for(const a of al){ if(!prevAlerts.has(a)){ try{new Notification('⚠️ '+a);}catch(_){} } }
+  prevAlerts=new Set(al);
 }
 
 function renderAll(){
@@ -467,9 +523,10 @@ async function pollHost(h){
   }catch(e){ lastData[h.base]={online:false}; }
 }
 async function tick(){
-  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); renderAll(); document.getElementById('updated').textContent=t.live; return; }
+  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); if(!isDragging)renderAll(); if(chartKey)drawChart(); document.getElementById('updated').textContent=t.live; return; }
   await Promise.all(hosts().map(pollHost));
-  renderAll();
+  if(!isDragging)renderAll();
+  if(chartKey)drawChart();
   document.getElementById('updated').textContent=t.live;
 }
 // clock: 24-hour by default; click to toggle 24h <-> AM/PM (persisted)
@@ -480,9 +537,80 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
 (function(){const el=document.getElementById('clock');el.style.cursor='pointer';el.title='12 / 24 saat';
   el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
-applyLang(); applyTheme(); if(!DEMO_MODE) renderHostbar();
+// --- drag to reorder + collapse + gauge chart (delegated on #machines) ---
+let dragBase=null, isDragging=false;
+const mWrap=document.getElementById('machines');
+mWrap.addEventListener('dragstart',e=>{const h=e.target.closest('.mhead');if(!h)return;dragBase=h.closest('.machine').dataset.base;isDragging=true;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragBase);}catch(_){}});
+mWrap.addEventListener('dragover',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));if(m)m.classList.add('dragover');});
+mWrap.addEventListener('drop',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');if(m){const order=hosts().map(h=>h.base).filter(b=>b!==dragBase);const ti=order.indexOf(m.dataset.base);order.splice(ti<0?order.length:ti,0,dragBase);setOrder(order);}dragBase=null;isDragging=false;renderAll();});
+mWrap.addEventListener('dragend',()=>{dragBase=null;isDragging=false;mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));});
+mWrap.addEventListener('click',e=>{
+  const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
+  const g=e.target.closest('.gauge.clickable'); if(g&&g.dataset.chart){openChart(g.dataset.chart);}
+});
+
+// --- gauge chart modal ---
+let chartKey=null;
+function openChart(k){chartKey=k;drawChart();document.getElementById('chartModal').hidden=false;}
+function closeChart(){chartKey=null;document.getElementById('chartModal').hidden=true;}
+function drawChart(){
+  if(!chartKey)return;
+  const [base,metric]=chartKey.split('|');
+  const e=lastData[base]; if(!e||!e.online){closeChart();return;}
+  const s=e.data, arr=(s.hist&&s.hist[metric])||[];
+  const nm=base===''?s.host:(s.host||base), label=metric==='cpu'?t.cpu:t.mem;
+  const cur=arr.length?arr[arr.length-1]:0, mx=arr.length?Math.max(...arr):0, mn=arr.length?Math.min(...arr):0;
+  document.getElementById('chartTitle').textContent=nm+' · '+label;
+  const W=700,H=240,p=24;
+  const path=arr.length>1?arr.map((v,i)=>`${(p+i/(arr.length-1)*(W-2*p)).toFixed(1)},${(H-p-(Math.max(0,Math.min(100,v))/100)*(H-2*p)).toFixed(1)}`).join(' '):'';
+  const grid=[0,25,50,75,100].map(y=>{const yy=(H-p-(y/100)*(H-2*p)).toFixed(1);return `<line x1="${p}" y1="${yy}" x2="${W-p}" y2="${yy}" stroke="var(--line)" stroke-dasharray="3 4" opacity=".6"/><text x="2" y="${(+yy+4)}" fill="var(--muted)" font-size="10">${y}</text>`;}).join('');
+  document.getElementById('chartBody').innerHTML=`
+    <div style="display:flex;gap:18px;color:var(--muted);font-size:13px;margin-bottom:10px">
+      <span>${L==='tr'?'şu an':'now'}: <b style="color:var(--txt)">${cur.toFixed(0)}%</b></span>
+      <span>max: <b style="color:var(--txt)">${mx.toFixed(0)}%</b></span>
+      <span>min: <b style="color:var(--txt)">${mn.toFixed(0)}%</b></span>
+      <span style="margin-left:auto">${L==='tr'?'son':'last'} ~${Math.max(1,Math.round(arr.length/60))} ${L==='tr'?'dk':'min'}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}
+      <polyline points="${path}" fill="none" stroke="#4f8cff" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+document.getElementById('chartClose').addEventListener('click',closeChart);
+document.getElementById('chartModal').addEventListener('click',e=>{if(e.target.id==='chartModal')closeChart();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart();});
+
+// --- notifications bell ---
+const bell=document.getElementById('bellBtn');
+function bellState(){const on=localStorage.getItem('sysdash-notify')==='1';bell.textContent=on?'🔔':'🔕';
+  bell.title=on?(L==='tr'?'bildirim açık':'notifications on'):(L==='tr'?'bildirim kapalı':'notifications off');}
+bell.addEventListener('click',async()=>{
+  if(!('Notification' in window)){alert(L==='tr'?'Tarayıcı bildirim desteklemiyor':'Notifications not supported');return;}
+  if(localStorage.getItem('sysdash-notify')==='1'){localStorage.setItem('sysdash-notify','0');bellState();return;}
+  let perm=Notification.permission; if(perm!=='granted')perm=await Notification.requestPermission();
+  if(perm!=='granted'){alert(L==='tr'?'İzin verilmedi (HTTPS gerekebilir)':'Permission denied (HTTPS may be required)');return;}
+  localStorage.setItem('sysdash-notify','1');bellState();
+});
+
+// --- tailnet peer auto-discovery ---
+async function discover(){
+  if(DEMO_MODE)return;
+  try{
+    const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(4000)})).json();
+    const selfIp=(lastData['']&&lastData[''].online)?lastData[''].data.tailscale_ip:null;
+    const found=[];
+    await Promise.all((list||[]).map(async p=>{
+      if(!p.ip||p.ip===selfIp)return;
+      const base='http://'+p.ip+':8765';
+      try{const r=await fetch(base+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(2500)});
+        if(r.ok){lastData[base]={data:await r.json(),online:true};found.push({base});}}catch(_){}
+    }));
+    autoPeers=found;
+  }catch(_){}
+}
+
+applyLang(); applyTheme(); bellState(); if(!DEMO_MODE) renderHostbar();
 setInterval(clock,1000); clock();
 tick(); setInterval(tick,1000);
+discover(); setInterval(discover,30000);
 if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
