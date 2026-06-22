@@ -13,13 +13,15 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.3.3"
+VERSION = "1.4.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -215,6 +217,85 @@ def tailnet_peers(ttl=30):
         pass
     _PEERS.update(ts=now, data=peers)
     return peers
+
+
+# --- server-side peer aggregation ---------------------------------------
+# The browser only talks to THIS origin; this server fetches each peer's stats
+# over the tailnet (server-to-server, no mixed-content, no per-peer HTTPS), so
+# a phone that can reach this Mac sees every machine without each peer needing
+# `tailscale serve`. Peers may run sysdash on a non-default port (e.g. 8770).
+_PEER_PORTS = (8765, 8770)
+
+
+def _fetch_stats(url, timeout=2.5):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            d = json.loads(r.read().decode("utf-8", "ignore"))
+        if isinstance(d, dict) and "cpu" in d and "version" in d:
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _peer_urls(p):
+    """Candidate stats URLs for a peer, HTTPS-serve first (only path that some
+    nodes accept), then direct app ports for LAN peers without serve."""
+    urls = []
+    if p.get("dns"):
+        urls.append("https://%s/api/stats" % p["dns"])
+    for port in _PEER_PORTS:
+        urls.append("http://%s:%d/api/stats" % (p["ip"], port))
+    return urls
+
+
+_SPEERS = {"ts": 0.0, "data": []}      # reachable sysdash peers: [{ip,name}]
+_PEER_CACHE = {}                       # ip -> (ts, stats, working_url)
+
+
+def _refresh_sysdash_peers():
+    out = []
+    for p in tailnet_peers(ttl=60):
+        if p["ip"] == TAILSCALE_IP:
+            continue
+        for u in _peer_urls(p):
+            d = _fetch_stats(u)
+            if d:
+                out.append({"ip": p["ip"], "name": p["name"]})
+                _PEER_CACHE[p["ip"]] = (time.time(), d, u)
+                break
+    _SPEERS.update(ts=time.time(), data=out)
+
+
+def _peer_sampler():
+    while True:
+        try:
+            _refresh_sysdash_peers()
+        except Exception:
+            pass
+        time.sleep(15)
+
+
+def sysdash_peers():
+    return _SPEERS["data"]
+
+
+def peer_stats(ip, ttl=1.5):
+    """Cached proxy of a peer's /api/stats (only for known tailnet peers)."""
+    peers = {p["ip"]: p for p in tailnet_peers()}
+    if ip not in peers:
+        return None
+    c = _PEER_CACHE.get(ip)
+    now = time.time()
+    if c and now - c[0] < ttl:
+        return c[1]
+    urls = ([c[2]] if c else []) + _peer_urls(peers[ip])
+    for u in urls:
+        d = _fetch_stats(u)
+        if d:
+            _PEER_CACHE[ip] = (now, d, u)
+            return d
+    return None
 
 
 _HISTORY_CACHE = {}  # runner_dir -> (ts, list)
@@ -460,7 +541,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/peers"):
             try:
-                self._send(200, json.dumps(tailnet_peers()).encode(), "application/json")
+                self._send(200, json.dumps(sysdash_peers()).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
+        if self.path.startswith("/api/peer"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                ip = (q.get("ip") or [""])[0]
+                d = peer_stats(ip)
+                if d is None:
+                    self._send(404, b'{"error":"peer unreachable"}', "application/json")
+                else:
+                    self._send(200, json.dumps(d).encode(), "application/json")
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
@@ -477,6 +570,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     threading.Thread(target=_cpu_sampler, daemon=True).start()
+    threading.Thread(target=_peer_sampler, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {TAILSCALE_IP})")

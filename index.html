@@ -365,7 +365,7 @@ function hosts(){
   if(DEMO_MODE) return DEMO_HOSTS;
   const manual=peers(), mb=new Set(manual.map(p=>p.base));
   const list=[{name:'',base:'',self:true},...manual,
-    ...autoPeers.filter(a=>!mb.has(a.base)).map(a=>({name:'',base:a.base,auto:true}))];
+    ...autoPeers.filter(a=>!mb.has(a.base)).map(a=>({name:a.name||'',base:a.base,auto:true,statsUrl:a.statsUrl}))];
   return orderHosts(list);
 }
 function getOrder(){try{return JSON.parse(localStorage.getItem('sysdash-order'))||[]}catch(e){return []}}
@@ -544,7 +544,7 @@ function renderAll(){
 
 async function pollHost(h){
   try{
-    const r=await fetch((h.base||'')+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(4000)});
+    const r=await fetch(h.statsUrl||((h.base||'')+'/api/stats'),{cache:'no-store',signal:AbortSignal.timeout(4000)});
     lastData[h.base]={data:await r.json(), online:true};
   }catch(e){ lastData[h.base]={online:false}; }
 }
@@ -658,24 +658,16 @@ bell.addEventListener('click',async()=>{
   try{new Notification(L==='tr'?'🔔 Bildirimler açık':'🔔 Notifications enabled',{body:L==='tr'?'Kritik kullanımda haber vereceğim.':'You\'ll be alerted on critical usage.'});}catch(_){}
 });
 
-// --- tailnet peer auto-discovery ---
+// --- tailnet peer auto-discovery (server-side aggregated) ---
+// The server probes tailnet peers and returns the reachable sysdash ones; the
+// browser fetches each peer's stats through this origin's /api/peer proxy, so it
+// works the same on a phone over HTTPS (no mixed content, no per-peer serve).
 async function discover(){
   if(DEMO_MODE)return;
   try{
-    const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(4000)})).json();
-    const selfIp=(lastData['']&&lastData[''].online)?lastData[''].data.tailscale_ip:null;
-    const secure=location.protocol==='https:';  // HTTPS page can't fetch http peers (mixed content)
-    const found=[];
-    await Promise.all((list||[]).map(async p=>{
-      if(!p.ip||p.ip===selfIp)return;
-      // on HTTPS, reach the peer over its Tailscale HTTPS name (needs serve.sh there);
-      // on HTTP, hit the peer directly on :8765.
-      const base = secure ? (p.dns ? 'https://'+p.dns : null) : 'http://'+p.ip+':8765';
-      if(!base)return;
-      try{const r=await fetch(base+'/api/stats',{cache:'no-store',signal:AbortSignal.timeout(6000)});
-        if(r.ok){lastData[base]={data:await r.json(),online:true};found.push({base});}}catch(_){}
-    }));
-    autoPeers=found;
+    const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json();
+    autoPeers=(list||[]).filter(p=>p&&p.ip).map(p=>({
+      base:'peer:'+p.ip, name:p.name||'', statsUrl:'/api/peer?ip='+encodeURIComponent(p.ip)}));
   }catch(_){}
 }
 
