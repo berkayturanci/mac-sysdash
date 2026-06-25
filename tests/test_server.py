@@ -37,10 +37,13 @@ def write_event(runner_dir, payload):
 
 
 def write_worker_log(runner_dir, name, workflow_ref=None, result="Succeeded",
-                     actor=None, head_ref=None):
+                     actor=None, head_ref=None, job=None):
     diag = os.path.join(runner_dir, "_diag")
     os.makedirs(diag, exist_ok=True)
     parts = ["[2026-06-22 10:00:00Z INFO Worker] Job started.\n"]
+    if job is not None:  # GitHub serializes the job message near the top of the log
+        parts.append('  "jobId": "abc",\n  "jobDisplayName": "%s",\n'
+                     '  "jobName": "__default",\n' % job)
     if workflow_ref:
         parts.append('          "k": "workflow_ref",\n')
         parts.append('          "v": "%s"\n' % workflow_ref)
@@ -147,6 +150,24 @@ class RunnerHistoryTests(unittest.TestCase):
             self.assertEqual(h[0]["head"], "feature/login")
             self.assertEqual(h[0]["actor"], "octocat")
 
+    def test_parses_job_display_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-140000-utc.log",
+                workflow_ref="acme/web/.github/workflows/ci.yml@refs/heads/main",
+                result="Succeeded", job="Build Android APKs")
+            h = server.runner_history(tmp, ttl=0)
+            self.assertEqual(h[0]["job"], "Build Android APKs")
+            self.assertEqual(h[0]["workflow"], "ci.yml")  # both, job is not the workflow
+
+    def test_job_is_none_when_log_has_no_job_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(
+                tmp, "Worker_20260622-150000-utc.log",
+                workflow_ref="acme/web/.github/workflows/ci.yml@refs/heads/main",
+                result="Succeeded")
+            self.assertIsNone(server.runner_history(tmp, ttl=0)[0]["job"])
+
     def test_empty_actor_head_become_none(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_worker_log(
@@ -170,6 +191,30 @@ class RunnerHistoryTests(unittest.TestCase):
     def test_no_logs_returns_empty(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(server.runner_history(tmp, ttl=0), [])
+
+
+class RunnerCurrentJobTests(unittest.TestCase):
+    def test_reads_job_name_from_newest_worker_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = write_worker_log(tmp, "Worker_20260622-100000-utc.log",
+                                   job="Test & Lint")
+            new = write_worker_log(tmp, "Worker_20260622-120000-utc.log",
+                                   job="Build Android APKs")
+            os.utime(old, (1000, 1000))   # force deterministic mtime ordering
+            os.utime(new, (2000, 2000))
+            self.assertEqual(server.runner_current_job_name(tmp),
+                             "Build Android APKs")
+
+    def test_none_when_no_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(server.runner_current_job_name(tmp))
+
+    def test_none_when_log_has_no_job_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_worker_log(tmp, "Worker_20260622-100000-utc.log",
+                             workflow_ref="acme/web/.github/workflows/ci.yml"
+                             "@refs/heads/main")
+            self.assertIsNone(server.runner_current_job_name(tmp))
 
 
 class TailnetPeerTests(unittest.TestCase):

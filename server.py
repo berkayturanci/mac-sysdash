@@ -21,7 +21,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.7.1"
+VERSION = "1.8.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -351,6 +351,12 @@ def peer_stats(ip, ttl=10.0):
 
 _HISTORY_CACHE = {}  # runner_dir -> (ts, list)
 
+# A Worker log records the display name of the job it ran (what GitHub's UI shows,
+# e.g. "Build Android APKs") near its top. This is the ONLY local source that
+# names the job: event.json is the workflow *trigger*, shared by every job in a
+# run, so it can't tell one runner's job apart from another's in the same run.
+_JOB_NAME_RE = re.compile(r'"jobDisplayName"\s*:\s*"([^"]+)"')
+
 
 def runner_history(runner_dir, n=5, ttl=45):
     """Recent finished jobs for a runner (result + duration), parsed cheaply
@@ -392,9 +398,11 @@ def runner_history(runner_dir, n=5, ttl=45):
             hm = re.search(r'"k":\s*"head_ref"\s*,\s*"v":\s*"([^"]*)"', head)
             actor = am.group(1) if am and am.group(1) else None
             headref = hm.group(1) if hm and hm.group(1) else None
+            jn = _JOB_NAME_RE.search(head)  # which job ran, not just the workflow
             out.append({"result": (m.group(1) if m else None),
                         "dur": max(0, dur), "ago": int(now - st.st_mtime),
-                        "workflow": wf, "branch": br, "actor": actor, "head": headref})
+                        "workflow": wf, "job": (jn.group(1) if jn else None),
+                        "branch": br, "actor": actor, "head": headref})
     except Exception:
         pass
     _HISTORY_CACHE[runner_dir] = (now, out)
@@ -440,6 +448,23 @@ def runner_job(runner_dir):
     return {k: v for k, v in job.items() if v} or None
 
 
+def runner_current_job_name(runner_dir):
+    """Display name of the job a busy runner is running *right now*, read from its
+    newest Worker log (one Worker process == one job). event.json names the
+    workflow run, not the job, so on a multi-job run split across runners every
+    runner would otherwise look identical — this is what tells them apart."""
+    try:
+        logs = glob.glob(os.path.join(runner_dir, "_diag", "Worker_*.log"))
+        if not logs:
+            return None
+        with open(max(logs, key=os.path.getmtime), "rb") as f:
+            head = f.read(262144).decode("utf-8", "ignore")  # name sits near the top
+    except Exception:
+        return None
+    m = _JOB_NAME_RE.search(head)
+    return m.group(1) if m else None
+
+
 def runner_status():
     """Classify each discovered runner as busy / idle / offline."""
     runners = discover_runners()
@@ -474,6 +499,9 @@ def runner_status():
         }
         if status == "busy":
             j = runner_job(d) or {}
+            name = runner_current_job_name(d)  # the specific job, not just the run
+            if name:
+                j["name"] = name
             j["elapsed"] = int(now - worker[d])  # job runtime from Worker start
             entry["job"] = j
         entry["history"] = runner_history(d)

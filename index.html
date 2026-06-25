@@ -168,6 +168,7 @@
   .pill.offline .d{background:var(--gray)}
   .jobinfo{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:5px}
   .jline{font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jline.jstrong{font-weight:700;font-size:12.5px}
   .jmuted{color:var(--muted);font-style:italic}
   /* on hover, reveal everything that was truncated */
   .runner.clickable:hover .jline,.runner.clickable:hover .repo{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word}
@@ -176,7 +177,8 @@
   .rm-h{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:6px 0 8px}
   .rm-run{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
   .rm-run:hover{background:var(--track);border-color:var(--line)}
-  .rm-run .rm-wf{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+  .rm-run .rm-wf{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  .rm-run .rm-sub{color:var(--muted);font-weight:400;font-size:12px}
   .rm-run .rm-meta{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
   .rm-links{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
   .rm-links a{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
@@ -352,9 +354,9 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
   net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
-      job:{branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
-    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',branch:'main'}]},
-    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',branch:'develop'}]}],
+      job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
+    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'}]},
+    {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',job:'build (debug)',branch:'develop'}]}],
   top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
@@ -362,8 +364,8 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
   net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
-      job:{branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
-    {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200},{result:'Failed',dur:1200,ago:30000},{result:'Succeeded',dur:4800,ago:60000},{result:'Succeeded',dur:5100,ago:90000}]}],
+      job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
+    {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200,workflow:'train.yml',job:'train (gpu)'},{result:'Failed',dur:1200,ago:30000,workflow:'train.yml',job:'eval'},{result:'Succeeded',dur:4800,ago:60000,workflow:'train.yml',job:'train (gpu)'},{result:'Succeeded',dur:5100,ago:90000,workflow:'train.yml',job:'train (gpu)'}]}],
   top:[{name:'python',rss:4.2*GiB},{name:'node',rss:0.8*GiB},{name:'Xcode',rss:0.6*GiB},{name:'Chrome',rss:0.4*GiB},{name:'Docker',rss:0.3*GiB},{name:'java',rss:0.2*GiB},{name:'Finder',rss:0.1*GiB},{name:'Notes',rss:0.08*GiB}]};
 const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
 
@@ -385,6 +387,7 @@ const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function jobHTML(j){
   const p=[];
+  if(j.name) p.push(`<div class="jline jstrong" title="${esc(j.name)}">▶ ${esc(j.name)}</div>`);
   if(j.pr) p.push(`<div class="jline" title="PR #${j.pr}${j.pr_title?' — '+esc(j.pr_title):''}">🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}</div>`);
   if(j.issue) p.push(`<div class="jline"># issue #${j.issue}</div>`);
   if(j.branch) p.push(`<div class="jline" title="${esc(j.branch)}${j.base?' → '+esc(j.base):''}">⎇ ${esc(j.branch)}${j.base?' → '+esc(j.base):''}</div>`);
@@ -441,7 +444,8 @@ function sec(key,title,inner){const c=isCollapsed(key);
 function historyHTML(h){
   if(!h||!h.length)return '';
   return `<div class="histrow">${h.map(j=>{const ok=(j.result||'').toLowerCase()==='succeeded';
-    return `<span class="hdot ${j.result?(ok?'ok':'fail'):'unk'}" title="${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}"></span>`;}).join('')}</div>`;
+    const lbl=j.job||j.workflow||'';
+    return `<span class="hdot ${j.result?(ok?'ok':'fail'):'unk'}" title="${lbl?esc(lbl)+' · ':''}${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}"></span>`;}).join('')}</div>`;
 }
 
 function machineHTML(host, entry){
@@ -596,11 +600,13 @@ function drawRunner(){
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
     const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
     const brTxt=j.branch?(j.head?`${j.branch} (${j.head})`:j.branch):'';
-    const tip=[j.workflow||'workflow', brTxt, j.result||'?', dur(j.dur), when,
+    const headline=j.job||j.workflow||'workflow';        // the job that ran, not just its workflow
+    const sub=(j.job&&j.workflow)?j.workflow:'';          // workflow kept as context
+    const tip=[headline, sub?('⚙ '+sub):'', brTxt, j.result||'?', dur(j.dur), when,
                j.actor?('👤 '+j.actor):''].filter(Boolean).join(' · ');
     return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener" title="${esc(tip)}">
       <span class="hdot ${cls}"></span>
-      <span class="rm-wf">${esc(j.workflow||'workflow')}${j.branch?' · '+esc(j.branch):''}</span>
+      <span class="rm-wf">${esc(headline)}${sub?` <span class="rm-sub">⚙ ${esc(sub)}</span>`:''}${j.branch?' · '+esc(j.branch):''}</span>
       <span class="rm-meta">${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}</span>
       <span class="ext">↗</span></a>`;
   }).join(''):`<div style="color:var(--muted);font-size:13px">${L==='tr'?'geçmiş çalışma bulunamadı':'no recent runs found'}</div>`;
