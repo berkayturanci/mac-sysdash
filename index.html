@@ -356,7 +356,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
-    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'}]},
+    {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
     {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',job:'build (debug)',branch:'develop'}]}],
   top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
@@ -597,7 +597,42 @@ function drawRunner(){
   const r=(e.data.runners||[])[runnerKey.ri]; if(!r){closeRunner();return;}
   const actions=r.repo?'https://github.com/'+r.repo+'/actions':'';
   const wfUrl=wf=>(r.repo&&wf)?'https://github.com/'+r.repo+'/actions/workflows/'+encodeURIComponent(wf):actions;
-  const hist=(r.history&&r.history.length)?r.history.map(j=>{
+  let statsHTML = '';
+  if(r.history && r.history.length) {
+    const groups = {};
+    for(const j of r.history) {
+      if(!j.result) continue;
+      const jobName = j.job || j.workflow || 'workflow';
+      if(!groups[jobName]) groups[jobName] = {runs:0, ok:0, durs:[], latestDur:null};
+      groups[jobName].runs++;
+      if((j.result||'').toLowerCase() === 'succeeded') groups[jobName].ok++;
+      if(j.dur != null) groups[jobName].durs.push(j.dur);
+      if(groups[jobName].latestDur == null && j.dur != null) groups[jobName].latestDur = j.dur;
+    }
+    const statsList = Object.entries(groups)
+      .sort((a,b)=>b[1].runs - a[1].runs)
+      .map(([name, g]) => {
+        const sr = Math.round(g.ok / g.runs * 100);
+        let medStr = '', trend = '';
+        if(g.durs.length) {
+           const sorted = [...g.durs].sort((a,b)=>a-b);
+           const med = sorted[Math.floor(sorted.length/2)];
+           medStr = ' · ~' + dur(med) + ' median';
+           if(g.durs.length > 1 && g.latestDur != null) {
+              const diff = g.latestDur - med;
+              if (diff > Math.max(10, med*0.1)) trend = ' <span style="color:var(--red)" title="slower than median">▲</span>';
+              else if (diff < -Math.max(10, med*0.1)) trend = ' <span style="color:var(--green)" title="faster than median">▼</span>';
+           }
+        }
+        return `<div style="font-size:13.5px; margin-bottom:6px">
+          <span style="color:var(--txt); font-weight:600">${esc(name)}</span> 
+          <span style="color:var(--muted)">· ${g.runs} ${L==='tr'?'çalışma':'runs'} · ${sr}% ok${medStr}</span>${trend}
+        </div>`;
+      }).join('');
+    if(statsList) statsHTML = `<div class="rm-h" style="margin-bottom:8px">${L==='tr'?'İş istatistikleri':'Job stats'}</div>${statsList}`;
+  }
+
+  const hist=(r.history&&r.history.length)?r.history.slice(0, 8).map(j=>{
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
     const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
     const brTxt=j.branch?(j.head?`${j.branch} (${j.head})`:j.branch):'';
@@ -616,6 +651,7 @@ function drawRunner(){
   document.getElementById('runnerBody').innerHTML=`
     <div class="rm-repo">${esc(r.repo||'—')}</div>
     ${r.job?`<div class="rm-job">${jobHTML(r.job)}</div>`:''}
+    ${statsHTML}
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
     ${hist}
     <div class="rm-links">
