@@ -8,7 +8,9 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import types
+import sqlite3
 import unittest
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -263,6 +265,46 @@ class StatsTests(unittest.TestCase):
         self.assertEqual(s["mem"]["pct"], round(12 / 16 * 100, 1))
 
 
+class HistoryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        server._STATE_DIR = self.tmp.name
+        server._DB_PATH = os.path.join(self.tmp.name, "history.db")
+        server._init_db()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_history_insert_and_query(self):
+        with mock.patch("server.time.time", return_value=1600000000):
+            server._write_hist_db(10.0, 20.0, 30.0)
+            
+        with mock.patch("server.time.time", return_value=1600000060):
+            res = server.history_stats("1h")
+            self.assertIn("cpu", res)
+            self.assertIn("mem", res)
+            self.assertIn("disk", res)
+            self.assertEqual(res["step"], 60)
+            self.assertTrue(len(res["cpu"]) >= 2)
+            # The last element should be the newly inserted or carried over.
+            self.assertEqual(res["cpu"][-1], 10.0)
+            self.assertEqual(res["mem"][-1], 20.0)
+
+    def test_history_prune(self):
+        # Insert a very old record
+        with sqlite3.connect(server._DB_PATH) as conn:
+            conn.execute("INSERT OR REPLACE INTO hist (ts, cpu, mem, disk) VALUES (?, ?, ?, ?)", (1000, 5.0, 5.0, 5.0))
+        
+        # Write a new record (simulating current time)
+        with mock.patch("server.time.time", return_value=1000 + 8 * 24 * 3600):
+            server._write_hist_db(10.0, 10.0, 10.0)
+            
+        # The old record should be deleted
+        with sqlite3.connect(server._DB_PATH) as conn:
+            c = conn.execute("SELECT COUNT(*) FROM hist")
+            self.assertEqual(c.fetchone()[0], 1)
+
+
 class BatteryTests(unittest.TestCase):
     def test_battery_normalizes_unknown_time(self):
         b = types.SimpleNamespace(percent=83.6, power_plugged=True, secsleft=-2)
@@ -299,6 +341,16 @@ class HttpRouteTests(unittest.TestCase):
         self.assertEqual(r.headers.get("Access-Control-Allow-Origin"), "*")
         d = json.load(r)
         self.assertEqual(d["version"], server.VERSION)
+
+    def test_api_history_json(self):
+        r = self.get("/api/history?range=1h")
+        self.assertEqual(r.status, 200)
+        d = json.load(r)
+        self.assertIn("cpu", d)
+        self.assertIn("mem", d)
+        self.assertIn("disk", d)
+        self.assertIn("step", d)
+        self.assertIn("t0", d)
 
     def test_api_peers_json(self):
         server._PEERS["ts"] = 0.0

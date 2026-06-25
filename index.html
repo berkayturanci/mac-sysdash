@@ -627,15 +627,48 @@ document.getElementById('runnerClose').addEventListener('click',closeRunner);
 document.getElementById('runnerModal').addEventListener('click',e=>{if(e.target.id==='runnerModal')closeRunner();});
 
 // --- gauge chart modal ---
-let chartKey=null, chartHover=null, _chartArr=[];
+let chartKey=null, chartHover=null, _chartArr=[], chartRange='5m', _chartHistData=null;
 const _CW=700,_CH=240,_CP=24;
-function openChart(k){chartKey=k;chartHover=null;drawChart();document.getElementById('chartModal').hidden=false;}
+
+async function setChartRange(rng){
+  chartRange=rng;
+  chartHover=null;
+  if(rng==='5m'){
+    _chartHistData=null;
+    drawChart();
+  } else {
+    try {
+      const [base,metric]=chartKey.split('|');
+      const h = hosts().find(x => x.base === base);
+      if(!h) return;
+      let url = '';
+      if(h.statsUrl) {
+        url = new URL(h.statsUrl).origin + '/api/history?range=' + rng;
+      } else {
+        url = (h.base||'') + '/api/history?range=' + rng;
+      }
+      const r = await fetch(url);
+      _chartHistData = await r.json();
+      drawChart();
+    } catch(e) {
+      _chartHistData = null;
+    }
+  }
+}
+
+function openChart(k){chartKey=k;chartHover=null;chartRange='5m';_chartHistData=null;drawChart();document.getElementById('chartModal').hidden=false;}
 function closeChart(){chartKey=null;chartHover=null;document.getElementById('chartModal').hidden=true;}
 function drawChart(){
   if(!chartKey)return;
   const [base,metric]=chartKey.split('|');
   const e=lastData[base]; if(!e||!e.online){closeChart();return;}
-  const s=e.data, arr=(s.hist&&s.hist[metric])||[];
+  const s=e.data;
+  let arr = [];
+  if(chartRange === '5m'){
+    arr = (s.hist&&s.hist[metric])||[];
+  } else if (_chartHistData) {
+    arr = _chartHistData[metric] || [];
+  }
   _chartArr=arr;
   const nm=base===''?s.host:(s.host||base), label=metric==='cpu'?t.cpu:metric==='mem'?t.mem:t.diskUsed;
   const cur=arr.length?arr[arr.length-1]:0, mx=arr.length?Math.max(...arr):0, mn=arr.length?Math.min(...arr):0;
@@ -647,19 +680,32 @@ function drawChart(){
   const grid=[0,25,50,75,100].map(y=>{const yy=yat(y).toFixed(1);return `<line x1="${p}" y1="${yy}" x2="${W-p}" y2="${yy}" stroke="var(--line)" stroke-dasharray="3 4" opacity=".6"/><text x="2" y="${(+yy+4)}" fill="var(--muted)" font-size="10">${y}</text>`;}).join('');
   let cross='';
   if(chartHover!=null && arr.length>1 && chartHover>=0 && chartHover<arr.length){
-    const i=chartHover, v=arr[i], x=xat(i), y=yat(v), age=arr.length-1-i;
-    const ageT=age<=0?(L==='tr'?'şimdi':'now'):age+'s'+(L==='tr'?' önce':' ago');
+    const i=chartHover, v=arr[i], x=xat(i), y=yat(v);
+    let ageT = '';
+    if(chartRange==='5m') {
+      const age=arr.length-1-i;
+      ageT=age<=0?(L==='tr'?'şimdi':'now'):age+'s'+(L==='tr'?' önce':' ago');
+    } else {
+      const t0 = _chartHistData.t0;
+      const step = _chartHistData.step;
+      const t_ts = t0 + i * step;
+      const d = new Date(t_ts * 1000);
+      ageT = d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + (chartRange!=='1h'?' '+d.toLocaleDateString([],{day:'numeric',month:'short'}):'');
+    }
     const anc=x>W*0.6?'end':'start', dx=x>W*0.6?-9:9;
     cross=`<line x1="${x.toFixed(1)}" y1="${p}" x2="${x.toFixed(1)}" y2="${H-p}" stroke="var(--muted)" stroke-dasharray="3 3" opacity=".8"/>
       <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6" fill="#4f8cff"/>
       <text x="${(x+dx).toFixed(1)}" y="${Math.max(p+12,y-9).toFixed(1)}" fill="var(--txt)" font-size="12.5" font-weight="700" text-anchor="${anc}">${v.toFixed(0)}% · ${ageT}</text>`;
   }
+  const btns = ['5m', '1h', '24h', '7d'].map(r => 
+    `<button class="rf ${chartRange===r?'on':''}" onclick="setChartRange('${r}')" style="padding:2px 8px;font-size:11px">${r}</button>`
+  ).join('');
   document.getElementById('chartBody').innerHTML=`
-    <div style="display:flex;gap:18px;color:var(--muted);font-size:13px;margin-bottom:10px">
+    <div style="display:flex;gap:18px;color:var(--muted);font-size:13px;margin-bottom:10px;align-items:center">
       <span>${L==='tr'?'şu an':'now'}: <b style="color:var(--txt)">${cur.toFixed(0)}%</b></span>
       <span>max: <b style="color:var(--txt)">${mx.toFixed(0)}%</b></span>
       <span>min: <b style="color:var(--txt)">${mn.toFixed(0)}%</b></span>
-      <span style="margin-left:auto">${L==='tr'?'son':'last'} ~${Math.max(1,Math.round(arr.length/60))} ${L==='tr'?'dk':'min'}</span>
+      <div class="runfilter" style="margin:0 0 0 auto">${btns}</div>
     </div>
     <svg id="chartSvg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;cursor:crosshair">${grid}
       <polyline points="${path}" fill="none" stroke="#4f8cff" stroke-width="2" vector-effect="non-scaling-stroke"/>${cross}</svg>`;
