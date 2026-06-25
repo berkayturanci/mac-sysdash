@@ -319,6 +319,36 @@ class BatteryTests(unittest.TestCase):
             self.assertIsNone(server.battery_info())
 
 
+class FormatStatusTableTests(unittest.TestCase):
+    def test_format_table(self):
+        s = {
+            "host": "TestMac",
+            "cpu": {"pct": 98.0},
+            "mem": {"pct": 50.0},
+            "disk": {"pct": 20.0},
+            "runners": [
+                {"name": "r1", "status": "busy", "job": {"name": "Build APK"}},
+                {"name": "r2", "status": "idle", "history": [{"job": "Test"}]},
+                {"name": "r3", "status": "offline"}
+            ]
+        }
+        
+        # With color
+        out = server.format_status_table(s, use_color=True)
+        self.assertIn("TestMac", out)
+        self.assertIn("\033[31m! CPU: 98.0% !\033[0m", out) # cpu > 95 is red
+        self.assertIn("\033[32mbusy    \033[0m Build APK", out)
+        self.assertIn("\033[0midle    \033[0m Test", out)
+        self.assertIn("\033[31moffline \033[0m", out)
+        
+        # Without color
+        out_nc = server.format_status_table(s, use_color=False)
+        self.assertNotIn("\033", out_nc)
+        self.assertIn("! CPU: 98.0% !", out_nc)
+        self.assertIn("busy     Build APK", out_nc)
+        self.assertIn("idle     Test", out_nc)
+
+
 class HttpRouteTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
