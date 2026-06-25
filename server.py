@@ -752,7 +752,67 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, b"not found", "text/plain")
 
 
+def format_status_table(s, use_color=True):
+    def color(text, code):
+        if not use_color: return text
+        return f"\033[{code}m{text}\033[0m"
+    out = []
+    host = s.get("host", "Unknown")
+    out.append(f"HOST: {host}")
+    
+    def format_pct(name, pct):
+        txt = f"{name}: {pct}%"
+        if pct >= 95:
+            return color(f"! {txt} !", "31")
+        return txt
+        
+    cpu = s.get("cpu", {}).get("pct", 0)
+    mem = s.get("mem", {}).get("pct", 0)
+    disk = s.get("disk", {}).get("pct", 0)
+    out.append(" | ".join([format_pct("CPU", cpu), format_pct("MEM", mem), format_pct("DISK", disk)]))
+    out.append("-" * 40)
+    
+    for r in s.get("runners", []):
+        status = r.get("status", "offline")
+        st_color = "32" if status == "busy" else ("31" if status == "offline" else "0")
+        name = r.get("name", "?")
+        job = r.get("job")
+        job_name = job.get("name") if job else None
+        if not job_name and r.get("history"):
+            last = r["history"][0]
+            job_name = last.get("job") or last.get("workflow") or "unknown"
+            
+        line = f"{name:<20} {color(status.ljust(8), st_color)}"
+        if job_name:
+            line += f" {job_name}"
+        out.append(line)
+        
+    return "\n".join(out)
+
 if __name__ == "__main__":
+    if "--status" in sys.argv:
+        idx = sys.argv.index("--status")
+        url = f"http://localhost:{PORT}/api/stats"
+        if len(sys.argv) > idx + 1 and not sys.argv[idx + 1].startswith("--"):
+            url = sys.argv[idx + 1]
+            
+        is_json = "--json" in sys.argv
+        use_color = sys.stdout.isatty() and not is_json
+        
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=5) as res:
+                data = res.read().decode("utf-8")
+                if is_json:
+                    print(data)
+                else:
+                    s = json.loads(data)
+                    print(format_status_table(s, use_color))
+        except Exception as e:
+            print(f"Error fetching status from {url}: {e}", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
+
     _init_db()
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
