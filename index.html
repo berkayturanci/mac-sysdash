@@ -355,7 +355,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
   net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
-      job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:192}},
+      job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
     {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',job:'build (debug)',branch:'develop'}]}],
   top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
@@ -519,19 +519,37 @@ function machineHTML(host, entry){
   </div>`;
 }
 
+let seenRunners={};
+const STUCK_SECS=30*60;
+
 function computeAlerts(){
-  const al=[];
+  const sysAl=[], runAl=[];
   for(const h of hosts()){
     const e=lastData[h.base]; if(!e||!e.online)continue;
     const s=e.data, nm=h.self?s.host:(h.name||s.host||h.base);
-    if(s.cpu.pct>=CRIT)al.push(`${nm} CPU %${s.cpu.pct.toFixed(0)}`);
-    if(s.mem.pct>=CRIT)al.push(`${nm} RAM %${s.mem.pct.toFixed(0)}`);
-    if(s.disk.pct>=CRIT)al.push(`${nm} Disk %${s.disk.pct.toFixed(0)}`);
+    if(s.cpu.pct>=CRIT)sysAl.push(`${nm} CPU %${s.cpu.pct.toFixed(0)}`);
+    if(s.mem.pct>=CRIT)sysAl.push(`${nm} RAM %${s.mem.pct.toFixed(0)}`);
+    if(s.disk.pct>=CRIT)sysAl.push(`${nm} Disk %${s.disk.pct.toFixed(0)}`);
+    
+    for(const r of (s.runners||[])){
+      const k = nm+':'+r.name;
+      const isOnline = r.status!=='offline';
+      if(seenRunners[k] && !isOnline) runAl.push(`${nm} runner ${r.name} offline`);
+      if(isOnline) seenRunners[k] = true;
+      if(r.status==='busy' && r.job && r.job.elapsed > STUCK_SECS) {
+        runAl.push(`${nm} ${r.name}: ${r.job.name||'job'} ${dur(r.job.elapsed)}`);
+      }
+    }
   }
+  const al = sysAl.concat(runAl);
   const banner=document.getElementById('alertBanner');
-  if(al.length){banner.style.display='flex';banner.textContent='⚠️ '+t.highUse+' '+al.join('  ·  ');
-    document.title='⚠️ ('+al.length+') Mac Dashboard';}
-  else{banner.style.display='none';document.title='Mac Dashboard';}
+  if(al.length){
+    banner.style.display='flex';
+    banner.textContent='⚠️ ' + (sysAl.length ? t.highUse+' ' : '') + al.join('  ·  ');
+    document.title='⚠️ ('+al.length+') Mac Dashboard';
+  } else {
+    banner.style.display='none';document.title='Mac Dashboard';
+  }
   notifyAlerts(al);
 }
 let prevAlerts=new Set();
