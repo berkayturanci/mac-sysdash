@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-06-26
+
+### Fixed
+- Runner detail modal: recent-run rows no longer truncate the workflow far too
+  early. The text column was capped at a fixed `max-width`, leaving a big empty
+  gap before the result/duration; it now fills the available width and wraps to
+  two lines — **job** on top, `⚙ workflow · branch` beneath — each ellipsizing
+  only when it genuinely overflows.
+
+[1.8.1]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.8.1
+
 ## [1.8.0] - 2026-06-25
 
 ### Fixed
