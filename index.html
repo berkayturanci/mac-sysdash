@@ -177,8 +177,9 @@
   .rm-h{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:6px 0 8px}
   .rm-run{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
   .rm-run:hover{background:var(--track);border-color:var(--line)}
-  .rm-run .rm-wf{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
-  .rm-run .rm-sub{color:var(--muted);font-weight:400;font-size:12px}
+  .rm-run .rm-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .rm-run .rm-job{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rm-run .rm-sub{color:var(--muted);font-weight:400;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rm-run .rm-meta{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
   .rm-links{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
   .rm-links a{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
@@ -602,11 +603,12 @@ function drawRunner(){
     const brTxt=j.branch?(j.head?`${j.branch} (${j.head})`:j.branch):'';
     const headline=j.job||j.workflow||'workflow';        // the job that ran, not just its workflow
     const sub=(j.job&&j.workflow)?j.workflow:'';          // workflow kept as context
+    const line2=[sub?('⚙ '+esc(sub)):'', brTxt?esc(brTxt):''].filter(Boolean).join(' · ');  // 2nd line
     const tip=[headline, sub?('⚙ '+sub):'', brTxt, j.result||'?', dur(j.dur), when,
                j.actor?('👤 '+j.actor):''].filter(Boolean).join(' · ');
     return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener" title="${esc(tip)}">
       <span class="hdot ${cls}"></span>
-      <span class="rm-wf">${esc(headline)}${sub?` <span class="rm-sub">⚙ ${esc(sub)}</span>`:''}${j.branch?' · '+esc(j.branch):''}</span>
+      <span class="rm-text"><span class="rm-job">${esc(headline)}</span>${line2?`<span class="rm-sub">${line2}</span>`:''}</span>
       <span class="rm-meta">${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}</span>
       <span class="ext">↗</span></a>`;
   }).join(''):`<div style="color:var(--muted);font-size:13px">${L==='tr'?'geçmiş çalışma bulunamadı':'no recent runs found'}</div>`;
