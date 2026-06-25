@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-06-25
+
+### Fixed
+- Runner cards and run history now show the **specific job** a runner executed
+  (e.g. `Build Android APKs`, `Test & Lint`) instead of only the workflow. A
+  multi-job workflow split across runners previously rendered the *same*
+  `workflow · PR` on every participating runner, hiding which job each one
+  actually ran. The job's display name is read locally from the runner's newest
+  `_diag/Worker_*.log` (one per job) — `event.json` is the shared workflow
+  trigger and carries no per-job identity.
+
+[1.8.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.8.0
+
 ## [1.7.1] - 2026-06-23
 
 ### Added

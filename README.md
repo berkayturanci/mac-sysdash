@@ -27,13 +27,16 @@ the installer sets that up for you in an isolated virtualenv.
   `⚠️` prefix in the browser tab title so you notice even from another tab.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
   (`busy` / `idle` / `offline`):
-  - For a **busy** runner, the card shows what it is working on — **branch**,
-    **workflow**, **PR / issue**, **commit**, and the triggering **actor** —
-    read locally from the runner's event payload (no GitHub token needed).
+  - For a **busy** runner, the card shows what it is working on — the **job**
+    (e.g. `Build Android APKs`), **branch**, **workflow**, **PR / issue**,
+    **commit**, and the triggering **actor** — read locally (no GitHub token).
+    A workflow can split its jobs across several runners, so the job name is what
+    tells each runner's work apart (the same run otherwise looks identical on all
+    of them).
   - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
   - **Click a runner for a detail modal** — the current job plus the last 5 runs;
     each row links to that workflow's runs on GitHub, and **hovering shows the full
-    detail** (workflow · branch / PR head · result · duration · date · 👤 actor).
+    detail** (job · workflow · branch / PR head · result · duration · date · 👤 actor).
     Plus shortcuts to the Actions page and runner settings.
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
@@ -204,8 +207,9 @@ tailnet in the Tailscale admin console.)
 ## Tests
 
 A `unittest` suite (no third-party deps beyond `psutil`) covers the server:
-config/event/log parsing (including runner history: result, workflow, PR/branch,
-actor, PR head), the disk/memory invariants, tailnet peer discovery, push/proxy
+config/event/log parsing (including runner history: result, workflow, job,
+PR/branch, actor, PR head, and the live job name), the disk/memory invariants,
+tailnet peer discovery, push/proxy
 endpoints, battery, and the HTTP routes. The browser UI (themes, filters, charts)
 isn't unit-tested. Run it with any Python that has `psutil`:
 
@@ -235,9 +239,11 @@ At the top of `server.py`:
 - `/api/stats` returns a JSON snapshot; the page polls it every second.
 - The snapshot is cached for ~0.8 s behind a lock, so many concurrent viewers
   share one computation instead of each spawning a process scan.
-- A busy runner's job context comes from
+- A busy runner's run context (PR, branch, commit, actor) comes from
   `<runner>/_work/_temp/_github_workflow/event.json` — the webhook payload the
-  runner already writes locally.
+  runner already writes locally. That payload is the *workflow trigger*, shared by
+  every job in a run, so the **job name** is read separately from the newest
+  `<runner>/_diag/Worker_*.log` (one Worker log per job).
 - Peers are exposed via `/api/peers` (list) and `/api/peer?key=…` (one peer's
   stats), both served from the hub so the browser never makes cross-origin calls.
   The hub fills these by pulling reachable peers and by accepting pushes on
