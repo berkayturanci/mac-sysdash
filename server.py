@@ -10,6 +10,7 @@ import json
 import os
 import re
 import socket
+import sqlite3
 import subprocess
 import threading
 import time
@@ -74,8 +75,69 @@ _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
 _HIST = {"cpu": [], "mem": [], "disk": []}
 _HIST_LEN = 300  # ~5 min of 1s samples (sparkline uses the last 60; chart uses all)
+_MIN_ACC = {"count": 0, "cpu": 0.0, "mem": 0.0, "disk": 0.0}
 _prev_net = None
 
+_STATE_DIR = os.path.join(HOME, ".local", "state", "sysdash")
+_DB_PATH = os.path.join(_STATE_DIR, "history.db")
+
+def _init_db():
+    try:
+        os.makedirs(_STATE_DIR, exist_ok=True)
+        with sqlite3.connect(_DB_PATH) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS hist (ts INTEGER PRIMARY KEY, cpu REAL, mem REAL, disk REAL)")
+    except Exception:
+        pass
+
+def _write_hist_db(cpu, mem, disk):
+    try:
+        ts = int(time.time())
+        ts -= ts % 60
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            conn.execute("INSERT OR REPLACE INTO hist (ts, cpu, mem, disk) VALUES (?, ?, ?, ?)", (ts, round(cpu, 1), round(mem, 1), round(disk, 1)))
+            conn.execute("DELETE FROM hist WHERE ts < ?", (ts - 7 * 24 * 3600,))
+    except Exception:
+        pass
+
+def history_stats(rng="1h"):
+    now = int(time.time())
+    if rng == "7d":
+        start = now - 7 * 24 * 3600
+        step = 3600 # 1 hour
+    elif rng == "24h":
+        start = now - 24 * 3600
+        step = 600 # 10 mins
+    else: # default 1h
+        start = now - 3600
+        step = 60 # 1 min
+    
+    start -= start % step
+    res = {"step": step, "t0": start, "cpu": [], "mem": [], "disk": []}
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            c = conn.execute("SELECT (ts / ?) * ? as bucket, AVG(cpu), AVG(mem), AVG(disk) FROM hist WHERE ts >= ? GROUP BY bucket ORDER BY bucket", (step, step, start))
+            rows = c.fetchall()
+            
+            buckets = {}
+            for row in rows:
+                buckets[row[0]] = (round(row[1], 1), round(row[2], 1), round(row[3], 1))
+            
+            t = start
+            last_cpu, last_mem, last_disk = 0, 0, 0
+            if rows:
+                last_cpu, last_mem, last_disk = buckets.get(rows[0][0], (0,0,0))
+            
+            while t <= now:
+                if t in buckets:
+                    last_cpu, last_mem, last_disk = buckets[t]
+                res["cpu"].append(last_cpu)
+                res["mem"].append(last_mem)
+                res["disk"].append(last_disk)
+                t += step
+    except Exception:
+        pass
+    
+    return res
 
 def _cpu_sampler():
     global _prev_net
@@ -104,6 +166,18 @@ def _cpu_sampler():
             for k in _HIST:
                 if len(_HIST[k]) > _HIST_LEN:
                     del _HIST[k][:-_HIST_LEN]
+                    
+            _MIN_ACC["cpu"] += _CPU["pct"]
+            _MIN_ACC["mem"] += mp
+            _MIN_ACC["disk"] += dp
+            _MIN_ACC["count"] += 1
+            if _MIN_ACC["count"] >= 60:
+                c = _MIN_ACC["count"]
+                _write_hist_db(_MIN_ACC["cpu"]/c, _MIN_ACC["mem"]/c, _MIN_ACC["disk"]/c)
+                _MIN_ACC["count"] = 0
+                _MIN_ACC["cpu"] = 0.0
+                _MIN_ACC["mem"] = 0.0
+                _MIN_ACC["disk"] = 0.0
         except Exception:
             pass
 
@@ -623,6 +697,17 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": str(e)}).encode(),
                            "application/json")
             return
+        if self.path.startswith("/api/history"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                rng = (q.get("range") or ["1h"])[0]
+                if rng not in ("1h", "24h", "7d"):
+                    rng = "1h"
+                body = json.dumps(history_stats(rng)).encode()
+                self._send(200, body, "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
         if self.path.startswith("/api/peers"):
             try:
                 self._send(200, json.dumps(sysdash_peers()).encode(), "application/json")
@@ -668,6 +753,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    _init_db()
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
     if PUSH_TO:
