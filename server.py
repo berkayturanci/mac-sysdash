@@ -432,7 +432,7 @@ _HISTORY_CACHE = {}  # runner_dir -> (ts, list)
 _JOB_NAME_RE = re.compile(r'"jobDisplayName"\s*:\s*"([^"]+)"')
 
 
-def runner_history(runner_dir, n=5, ttl=45):
+def runner_history(runner_dir, n=20, ttl=45):
     """Recent finished jobs for a runner (result + duration), parsed cheaply
     from its _diag Worker logs (tail read + file stat)."""
     cached = _HISTORY_CACHE.get(runner_dir)
