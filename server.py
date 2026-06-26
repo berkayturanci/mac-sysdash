@@ -341,11 +341,11 @@ def _get_ai_stats():
     now = time.time()
     if now - _AI_STATS_CACHE["ts"] < 30:
         return _AI_STATS_CACHE["data"]
-    res = {}
-    base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
-    for m in ["claude", "codex"]:
-        p = os.path.join(base_path, f"{m}.json")
-        try:
+    try:
+        res = {}
+        base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
+        for m in ["claude", "codex"]:
+            p = os.path.join(base_path, f"{m}.json")
             if os.path.exists(p):
                 with open(p, "r", encoding="utf-8") as f:
                     d = json.load(f)
@@ -360,10 +360,7 @@ def _get_ai_stats():
                                 entries = tracker.get("entries", [])
                                 if entries:
                                     res[m][name] = entries[-1].get("usedPercent", 0)
-        except Exception:
-            pass
-            
-    try:
+                
         snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
         if os.path.exists(snap_path):
             with open(snap_path, "r", encoding="utf-8") as f:
@@ -376,24 +373,24 @@ def _get_ai_stats():
                         spct = entry["primary"].get("usedPercent", 0)
                     if "secondary" in entry:
                         wpct = entry["secondary"].get("usedPercent", 0)
-                    # For Antigravity, maybe they are in usageRows instead of primary/secondary?
                     for row in entry.get("usageRows", []):
                         if row.get("id") == "session":
                             spct = max(spct, 100 - row.get("percentLeft", 100))
                         elif row.get("id") == "weekly":
                             wpct = max(wpct, 100 - row.get("percentLeft", 100))
-                        # Specific to antigravity:
                         if "antigravity" in row.get("id", ""):
                             if "session" in row.get("id", "") or "5h" in row.get("id", ""):
                                 spct = max(spct, 100 - row.get("percentLeft", 100))
                             if "weekly" in row.get("id", ""):
                                 wpct = max(wpct, 100 - row.get("percentLeft", 100))
                     res[prov] = {"session": spct, "weekly": wpct}
+                    
+        _AI_STATS_CACHE.update(ts=now, data=res)
+        return res
     except Exception:
-        pass
-
-    _AI_STATS_CACHE.update(ts=now, data=res)
-    return res
+        # If any file was locked or partially written (invalid JSON), reuse the last known good cache
+        _AI_STATS_CACHE["ts"] = now
+        return _AI_STATS_CACHE["data"]
 
 
 def tailnet_peers(ttl=30):
