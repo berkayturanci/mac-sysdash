@@ -335,6 +335,15 @@ def discover_runners(ttl=30):
 _PEERS = {"ts": 0, "data": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
 
+
+def _get_git_email():
+    try:
+        import subprocess
+        out = subprocess.check_output(["git", "config", "--global", "user.email"], timeout=1)
+        return out.decode("utf-8").strip()
+    except Exception:
+        return ""
+
 def _get_ai_stats():
     now = time.time()
     if now - _AI_STATS_CACHE["ts"] < 30:
@@ -351,7 +360,7 @@ def _get_ai_stats():
                     accs = d.get("accounts", {})
                     acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
                     if acc:
-                        res[m] = {}
+                        res[m] = {"email": _get_git_email()}
                         for tracker in acc:
                             name = tracker.get("name")
                             if name in ("session", "weekly"):
