@@ -637,7 +637,7 @@ function machineHTML(host, entry){
   <button class="rf ${localStorage.getItem('sysdash-aimode')==='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','rem');renderAll()" style="padding:2px 8px; font-size:10px">${L==='tr'?'Kalan':'Left'}</button>
 </div>`, aiInner) : ''
     };
-    const order = getWidgetOrder(h.base);
+    const order = getWidgetOrder(host.base);
     // Ensure all widgets are rendered even if missing from order
     let bodyArr = order.map(k => widgets[k] || '');
     if (aiInner && !order.includes('ai')) bodyArr.push(widgets.ai);
