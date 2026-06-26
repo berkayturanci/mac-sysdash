@@ -343,47 +343,36 @@ def _get_ai_stats():
         return _AI_STATS_CACHE["data"]
     try:
         res = {}
-        base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
-        for m in ["claude", "codex"]:
-            p = os.path.join(base_path, f"{m}.json")
-            if os.path.exists(p):
-                with open(p, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                    pref = d.get("preferredAccountKey")
-                    accs = d.get("accounts", {})
-                    acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
-                    if acc:
-                        res[m] = {}
-                        for tracker in acc:
-                            name = tracker.get("name")
-                            if name in ("session", "weekly"):
-                                entries = tracker.get("entries", [])
-                                if entries:
-                                    res[m][name] = entries[-1].get("usedPercent", 0)
-                
         snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
         if os.path.exists(snap_path):
             with open(snap_path, "r", encoding="utf-8") as f:
                 snap = json.load(f)
+            
+            providers = snap.get("enabledProviders", [])
             for entry in snap.get("entries", []):
                 prov = entry.get("provider")
-                if prov and prov not in res:
+                if prov:
                     spct, wpct = 0, 0
                     if "primary" in entry:
                         spct = entry["primary"].get("usedPercent", 0)
                     if "secondary" in entry:
                         wpct = entry["secondary"].get("usedPercent", 0)
                     for row in entry.get("usageRows", []):
-                        if row.get("id") == "session":
+                        rid = row.get("id", "").lower()
+                        if "session" in rid or "primary" in rid or "5h" in rid:
                             spct = max(spct, 100 - row.get("percentLeft", 100))
-                        elif row.get("id") == "weekly":
+                        elif "weekly" in rid or "secondary" in rid:
                             wpct = max(wpct, 100 - row.get("percentLeft", 100))
-                        if "antigravity" in row.get("id", ""):
-                            if "session" in row.get("id", "") or "5h" in row.get("id", ""):
-                                spct = max(spct, 100 - row.get("percentLeft", 100))
-                            if "weekly" in row.get("id", ""):
-                                wpct = max(wpct, 100 - row.get("percentLeft", 100))
                     res[prov] = {"session": spct, "weekly": wpct}
+            
+            ordered_res = {}
+            for p in providers:
+                if p in res:
+                    ordered_res[p] = res[p]
+            for p, v in res.items():
+                if p not in ordered_res:
+                    ordered_res[p] = v
+            res = ordered_res
                     
         _AI_STATS_CACHE.update(ts=now, data=res)
         return res
