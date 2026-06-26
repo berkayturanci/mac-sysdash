@@ -595,6 +595,23 @@ function machineHTML(host, entry){
           <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:(p.cpu||0)/maxc*100}%"></i></span></span>
           <span class="pm">${tf==='mem'?gb(p.rss):(p.cpu||0).toFixed(1)+'%'}</span></div>`).join('')}
       </div>`;
+    let aiInner = '';
+    if (s.ai && Object.keys(s.ai).length > 0) {
+      aiInner = `<div class="card">`;
+      for (const m of ['claude', 'codex']) {
+        if (s.ai[m]) {
+          const v = s.ai[m];
+          const mn = m.charAt(0).toUpperCase() + m.slice(1);
+          aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px">
+            <div style="font-weight:600;width:55px;font-size:13px">${mn}</div>
+            ${v.session!==undefined ? `<div style="flex:1"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Session</div><div class="bar"><i style="width:${v.session}%;background:${v.session>=90?'var(--red)':'var(--accent)'}"></i></div></div>` : ''}
+            ${v.weekly!==undefined ? `<div style="flex:1"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Weekly</div><div class="bar"><i style="width:${v.weekly}%;background:${v.weekly>=90?'var(--red)':'var(--accent)'}"></i></div></div>` : ''}
+          </div>`;
+        }
+      }
+      aiInner += `</div>`;
+    }
+
     const widgets = {
       gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="gauges" style="border:none;margin-bottom:-10px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<span class="chev">${isCollapsed('gauges')?'▸':'▾'}</span></div>${isCollapsed('gauges')?'':`<div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
@@ -603,10 +620,14 @@ function machineHTML(host, entry){
       </div>`}</div>`,
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
-      procs: sec('procs', t.topMem, topInner)
+      procs: sec('procs', t.topMem, topInner),
+      ai: aiInner ? sec('ai', 'AI Copilot', aiInner) : ''
     };
     const order = getWidgetOrder();
-    body = order.map(k => widgets[k] || '').join('');
+    // Ensure all widgets are rendered even if missing from order
+    let bodyArr = order.map(k => widgets[k] || '');
+    if (aiInner && !order.includes('ai')) bodyArr.push(widgets.ai);
+    body = bodyArr.join('');
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
@@ -717,7 +738,7 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
   el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
 // --- drag to reorder + collapse + gauge chart (delegated on #machines) ---
-function getWidgetOrder(){try{return JSON.parse(localStorage.getItem('sysdash-widget-order'))||['gauges','runners','system','procs']}catch(e){return ['gauges','runners','system','procs']}}
+function getWidgetOrder(){try{return JSON.parse(localStorage.getItem('sysdash-widget-order'))||['gauges','runners','system','procs','ai']}catch(e){return ['gauges','runners','system','procs','ai']}}
 function setWidgetOrder(o){localStorage.setItem('sysdash-widget-order',JSON.stringify(o));}
 
 let dragBase=null, dragWidget=null, isDragging=false;

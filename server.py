@@ -310,7 +310,36 @@ def discover_runners(ttl=30):
     return runners
 
 
-_PEERS = {"ts": 0.0, "data": []}
+_PEERS = {"ts": 0, "data": []}
+_AI_STATS_CACHE = {"ts": 0, "data": {}}
+
+def _get_ai_stats():
+    now = time.time()
+    if now - _AI_STATS_CACHE["ts"] < 30:
+        return _AI_STATS_CACHE["data"]
+    res = {}
+    base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
+    for m in ["claude", "codex"]:
+        p = os.path.join(base_path, f"{m}.json")
+        try:
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    pref = d.get("preferredAccountKey")
+                    accs = d.get("accounts", {})
+                    acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
+                    if acc:
+                        res[m] = {}
+                        for tracker in acc:
+                            name = tracker.get("name")
+                            if name in ("session", "weekly"):
+                                entries = tracker.get("entries", [])
+                                if entries:
+                                    res[m][name] = entries[-1].get("usedPercent", 0)
+        except Exception:
+            pass
+    _AI_STATS_CACHE.update(ts=now, data=res)
+    return res
 
 
 def tailnet_peers(ttl=30):
@@ -695,6 +724,7 @@ def stats():
         "jobs_summary": get_jobs_summary(),
         "top": t_mem,
         "top_cpu": t_cpu,
+        "ai": _get_ai_stats()
     }
 
 
