@@ -902,7 +902,7 @@ function drawRunner(){
   document.getElementById('runnerTitle').innerHTML=`${esc(r.name)} <span class="pill ${r.status}" style="margin-left:8px"><span class="d"></span>${t.st[r.status]}</span>`;
   document.getElementById('runnerBody').innerHTML=`
     <div class="rm-repo">${esc(r.repo||'—')}</div>
-    <div id="runnerActiveJob" class="rm-job" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
+    <div id="runnerActiveJob" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
     ${statsHTML}
     <div id="timelineContainer" style="margin-top:16px"><div style="color:var(--muted);font-size:13px">${L==='tr'?'Zaman çizelgesi yükleniyor...':'Loading timeline...'}</div></div>
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
