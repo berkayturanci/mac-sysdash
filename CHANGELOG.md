@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
+## [1.11.0] - 2026-06-26
+
+### Added
+- **Runner Heatmap:** Added a GitHub-style 30-day contribution heatmap for each runner directly on the dashboard card.
+- **Runner Timeline:** Added a Gantt chart timeline view inside the runner detail modal, showing a graphical representation of the last 50 jobs executed.
+- **Persistent Job History:** `server.py` now includes a background thread that continually parses `Worker_*.log` files and stores historical job runs in a new `jobs` SQLite table.
+- New endpoints: `/api/jobs` and `/api/peer_jobs` for cross-node timeline fetching.
+
 
 ## [1.10.1] - 2026-06-26
 

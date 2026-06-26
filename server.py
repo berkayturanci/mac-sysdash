@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.10.1"
+VERSION = "1.11.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -87,6 +87,11 @@ def _init_db():
         os.makedirs(_STATE_DIR, exist_ok=True)
         with sqlite3.connect(_DB_PATH) as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS hist (ts INTEGER PRIMARY KEY, cpu REAL, mem REAL, disk REAL)")
+            conn.execute("""CREATE TABLE IF NOT EXISTS jobs (
+                runner TEXT, logfile TEXT, ts INTEGER, duration INTEGER, result TEXT,
+                repo TEXT, workflow TEXT, job TEXT, branch TEXT, actor TEXT, head TEXT,
+                PRIMARY KEY (runner, logfile)
+            )""")
     except Exception:
         pass
 
@@ -196,6 +201,39 @@ def battery_info():
     if secs is None or secs < 0:
         secs = None
     return {"pct": round(b.percent), "plugged": bool(b.power_plugged), "secsleft": secs}
+
+
+def _jobs_sampler():
+    """Periodically scan for new finished jobs and insert into SQLite."""
+    while True:
+        try:
+            now = time.time()
+            runners = discover_runners()
+            with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+                for r in runners:
+                    d = r["dir"]
+                    repo = r["repo"]
+                    # Get the most recent log file we processed for this runner
+                    c = conn.execute("SELECT MAX(logfile) FROM jobs WHERE runner = ?", (d,))
+                    row = c.fetchone()
+                    last_log = row[0] if row and row[0] else ""
+                    
+                    logs = sorted(glob.glob(os.path.join(d, "_diag", "Worker_*.log")))
+                    # Find all logs newer than last_log
+                    new_logs = [lg for lg in logs if os.path.basename(lg) > last_log]
+                    
+                    for lg in new_logs:
+                        st = os.stat(lg)
+                        job = _parse_worker_log(lg, st)
+                        if job["result"]:  # Only insert if the job is finished
+                            conn.execute(
+                                "INSERT OR IGNORE INTO jobs (runner, logfile, ts, duration, result, repo, workflow, job, branch, actor, head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (d, os.path.basename(lg), int(st.st_mtime), job["dur"], job["result"], repo, job["workflow"], job["job"], job["branch"], job["actor"], job["head"])
+                            )
+                conn.commit()
+        except Exception:
+            pass
+        time.sleep(60)
 
 
 def _read_runner_cfg(runner_dir):
@@ -319,14 +357,14 @@ def _fetch_stats(url, timeout=6.0):
     return None
 
 
-def _peer_urls(p):
+def _peer_urls(p, endpoint="/api/stats"):
     """Candidate stats URLs for a peer, HTTPS-serve first (only path that some
     nodes accept), then direct app ports for LAN peers without serve."""
     urls = []
     if p.get("dns"):
-        urls.append("https://%s/api/stats" % p["dns"])
+        urls.append(f"https://{p['dns']}{endpoint}")
     for port in _PEER_PORTS:
-        urls.append("http://%s:%d/api/stats" % (p["ip"], port))
+        urls.append(f"http://{p['ip']}:{port}{endpoint}")
     return urls
 
 
@@ -339,11 +377,11 @@ def _refresh_sysdash_peers():
     for p in tailnet_peers(ttl=60):
         if p["ip"] == TAILSCALE_IP:
             continue
-        for u in _peer_urls(p):
+        for u in _peer_urls(p, "/api/stats"):
             d = _fetch_stats(u)
             if d:
                 out.append({"ip": p["ip"], "name": p["name"]})
-                _PEER_CACHE[p["ip"]] = (time.time(), d, u)
+                _PEER_CACHE[f"{p['ip']}_/api/stats"] = (time.time(), d, u)
                 break
     _SPEERS.update(ts=time.time(), data=out)
 
@@ -393,8 +431,10 @@ def sysdash_peers():
     return out
 
 
-def peer_by_key(key):
+def peer_by_key(key, endpoint="/api/stats"):
     if key.startswith("push:"):
+        if endpoint != "/api/stats":
+            return []
         c = _PUSHED.get(key[5:])
         if c and time.time() - c[0] < _PUSH_LIST:
             d = dict(c[1])
@@ -402,26 +442,27 @@ def peer_by_key(key):
             return d
         return None
     if key.startswith("ip:"):
-        return peer_stats(key[3:])
+        return peer_stats(key[3:], endpoint=endpoint)
     return None
 
 
-def peer_stats(ip, ttl=10.0):
-    """Proxy a peer's /api/stats. Served from the cache that _peer_sampler keeps
+def peer_stats(ip, ttl=10.0, endpoint="/api/stats"):
+    """Proxy a peer's endpoint (default /api/stats). Served from the cache that _peer_sampler keeps
     warm (peer links can be slow over Tailscale), so the browser never blocks on
     a slow fetch. Falls back to a one-off fetch, then to stale cache."""
     peers = {p["ip"]: p for p in tailnet_peers()}
     if ip not in peers:
         return None
-    c = _PEER_CACHE.get(ip)
+    cache_key = f"{ip}_{endpoint}"
+    c = _PEER_CACHE.get(cache_key)
     now = time.time()
     if c and now - c[0] < ttl:
         return c[1]
-    urls = ([c[2]] if c else []) + _peer_urls(peers[ip])
+    urls = ([c[2]] if c else []) + _peer_urls(peers[ip], endpoint)
     for u in urls:
         d = _fetch_stats(u)
         if d:
-            _PEER_CACHE[ip] = (now, d, u)
+            _PEER_CACHE[cache_key] = (now, d, u)
             return d
     return c[1] if c else None   # serve stale rather than nothing
 
@@ -433,6 +474,39 @@ _HISTORY_CACHE = {}  # runner_dir -> (ts, list)
 # names the job: event.json is the workflow *trigger*, shared by every job in a
 # run, so it can't tell one runner's job apart from another's in the same run.
 _JOB_NAME_RE = re.compile(r'"jobDisplayName"\s*:\s*"([^"]+)"')
+
+
+def _parse_worker_log(lg, st):
+    dur = int(st.st_mtime - getattr(st, "st_birthtime", st.st_ctime))
+    with open(lg, "rb") as f:
+        head = f.read(262144).decode("utf-8", "ignore")
+        if st.st_size > 16384:
+            f.seek(st.st_size - 16384)
+        tail = f.read().decode("utf-8", "ignore")
+    m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)", tail or head)
+    wf = br = None
+    wm = re.search(r'"workflow_ref",\s*"v":\s*"([^"]+)"', head)
+    if wm:
+        ref = wm.group(1)
+        wf = ref.split("@")[0].rsplit("/", 1)[-1]
+        if "@" in ref:
+            raw = ref.split("@", 1)[1]
+            pr = re.match(r"refs/pull/(\d+)/", raw)
+            if pr:
+                br = "PR #" + pr.group(1)
+            else:
+                br = raw.replace("refs/heads/", "").replace("refs/tags/", "")
+    am = re.search(r'"k":\s*"actor"\s*,\s*"v":\s*"([^"]*)"', head)
+    hm = re.search(r'"k":\s*"head_ref"\s*,\s*"v":\s*"([^"]*)"', head)
+    actor = am.group(1) if am and am.group(1) else None
+    headref = hm.group(1) if hm and hm.group(1) else None
+    jn = _JOB_NAME_RE.search(head)
+    return {
+        "result": m.group(1) if m else None,
+        "dur": max(0, dur),
+        "workflow": wf, "job": jn.group(1) if jn else None,
+        "branch": br, "actor": actor, "head": headref
+    }
 
 
 def runner_history(runner_dir, n=20, ttl=45):
@@ -448,38 +522,9 @@ def runner_history(runner_dir, n=20, ttl=45):
                       key=os.path.getmtime, reverse=True)[:n]
         for lg in logs:
             st = os.stat(lg)
-            dur = int(st.st_mtime - getattr(st, "st_birthtime", st.st_ctime))
-            with open(lg, "rb") as f:
-                head = f.read(262144).decode("utf-8", "ignore")
-                if st.st_size > 16384:
-                    f.seek(st.st_size - 16384)
-                tail = f.read().decode("utf-8", "ignore")
-            # large logs keep the result in the tail; small logs were fully read
-            # into head (tail is then empty), so fall back to head.
-            m = re.search(r"Job result after all job steps finish:\s*([A-Za-z]+)",
-                          tail or head)
-            wf = br = None
-            # the job context serializes fields as {"k":...,"v":...} pairs
-            wm = re.search(r'"workflow_ref",\s*"v":\s*"([^"]+)"', head)
-            if wm:
-                ref = wm.group(1)
-                wf = ref.split("@")[0].rsplit("/", 1)[-1]
-                if "@" in ref:
-                    raw = ref.split("@", 1)[1]
-                    pr = re.match(r"refs/pull/(\d+)/", raw)
-                    if pr:
-                        br = "PR #" + pr.group(1)
-                    else:
-                        br = raw.replace("refs/heads/", "").replace("refs/tags/", "")
-            am = re.search(r'"k":\s*"actor"\s*,\s*"v":\s*"([^"]*)"', head)
-            hm = re.search(r'"k":\s*"head_ref"\s*,\s*"v":\s*"([^"]*)"', head)
-            actor = am.group(1) if am and am.group(1) else None
-            headref = hm.group(1) if hm and hm.group(1) else None
-            jn = _JOB_NAME_RE.search(head)  # which job ran, not just the workflow
-            out.append({"result": (m.group(1) if m else None),
-                        "dur": max(0, dur), "ago": int(now - st.st_mtime),
-                        "workflow": wf, "job": (jn.group(1) if jn else None),
-                        "branch": br, "actor": actor, "head": headref})
+            job = _parse_worker_log(lg, st)
+            job["ago"] = int(now - st.st_mtime)
+            out.append(job)
     except Exception:
         pass
     _HISTORY_CACHE[runner_dir] = (now, out)
@@ -647,6 +692,7 @@ def stats():
         "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
                  "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"])},
         "runners": runner_status(),
+        "jobs_summary": get_jobs_summary(),
         "top": t_mem,
         "top_cpu": t_cpu,
     }
@@ -677,6 +723,54 @@ _CTYPES = {
     ".ico": "image/x-icon",
     ".css": "text/css",
 }
+
+
+def get_jobs_summary(days=30):
+    res = {}
+    try:
+        now = int(time.time())
+        cutoff = now - days * 24 * 3600
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            c = conn.execute(
+                "SELECT runner, date(ts, 'unixepoch'), result "
+                "FROM jobs WHERE ts >= ?", (cutoff,)
+            )
+            for row in c:
+                r, d, res_str = row[0], row[1], row[2]
+                if r not in res:
+                    res[r] = {}
+                if d not in res[r]:
+                    res[r][d] = {"succeeded": 0, "failed": 0, "other": 0}
+                if res_str and res_str.lower() == "succeeded":
+                    res[r][d]["succeeded"] += 1
+                elif res_str and res_str.lower() == "failed":
+                    res[r][d]["failed"] += 1
+                else:
+                    res[r][d]["other"] += 1
+    except Exception:
+        pass
+    return res
+
+
+def get_jobs(days=30):
+    res = []
+    try:
+        now = int(time.time())
+        cutoff = now - days * 24 * 3600
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            c = conn.execute(
+                "SELECT runner, ts, duration, result, repo, workflow, job, branch, actor, head "
+                "FROM jobs WHERE ts >= ? ORDER BY ts DESC", (cutoff,)
+            )
+            for row in c:
+                res.append({
+                    "runner": row[0], "ts": row[1], "dur": row[2], "result": row[3],
+                    "repo": row[4], "workflow": row[5], "job": row[6], "branch": row[7],
+                    "actor": row[8], "head": row[9]
+                })
+    except Exception:
+        pass
+    return res
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -725,12 +819,31 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
+        if self.path.startswith("/api/jobs"):
+            try:
+                self._send(200, json.dumps(get_jobs()).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
         if self.path.startswith("/api/peer"):
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 key = (q.get("key") or [""])[0]
                 ip = (q.get("ip") or [""])[0]
                 d = peer_by_key(key) if key else (peer_stats(ip) if ip else None)
+                if d is None:
+                    self._send(404, b'{"error":"peer unreachable"}', "application/json")
+                else:
+                    self._send(200, json.dumps(d).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
+        if self.path.startswith("/api/peer_jobs"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                key = (q.get("key") or [""])[0]
+                ip = (q.get("ip") or [""])[0]
+                d = peer_by_key(key, endpoint="/api/jobs") if key else (peer_stats(ip, endpoint="/api/jobs") if ip else None)
                 if d is None:
                     self._send(404, b'{"error":"peer unreachable"}', "application/json")
                 else:
@@ -831,6 +944,7 @@ if __name__ == "__main__":
 
     _init_db()
     threading.Thread(target=_cpu_sampler, daemon=True).start()
+    threading.Thread(target=_jobs_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
     if PUSH_TO:
         threading.Thread(target=_pusher, daemon=True).start()
