@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
+## [1.10.0] - 2026-06-26
+
+### Added
+- **Fleet Overview Banner.** A new sticky strip at the top of the dashboard displays total online machines, and the aggregate count of busy, idle, and offline runners across the fleet.
+- **Top Processes Toggle.** Added a segmented control to the "Top Processes" card, allowing the list to be toggled between memory usage (the old default) and CPU usage (new). `server.py` now queries both.
+- **Visual Improvements for Gauges.**
+  - **Memory and Disk sparklines.** The system gauges now draw sparklines below the ring charts for Memory and Disk, matching the CPU gauge.
+  - **Network throughput sparkline.** A dual-colored (green/blue) sparkline now tracks download/upload history inside the System card.
+  - **Load average and Swap usage bars.** Added miniature proportion bars for load (turns amber > 1, red > 2 per core) and swap usage.
+
 
 ## [1.9.1] - 2026-06-26
 
