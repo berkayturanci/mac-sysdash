@@ -90,6 +90,13 @@
     border:1px solid rgba(255,92,92,.5);color:var(--red);padding:12px 16px;border-radius:14px;
     margin-bottom:16px;font-weight:650;font-size:14px;animation:pulse 1.8s infinite}
 
+  .fleet{display:flex;align-items:center;gap:18px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);padding:14px 20px;border-radius:14px;margin-bottom:16px;box-shadow:var(--shadow);flex-wrap:wrap}
+  .f-stat{display:flex;align-items:center;gap:8px}
+  .f-stat .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .f-stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+  .f-sep{width:1px;height:24px;background:var(--line)}
+
+
   /* fit as many machines side by side as the width allows, then wrap down */
   .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
   /* cap a panel's content width so a lone machine doesn't stretch awkwardly */
@@ -264,6 +271,7 @@
   </header>
 
   <div class="banner" id="alertBanner"></div>
+  <div id="fleetOverview"></div>
   <div class="machines" id="machines"></div>
   <div class="foot" id="foot"></div>
 </div>
@@ -375,21 +383,23 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
-  net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3)},
+  net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
     {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',job:'build (debug)',branch:'develop'}]}],
-  top:[{name:'node',rss:1.0*GiB},{name:'Chrome',rss:0.62*GiB},{name:'figma',rss:0.5*GiB},{name:'python',rss:0.34*GiB},{name:'Slack',rss:0.28*GiB},{name:'Docker',rss:0.21*GiB},{name:'Terminal',rss:0.12*GiB},{name:'Music',rss:0.1*GiB}]};
+  top:{mem:[{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'python',rss:0.34*GiB,cpu:45.0},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1},{name:'Music',rss:0.1*GiB,cpu:0.8}],
+       cpu:[{name:'python',rss:0.34*GiB,cpu:45.0},{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Music',rss:0.1*GiB,cpu:0.8},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1}]}};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
-  net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1)},
+  net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
     {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200,workflow:'train.yml',job:'train (gpu)'},{result:'Failed',dur:1200,ago:30000,workflow:'train.yml',job:'eval'},{result:'Succeeded',dur:4800,ago:60000,workflow:'train.yml',job:'train (gpu)'},{result:'Succeeded',dur:5100,ago:90000,workflow:'train.yml',job:'train (gpu)'}]}],
-  top:[{name:'python',rss:4.2*GiB},{name:'node',rss:0.8*GiB},{name:'Xcode',rss:0.6*GiB},{name:'Chrome',rss:0.4*GiB},{name:'Docker',rss:0.3*GiB},{name:'java',rss:0.2*GiB},{name:'Finder',rss:0.1*GiB},{name:'Notes',rss:0.08*GiB}]};
+  top:{mem:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}],
+       cpu:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}]}};
 const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
 
 let autoPeers=[];  // tailnet peers discovered to be running sysdash
@@ -437,6 +447,18 @@ function sparkSVG(arr,col){
   const pts=arr.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(23-(Math.max(0,Math.min(100,v))/100*21)).toFixed(1)}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
+function sparkSVGNet(arrDown, arrUp){
+  if(!arrDown||arrDown.length<2)return '';
+  const n=arrDown.length;
+  const maxD=Math.max(...arrDown, 1), maxU=Math.max(...arrUp, 1);
+  const maxAll=Math.max(maxD, maxU);
+  const ptsD=arrDown.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(23-(v/maxAll*21)).toFixed(1)}`).join(' ');
+  const ptsU=arrUp.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(23-(v/maxAll*21)).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+    <polyline points="${ptsD}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity="0.8"/>
+    <polyline points="${ptsU}" fill="none" stroke="var(--green)" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity="0.8"/>
+  </svg>`;
+}
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sec=Math.floor(s%60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; if(m)return `${m}${u.m}`; return `${sec}${u.s}`}
 function ringHTML(label,pct,meta,spark,chart){
@@ -458,6 +480,8 @@ function ringHTML(label,pct,meta,spark,chart){
 // collapsible sections (global across machines)
 function runFilter(){return localStorage.getItem('sysdash-runfilter')||'all'}
 function setRunFilter(v){localStorage.setItem('sysdash-runfilter',v);renderAll();}
+function topFilter(){return localStorage.getItem('sysdash-topfilter')||'mem'}
+function setTopFilter(v){localStorage.setItem('sysdash-topfilter',v);renderAll();}
 function collapseState(){try{return JSON.parse(localStorage.getItem('sysdash-collapse'))||{}}catch(e){return {}}}
 function isCollapsed(k){return !!collapseState()[k]}
 function toggleCollapse(k){const s=collapseState();s[k]=!s[k];localStorage.setItem('sysdash-collapse',JSON.stringify(s));renderAll();}
@@ -499,23 +523,39 @@ function machineHTML(host, entry){
         <button class="rf ${rf==='all'?'on':''}" data-rf="all">${t.fAll}</button>
         <button class="rf ${rf==='active'?'on':''}" data-rf="active">${t.fActive}</button>
       </div><div class="grid runners">${runners}</div>`;
-    const maxr=Math.max(...s.top.map(p=>p.rss),1);
+    const maxr=s.top.mem ? Math.max(...s.top.mem.map(p=>p.rss),1) : Math.max(...(Array.isArray(s.top)?s.top:[]).map(p=>p.rss),1);
+    const maxc=s.top.cpu ? Math.max(...s.top.cpu.map(p=>p.cpu),1) : 100;
+    const load1 = s.cpu.load[0], lratio = s.cpu.count ? load1 / s.cpu.count : 0;
+    const lcol = lratio >= 2 ? 'var(--red)' : lratio >= 1 ? '#f5a623' : 'var(--accent)';
+    const lpct = Math.min(100, Math.max(2, lratio * 50)); // 1.0 -> 50%, 2.0 -> 100%
+    const tf = topFilter();
+    
     const sysInner = `<div class="card">
         <div class="kv"><span class="k">${t.perCore}</span><span class="v">${s.cpu.pct.toFixed(0)}%</span></div>
         <div class="cores">${s.cpu.cores.map(c=>`<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('')}</div>
-        <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v">${s.cpu.load.join('  /  ')}</span></div>
-        ${s.net?`<div class="kv"><span class="k">${t.network}</span><span class="v">↓ ${rate(s.net.down)}　↑ ${rate(s.net.up)}</span></div>`:''}
+        <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v ${lratio>=2?'crit':''}">${s.cpu.load.join('  /  ')}</span></div>
+        <div class="bar"><i style="width:${lpct}%;background:${lcol}"></i></div>
+        ${s.net?`<div class="kv" style="margin-top:12px"><span class="k">${t.network}</span><span class="v">↓ ${rate(s.net.down)}　↑ ${rate(s.net.up)}</span></div>
+        ${s.hist&&s.hist.net_down?sparkSVGNet(s.hist.net_down, s.hist.net_up):''}`:''}
+        <div style="height:10px"></div>
         ${kv(t.ramUsed, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total)+' ('+s.mem.pct+'%)')}
         <div class="bar"><i style="width:${s.mem.pct}%"></i></div>
         <div style="height:10px"></div>
         ${kv(t.swap, s.swap.pct, gb(s.swap.used)+' / '+gb(s.swap.total)+' ('+s.swap.pct+'%)')}
+        <div class="bar"><i style="width:${s.swap.pct}%;background:${s.swap.pct>=70?'#f5a623':s.swap.pct>=90?'var(--red)':'var(--accent)'}"></i></div>
+        <div style="height:10px"></div>
         ${kv(t.diskFull, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+' ('+s.disk.pct+'%)')}
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
       </div>`;
-    const topInner = `<div class="card">
-        ${s.top.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
-          <span style="width:80px"><span class="bar"><i style="width:${p.rss/maxr*100}%"></i></span></span>
-          <span class="pm">${gb(p.rss)}</span></div>`).join('')}
+    
+    const topList = (s.top[tf] || (Array.isArray(s.top)?s.top:[]));
+    const topInner = `<div class="runfilter" style="margin-top:0;margin-bottom:12px;">
+        <button class="rf tf ${tf==='mem'?'on':''}" data-tf="mem">${L==='tr'?'Bellek':'Memory'}</button>
+        <button class="rf tf ${tf==='cpu'?'on':''}" data-tf="cpu">CPU</button>
+      </div><div class="card">
+        ${topList.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
+          <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:p.cpu/maxc*100}%"></i></span></span>
+          <span class="pm">${tf==='mem'?gb(p.rss):p.cpu.toFixed(1)+'%'}</span></div>`).join('')}
       </div>`;
     body = `
       <div class="grid gauges">
@@ -586,7 +626,29 @@ function renderAll(){
   // subtitle from self
   const self=lastData[''];
   document.getElementById('subtitle').textContent = self&&self.online ? t.sub(self.data.tailscale_ip, self.data.cpu.count) : '';
-  document.getElementById('machines').innerHTML = hosts().map(h=>machineHTML(h, lastData[h.base])).join('');
+  
+  let mTotal=0, mOnline=0, rBusy=0, rIdle=0, rOff=0;
+  const hs=hosts();
+  for(const h of hs){
+    mTotal++;
+    const e=lastData[h.base]; if(!e||!e.online)continue;
+    mOnline++;
+    for(const r of (e.data.runners||[])){
+      if(r.status==='busy') rBusy++;
+      else if(r.status==='idle') rIdle++;
+      else rOff++;
+    }
+  }
+  const fHtml = `<div class="fleet">
+    <div class="f-stat"><div class="n" style="color:var(--txt)">${mOnline}<span style="font-size:14px;color:var(--muted)">/${mTotal}</span></div><div class="l">${L==='tr'?'ONLİNE MAKİNE':'MACHINES ONLINE'}</div></div>
+    <div class="f-sep"></div>
+    <div class="f-stat"><div class="n" style="color:var(--green)">${rBusy}</div><div class="l">${L==='tr'?'ÇALIŞAN RUNNER':'BUSY RUNNERS'}</div></div>
+    <div class="f-stat"><div class="n" style="color:var(--accent)">${rIdle}</div><div class="l">${L==='tr'?'BOŞTA RUNNER':'IDLE RUNNERS'}</div></div>
+    <div class="f-stat"><div class="n" style="color:var(--muted)">${rOff}</div><div class="l">${L==='tr'?'KAPALI RUNNER':'OFFLINE RUNNERS'}</div></div>
+  </div>`;
+  document.getElementById('fleetOverview').innerHTML = fHtml;
+
+  document.getElementById('machines').innerHTML = hs.map(h=>machineHTML(h, lastData[h.base])).join('');
   document.getElementById('foot').textContent='sysdash'+(self&&self.online&&self.data.version?' v'+self.data.version:'')+' · '+t.refresh+' · © Berkay Turancı';
   computeAlerts();
 }
@@ -621,6 +683,7 @@ mWrap.addEventListener('dragover',e=>{if(dragBase==null)return;e.preventDefault(
 mWrap.addEventListener('drop',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');if(m){const order=hosts().map(h=>h.base).filter(b=>b!==dragBase);const ti=order.indexOf(m.dataset.base);order.splice(ti<0?order.length:ti,0,dragBase);setOrder(order);}dragBase=null;isDragging=false;renderAll();});
 mWrap.addEventListener('dragend',()=>{dragBase=null;isDragging=false;mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));});
 mWrap.addEventListener('click',e=>{
+  const tfb=e.target.closest('.rf.tf'); if(tfb){setTopFilter(tfb.dataset.tf);return;}
   const rfb=e.target.closest('.rf'); if(rfb){setRunFilter(rfb.dataset.rf);return;}
   const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
   const rn=e.target.closest('.runner.clickable'); if(rn){openRunner(rn.dataset.base,+rn.dataset.ri);return;}

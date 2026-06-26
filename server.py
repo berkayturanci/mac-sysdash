@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.9.1"
+VERSION = "1.10.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -74,7 +74,7 @@ HOSTNAME = computer_name()
 # UI sparklines.
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
-_HIST = {"cpu": [], "mem": [], "disk": []}
+_HIST = {"cpu": [], "mem": [], "disk": [], "net_down": [], "net_up": []}
 _HIST_LEN = 300  # ~5 min of 1s samples (sparkline uses the last 60; chart uses all)
 _MIN_ACC = {"count": 0, "cpu": 0.0, "mem": 0.0, "disk": 0.0}
 _prev_net = None
@@ -164,6 +164,8 @@ def _cpu_sampler():
             _HIST["cpu"].append(_CPU["pct"])
             _HIST["mem"].append(mp)
             _HIST["disk"].append(dp)
+            _HIST["net_down"].append(_NET["down"])
+            _HIST["net_up"].append(_NET["up"])
             for k in _HIST:
                 if len(_HIST[k]) > _HIST_LEN:
                     del _HIST[k][:-_HIST_LEN]
@@ -586,14 +588,17 @@ def runner_status():
 
 def top_processes(n=8):
     procs = []
-    for p in psutil.process_iter(["name", "memory_info"]):
+    for p in psutil.process_iter(["name", "memory_info", "cpu_percent"]):
         try:
             rss = p.info["memory_info"].rss
-            procs.append({"name": p.info["name"] or "?", "rss": rss})
+            cpu = p.info["cpu_percent"]
+            procs.append({"name": p.info["name"] or "?", "rss": rss, "cpu": cpu})
         except Exception:
             continue
-    procs.sort(key=lambda x: x["rss"], reverse=True)
-    return procs[:n]
+    return {
+        "mem": sorted(procs, key=lambda x: x["rss"], reverse=True)[:n],
+        "cpu": sorted(procs, key=lambda x: x["cpu"], reverse=True)[:n]
+    }
 
 
 def stats():
@@ -636,7 +641,7 @@ def stats():
         "net": dict(_NET),
         "battery": battery_info(),
         "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
-                 "disk": list(_HIST["disk"])},
+                 "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"])},
         "runners": runner_status(),
         "top": top_processes(),
     }
