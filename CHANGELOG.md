@@ -1,3 +1,8 @@
+## [1.13.1] - 2026-06-27
+### Fixed
+- Fixed an issue where the background `launchd` service silently failed to load dynamic AI Copilot stats due to macOS Sandbox (TCC) restrictions on `Group Containers`, by re-introducing the old `history/` read method as a resilient fallback.
+- Fixed a logic bug where pinning a widget on the local machine (`host.base=""`) would successfully mark it as pinned but fail to move it to the global pinned area.
+
 ## [1.13.0] - 2026-06-26
 ### Added
 - **Global Widget Pinning:** Added a star (★) button to pin any widget (AI Copilot, Gauges, Runners, etc.) to a new full-width global header area at the top of the dashboard.
