@@ -145,6 +145,28 @@ def history_stats(rng="1h"):
     
     return res
 
+def uptime_sla():
+    now = int(time.time())
+    res = {"h24": 0.0, "d7": 0.0}
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            c = conn.execute("SELECT MIN(ts), COUNT(*) FROM hist WHERE ts >= ?", (now - 24 * 3600,))
+            row = c.fetchone()
+            if row and row[0]:
+                min_ts, count = row
+                expected = max(1, (now - min_ts) // 60)
+                res["h24"] = min(100.0, round((count / expected) * 100, 1))
+            
+            c = conn.execute("SELECT MIN(ts), COUNT(*) FROM hist")
+            row = c.fetchone()
+            if row and row[0]:
+                min_ts, count = row
+                expected = max(1, (now - min_ts) // 60)
+                res["d7"] = min(100.0, round((count / expected) * 100, 1))
+    except Exception:
+        pass
+    return res
+
 def _cpu_sampler():
     global _prev_net
     while True:
@@ -724,7 +746,8 @@ def stats():
         "jobs_summary": get_jobs_summary(),
         "top": t_mem,
         "top_cpu": t_cpu,
-        "ai": _get_ai_stats()
+        "ai": _get_ai_stats(),
+        "sla": uptime_sla()
     }
 
 

@@ -634,6 +634,7 @@ function machineHTML(host, entry){
       <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${name}</div>
       <div class="mright">
         ${online&&!stale&&s.battery?batteryChip(s.battery):''}
+        ${online&&!stale&&s.sla?`<span class="pill" title="Uptime SLA (24h / 7d): ${s.sla.h24}% / ${s.sla.d7}%" style="background:transparent;border:1px solid var(--line);color:var(--muted)">✨ ${s.sla.d7}%</span>`:''}
         ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
         ${stale ? `<span class="pill stale"><span class="d"></span>${t.stale} · ${s._age}s</span>`
                 : `<span class="pill ${online?'idle':'offline'}"><span class="d"></span>${online?t.online:t.offline}</span>`}
