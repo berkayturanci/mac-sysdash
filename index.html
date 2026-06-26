@@ -614,11 +614,11 @@ function machineHTML(host, entry){
           const v = s.ai[m];
           const mn = m.charAt(0).toUpperCase() + m.slice(1);
           const aiMode = localStorage.getItem('sysdash-aimode') || 'used'; // 'used' or 'rem'
-          const mSession = aiMode==='used' ? v.session : Math.max(0, 100 - v.session);
-          const mWeekly = aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly);
+          const mSession = Math.round(aiMode==='used' ? v.session : Math.max(0, 100 - v.session));
+          const mWeekly = Math.round(aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly));
           const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
           aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${Object.keys(s.ai).indexOf(m)===Object.keys(s.ai).length-1?'0':'12'}px">
-            <div style="font-weight:600;width:55px;font-size:13px;flex-shrink:0">${mn}</div>
+            <div style="font-weight:600;width:75px;font-size:13px;flex-shrink:0">${mn}</div>
             ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Session</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
             ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Weekly</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
           </div>`;
