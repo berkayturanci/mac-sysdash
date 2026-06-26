@@ -627,7 +627,8 @@ function machineHTML(host, entry){
     if (aiInner && !keys.includes('ai')) keys.push('ai');
     for (const k of keys) {
       if (!widgets[k]) continue;
-      if (isPinned(host.base+'-'+k)) {
+      const ck = host.base ? host.base+'-'+k : k;
+      if (isPinned(ck)) {
         let w = widgets[k];
         w = w.replace('<span class="grip" style="font-size:12px">⠿</span>', '');
         w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${host.name||host.base||'Local'}</span><div style="margin-left:auto;`);
