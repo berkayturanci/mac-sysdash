@@ -23,6 +23,7 @@ the installer sets that up for you in an isolated virtualenv.
   - On macOS, **disk** usage is read from the APFS data volume and reported as
     `total − free`, and **memory** as `total − available`, so the percentages
     match Finder's Storage and Activity Monitor instead of under-counting.
+- **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
 - **High-usage alerts** at ≥95%: a red badge on the gauge, a top banner, and a
   `⚠️` prefix in the browser tab title so you notice even from another tab.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
@@ -34,10 +35,9 @@ the installer sets that up for you in an isolated virtualenv.
     tells each runner's work apart (the same run otherwise looks identical on all
     of them).
   - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
-  - **Click a runner for a detail modal** — the current job plus the last 5 runs;
-    each row links to that workflow's runs on GitHub, and **hovering shows the full
-    detail** (job · workflow · branch / PR head · result · duration · date · 👤 actor).
-    Plus shortcuts to the Actions page and runner settings.
+  - A **30-day contribution heatmap** per runner directly on the main card.
+  - **Click a runner for a detail modal** — showing the current job, aggregate job statistics (runs, success rate, median duration, trends), a **Gantt chart Timeline** of the last 50 jobs, and recent job details; each row links to that workflow's runs on GitHub.
+  - **Persistent history:** A background SQLite thread continually stores finished jobs from local logs, ensuring history survives restarts and spans weeks.
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
   can't accept inbound — the browser only talks to the hub, so it works on a phone
@@ -45,7 +45,7 @@ the installer sets that up for you in an isolated virtualenv.
 - **Collapsible sections** — fold Runner status / System / Top processes to keep just
   the CPU / memory / disk gauges in view.
 - **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
-  throughput, battery, uptime, and the top memory-consuming processes.
+  throughput sparklines, battery, uptime, and the **top memory or CPU** consuming processes (toggleable).
 - **Trends** — a 60-second sparkline under each gauge (CPU / memory / disk);
   **click a gauge** for a larger ~5-minute time-series chart with a **hover
   crosshair** (value + time at the cursor).
@@ -244,6 +244,9 @@ At the top of `server.py`:
   runner already writes locally. That payload is the *workflow trigger*, shared by
   every job in a run, so the **job name** is read separately from the newest
   `<runner>/_diag/Worker_*.log` (one Worker log per job).
+- A background thread (`_jobs_sampler`) periodically parses those Worker logs to 
+  extract execution time, status, and job parameters, committing them to a local
+  `sqlite3` database to serve the Heatmap and Timeline views without any external DB.
 - Peers are exposed via `/api/peers` (list) and `/api/peer?key=…` (one peer's
   stats), both served from the hub so the browser never makes cross-origin calls.
   The hub fills these by pulling reachable peers and by accepting pushes on
