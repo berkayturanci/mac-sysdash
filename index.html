@@ -632,9 +632,12 @@ function machineHTML(host, entry){
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
       procs: sec('procs', t.topMem, topInner),
-      ai: aiInner ? sec('ai', `AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem('sysdash-aimode', localStorage.getItem('sysdash-aimode')==='rem'?'used':'rem');renderAll()" title="Toggle Used / Left">${(localStorage.getItem('sysdash-aimode') || 'used')==='used'?'Used':'Left'}</span>`, aiInner) : ''
+      ai: aiInner ? sec('ai', `AI Copilot <div class="runfilter" style="margin-left:8px; display:inline-flex; vertical-align:middle" onclick="event.stopPropagation()">
+  <button class="rf ${localStorage.getItem('sysdash-aimode')!=='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','used');renderAll()" style="padding:2px 8px; font-size:10px">${L==='tr'?'Kullanılan':'Used'}</button>
+  <button class="rf ${localStorage.getItem('sysdash-aimode')==='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','rem');renderAll()" style="padding:2px 8px; font-size:10px">${L==='tr'?'Kalan':'Left'}</button>
+</div>`, aiInner) : ''
     };
-    const order = getWidgetOrder();
+    const order = getWidgetOrder(h.base);
     // Ensure all widgets are rendered even if missing from order
     let bodyArr = order.map(k => widgets[k] || '');
     if (aiInner && !order.includes('ai')) bodyArr.push(widgets.ai);
@@ -750,7 +753,7 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
   el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
 // --- drag to reorder + collapse + gauge chart (delegated on #machines) ---
-function getWidgetOrder(){try{return JSON.parse(localStorage.getItem('sysdash-widget-order'))||['gauges','runners','system','procs','ai']}catch(e){return ['gauges','runners','system','procs','ai']}}
+function getWidgetOrder(hb){try{return JSON.parse(localStorage.getItem('sysdash-widget-order-'+hb))||['gauges','runners','system','procs','ai']}catch(e){return ['gauges','runners','system','procs','ai']}}
 function setWidgetOrder(o){localStorage.setItem('sysdash-widget-order',JSON.stringify(o));}
 
 let dragBase=null, dragWidget=null, isDragging=false;
@@ -789,10 +792,12 @@ mWrap.addEventListener('drop',e=>{
   } else if(dragWidget!=null) {
     const w=e.target.closest('.sec-wrap');
     if(w) {
-      let ord=getWidgetOrder().filter(k=>k!==dragWidget);
+      const col = w.closest('.column');
+      const hb = col ? col.dataset.base : '';
+      let ord=getWidgetOrder(hb).filter(k=>k!==dragWidget);
       const ti=ord.indexOf(w.dataset.widget);
       ord.splice(ti<0?ord.length:ti, 0, dragWidget);
-      setWidgetOrder(ord);
+      localStorage.setItem('sysdash-widget-order-'+hb, JSON.stringify(ord));
     }
   }
   dragBase=null; dragWidget=null; isDragging=false; renderAll();
