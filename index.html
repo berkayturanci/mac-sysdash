@@ -209,19 +209,19 @@
   .rm-stat:hover{background:var(--track)}
   .rm-stats .c-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rm-stat .c-name{font-weight:600;font-size:13px}
-  .rm-stats .c-runs{width:54px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
-  .rm-stats .c-sr{width:96px;display:flex;align-items:center;justify-content:flex-end;gap:7px;font-size:12.5px}
+  .rm-stats .c-runs{flex-shrink:0;width:54px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .rm-stats .c-sr{flex-shrink:0;width:96px;display:flex;align-items:center;justify-content:flex-end;gap:7px;font-size:12.5px}
   .rm-stat .c-sr .bar{width:34px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
   .rm-stat .c-sr .bar i{display:block;height:100%;border-radius:3px}
   .rm-stat .c-sr .pct{font-variant-numeric:tabular-nums;font-weight:600;min-width:34px;text-align:right}
   .rm-stat .c-sr .pct.ok{color:var(--green)} .rm-stat .c-sr .pct.warn{color:#f5a623} .rm-stat .c-sr .pct.bad{color:var(--red)}
-  .rm-stats .c-med{width:80px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap;overflow:hidden}
+  .rm-stats .c-med{flex-shrink:0;width:80px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap;overflow:hidden}
   .rm-stat .trend.up{color:var(--red)} .rm-stat .trend.dn{color:var(--green)}
   .rm-stats + .rm-h{margin-top:18px}  /* breathing room before "Recent runs" */
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
-  .kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .kv{display:flex;justify-content:space-between;white-space:nowrap;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .kv:last-child{border-bottom:0}
   .kv .k{color:var(--muted)}
   .kv .v{font-variant-numeric:tabular-nums;font-weight:650}
@@ -602,10 +602,15 @@ function machineHTML(host, entry){
         if (s.ai[m]) {
           const v = s.ai[m];
           const mn = m.charAt(0).toUpperCase() + m.slice(1);
-          aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px">
+          const aiMode = localStorage.getItem('sysdash-aimode') || 'used'; // 'used' or 'rem'
+          const mSession = aiMode==='used' ? v.session : Math.max(0, 100 - v.session);
+          const mWeekly = aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly);
+          const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
+          
+          aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px;cursor:pointer" onclick="localStorage.setItem('sysdash-aimode', localStorage.getItem('sysdash-aimode')==='rem'?'used':'rem');renderAll()">
             <div style="font-weight:600;width:55px;font-size:13px">${mn}</div>
-            ${v.session!==undefined ? `<div style="flex:1"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Session</div><div class="bar"><i style="width:${v.session}%;background:${v.session>=90?'var(--red)':'var(--accent)'}"></i></div></div>` : ''}
-            ${v.weekly!==undefined ? `<div style="flex:1"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Weekly</div><div class="bar"><i style="width:${v.weekly}%;background:${v.weekly>=90?'var(--red)':'var(--accent)'}"></i></div></div>` : ''}
+            ${v.session!==undefined ? `<div style="flex:1"><div style="display:flex;justify-content:space-between;white-space:nowrap;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Session ${aiMode==='used'?'Used':'Left'}</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
+            ${v.weekly!==undefined ? `<div style="flex:1"><div style="display:flex;justify-content:space-between;white-space:nowrap;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Weekly ${aiMode==='used'?'Used':'Left'}</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
           </div>`;
         }
       }
@@ -798,7 +803,7 @@ mWrap.addEventListener('click',e=>{
 
 // --- runner detail modal ---
 let runnerKey=null;
-function openRunner(base,ri){runnerKey={base,ri};drawRunner();document.getElementById('runnerModal').hidden=false;}
+function openRunner(base,ri){runnerKey={base,ri};document.getElementById('runnerBody').dataset.histHash='';drawRunner();document.getElementById('runnerModal').hidden=false;}
 function closeRunner(){runnerKey=null;document.getElementById('runnerModal').hidden=true;}
 let currentRunnerFetches=0;
 function drawRunner(){
@@ -806,6 +811,16 @@ function drawRunner(){
   const e=lastData[runnerKey.base]; if(!e||!e.online){closeRunner();return;}
   const host = hosts().find(h => h.base === runnerKey.base) || {base: runnerKey.base, self: !runnerKey.base};
   const r=(e.data.runners||[])[runnerKey.ri]; if(!r){closeRunner();return;}
+  
+  const histHash = r.status + (r.history||[]).map(x=>x.ago).join(',');
+  const rBody = document.getElementById('runnerBody');
+  if(rBody.dataset.histHash === histHash) {
+    const aj = document.getElementById('runnerActiveJob');
+    if(aj) aj.innerHTML = r.job ? jobHTML(r.job) : '';
+    return;
+  }
+  rBody.dataset.histHash = histHash;
+
   const actions=r.repo?'https://github.com/'+r.repo+'/actions':'';
   const wfUrl=wf=>(r.repo&&wf)?'https://github.com/'+r.repo+'/actions/workflows/'+encodeURIComponent(wf):actions;
   let statsHTML = '';
@@ -881,7 +896,7 @@ function drawRunner(){
   document.getElementById('runnerTitle').innerHTML=`${esc(r.name)} <span class="pill ${r.status}" style="margin-left:8px"><span class="d"></span>${t.st[r.status]}</span>`;
   document.getElementById('runnerBody').innerHTML=`
     <div class="rm-repo">${esc(r.repo||'—')}</div>
-    ${r.job?`<div class="rm-job">${jobHTML(r.job)}</div>`:''}
+    <div id="runnerActiveJob" class="rm-job" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
     ${statsHTML}
     <div id="timelineContainer" style="margin-top:16px"><div style="color:var(--muted);font-size:13px">${L==='tr'?'Zaman çizelgesi yükleniyor...':'Loading timeline...'}</div></div>
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
