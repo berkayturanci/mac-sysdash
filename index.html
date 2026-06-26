@@ -505,8 +505,11 @@ function setTopFilter(v){localStorage.setItem('sysdash-topfilter',v);renderAll()
 function collapseState(){try{return JSON.parse(localStorage.getItem('sysdash-collapse'))||{}}catch(e){return {}}}
 function isCollapsed(k){return !!collapseState()[k]}
 function toggleCollapse(k){const s=collapseState();s[k]=!s[k];localStorage.setItem('sysdash-collapse',JSON.stringify(s));renderAll();}
-function sec(key,title,inner,hb){const ck=hb?hb+'-'+key:key;const c=isCollapsed(ck);
-  return `<div class="sec-wrap" draggable="true" data-widget="${key}"><div class="section-title collapsible" data-sec="${ck}"><span class="grip" style="font-size:12px">⠿</span>${title}<span class="chev">${c?'▸':'▾'}</span></div>${c?'':inner}</div>`;}
+function pinnedState(){try{return JSON.parse(localStorage.getItem('sysdash-pinned'))||[]}catch(e){return []}}
+function isPinned(k){return pinnedState().includes(k)}
+function togglePin(k){let s=pinnedState();if(s.includes(k))s=s.filter(x=>x!==k);else s.push(k);localStorage.setItem('sysdash-pinned',JSON.stringify(s));renderAll();}
+function sec(key,title,inner,hb){const ck=hb?hb+'-'+key:key;const c=isCollapsed(ck);const p=isPinned(ck);
+  return `<div class="sec-wrap" draggable="true" data-widget="${key}"><div class="section-title collapsible" data-sec="${ck}"><span class="grip" style="font-size:12px">⠿</span>${title}<div style="margin-left:auto;display:flex;gap:12px;align-items:center"><span class="pin" data-sec="${ck}" style="font-size:16px;color:${p?'var(--accent)':'var(--muted)'};transition:color 0.2s" title="Pin to top">★</span><span class="chev" style="margin-left:0">${c?'▸':'▾'}</span></div></div>${c?'':inner}</div>`;}
 // recent job history dots
 function historyHTML(h){
   if(!h||!h.length)return '';
@@ -628,7 +631,7 @@ function machineHTML(host, entry){
     }
 
     const widgets = {
-      gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="${host.base}-gauges" style="border:none;margin-bottom:12px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<span class="chev">${isCollapsed(host.base+'-gauges')?'▸':'▾'}</span></div>${isCollapsed(host.base+'-gauges')?'':`<div class="grid gauges">
+      gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="${host.base}-gauges" style="border:none;margin-bottom:12px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<div style="margin-left:auto;display:flex;gap:12px;align-items:center"><span class="pin" data-sec="${host.base}-gauges" style="font-size:16px;color:${isPinned(host.base+'-gauges')?'var(--accent)':'var(--muted)'};transition:color 0.2s" title="Pin to top">★</span><span class="chev" style="margin-left:0">${isCollapsed(host.base+'-gauges')?'▸':'▾'}</span></div></div>${isCollapsed(host.base+'-gauges')?'':`<div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
         ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
@@ -640,8 +643,20 @@ function machineHTML(host, entry){
     };
     const order = getWidgetOrder(host.base);
     // Ensure all widgets are rendered even if missing from order
-    let bodyArr = order.map(k => widgets[k] || '');
-    if (aiInner && !order.includes('ai')) bodyArr.push(widgets.ai);
+    let bodyArr = [];
+    let keys = [...order];
+    if (aiInner && !keys.includes('ai')) keys.push('ai');
+    for (const k of keys) {
+      if (!widgets[k]) continue;
+      if (isPinned(host.base+'-'+k)) {
+        let w = widgets[k];
+        w = w.replace('<span class="grip" style="font-size:12px">⠿</span>', '');
+        w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${host.name||host.base||'Local'}</span><div style="margin-left:auto;`);
+        window.pinnedHtml.push(w);
+      } else {
+        bodyArr.push(widgets[k]);
+      }
+    }
     body = bodyArr.join('');
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
@@ -726,7 +741,14 @@ function renderAll(){
   </div>`;
   document.getElementById('fleetOverview').innerHTML = fHtml;
 
-  document.getElementById('machines').innerHTML = hs.map(h=>machineHTML(h, lastData[h.base])).join('');
+  window.pinnedHtml = [];
+  const mHtml = hs.map(h=>machineHTML(h, lastData[h.base])).join('');
+  let finalHtml = '';
+  if (window.pinnedHtml.length > 0) {
+    finalHtml += `<div id="pinned-area" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:24px">${window.pinnedHtml.join('')}</div>`;
+  }
+  finalHtml += `<div class="machines">${mHtml}</div>`;
+  document.getElementById('machines').innerHTML = finalHtml;
   document.getElementById('foot').textContent='sysdash'+(self&&self.online&&self.data.version?' v'+self.data.version:'')+' · '+t.refresh+' · © Berkay Turancı';
   computeAlerts();
 }
@@ -808,6 +830,7 @@ mWrap.addEventListener('click',e=>{
   if(e.target.closest('.grip')) return; // do not collapse on grip click
   const tfb=e.target.closest('.rf.tf'); if(tfb){setTopFilter(tfb.dataset.tf);return;}
   const rfb=e.target.closest('.rf'); if(rfb){setRunFilter(rfb.dataset.rf);return;}
+  const pb=e.target.closest('.pin'); if(pb){e.stopPropagation();togglePin(pb.dataset.sec);return;}
   const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
   const rn=e.target.closest('.runner.clickable'); if(rn){openRunner(rn.dataset.base,+rn.dataset.ri);return;}
   const g=e.target.closest('.gauge.clickable'); if(g&&g.dataset.chart){openChart(g.dataset.chart);}
