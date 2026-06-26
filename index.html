@@ -446,6 +446,12 @@ function jobHTML(j){
 }
 function gb(b){return (b/1073741824).toFixed(1)+' GB'}
 function rate(bps){if(bps==null)return '0';const u=['B','KB','MB','GB'];let i=0,v=bps;while(v>=1024&&i<u.length-1){v/=1024;i++}return (i?v.toFixed(1):v.toFixed(0))+' '+u[i]+'/s'}
+function tsFmt(ts) {
+  const d = new Date(ts*1000), n = new Date();
+  const time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  if(d.getDate()===n.getDate() && d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear()) return time;
+  return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' + time;
+}
 function batteryChip(b){
   if(!b)return '';
   const low=!b.plugged&&b.pct<=20;          // red text + low-battery icon
@@ -626,7 +632,7 @@ function machineHTML(host, entry){
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
       procs: sec('procs', t.topMem, topInner),
-      ai: aiInner ? sec('ai', 'AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem(\'sysdash-aimode\', localStorage.getItem(\'sysdash-aimode\')===\'rem\'?\'used\':\'rem\');renderAll()" title="Toggle Used / Left">${aiMode==='used'?'Used':'Left'}</span>', aiInner) : ''
+      ai: aiInner ? sec('ai', `AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem('sysdash-aimode', localStorage.getItem('sysdash-aimode')==='rem'?'used':'rem');renderAll()" title="Toggle Used / Left">${(localStorage.getItem('sysdash-aimode') || 'used')==='used'?'Used':'Left'}</span>`, aiInner) : ''
     };
     const order = getWidgetOrder();
     // Ensure all widgets are rendered even if missing from order
@@ -917,8 +923,8 @@ function drawRunner(){
     const minTs = Math.min(...jobs.map(j => j.ts - j.dur));
     const maxTs = Math.max(...jobs.map(j => j.ts));
     const total = maxTs - minTs || 1;
-    const startStr = new Date(minTs*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    const endStr = new Date(maxTs*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const startStr = tsFmt(minTs);
+    const endStr = tsFmt(maxTs);
     let html = `<div class="rm-h">${L==='tr'?'Zaman Çizelgesi':'Timeline'}</div>
       <div style="position:relative; height:24px; background:var(--track); border-radius:4px; overflow:hidden; margin-bottom:4px;">`;
     for(const j of jobs) {
