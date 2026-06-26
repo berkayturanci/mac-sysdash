@@ -606,11 +606,10 @@ function machineHTML(host, entry){
           const mSession = aiMode==='used' ? v.session : Math.max(0, 100 - v.session);
           const mWeekly = aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly);
           const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
-          
-          aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px;cursor:pointer" onclick="localStorage.setItem('sysdash-aimode', localStorage.getItem('sysdash-aimode')==='rem'?'used':'rem');renderAll()">
+          aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px">
             <div style="width:75px;flex-shrink:0"><div style="font-weight:600;font-size:13px">${mn}</div>${v.email ? `<div style="font-size:9.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(v.email)}">${esc(v.email.split("@")[0])}</div>` : ""}</div>
-            ${v.session!==undefined ? `<div style="flex:1"><div style="display:flex;justify-content:space-between;white-space:nowrap;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Session ${aiMode==='used'?'Used':'Left'}</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
-            ${v.weekly!==undefined ? `<div style="flex:1"><div style="display:flex;justify-content:space-between;white-space:nowrap;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Weekly ${aiMode==='used'?'Used':'Left'}</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
+            ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Session ${aiMode==='used'?'Used':'Left'}</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
+            ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Weekly ${aiMode==='used'?'Used':'Left'}</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
           </div>`;
         }
       }
@@ -626,7 +625,7 @@ function machineHTML(host, entry){
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
       procs: sec('procs', t.topMem, topInner),
-      ai: aiInner ? sec('ai', 'AI Copilot', aiInner) : ''
+      ai: aiInner ? sec('ai', 'AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem(\'sysdash-aimode\', localStorage.getItem(\'sysdash-aimode\')===\'rem\'?\'used\':\'rem\');renderAll()" title="Toggle Used / Left">⇄</span>', aiInner) : ''
     };
     const order = getWidgetOrder();
     // Ensure all widgets are rendered even if missing from order
@@ -917,8 +916,10 @@ function drawRunner(){
     const minTs = Math.min(...jobs.map(j => j.ts - j.dur));
     const maxTs = Math.max(...jobs.map(j => j.ts));
     const total = maxTs - minTs || 1;
+    const startStr = new Date(minTs*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const endStr = new Date(maxTs*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     let html = `<div class="rm-h">${L==='tr'?'Zaman Çizelgesi':'Timeline'}</div>
-      <div style="position:relative; height:24px; background:var(--track); border-radius:4px; overflow:hidden; margin-bottom:16px;">`;
+      <div style="position:relative; height:24px; background:var(--track); border-radius:4px; overflow:hidden; margin-bottom:4px;">`;
     for(const j of jobs) {
       const start = j.ts - j.dur;
       const left = (start - minTs) / total * 100;
@@ -927,7 +928,7 @@ function drawRunner(){
       const title = `${j.job||j.workflow} (${j.result}) - ${dur(j.dur)}`;
       html += `<div style="position:absolute; left:${left}%; width:${width}%; height:100%; background:${color}; opacity:0.8;" title="${esc(title)}"></div>`;
     }
-    html += `</div>`;
+    html += `</div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:16px;"><span>${startStr}</span><span>${endStr}</span></div>`;
     tc.innerHTML = html;
   }).catch(()=>{
     if(fetchId === currentRunnerFetches) {
