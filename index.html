@@ -187,6 +187,7 @@
   .runner.clickable:hover .jline,.runner.clickable:hover .repo{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word}
   .rm-repo{color:var(--muted);font-size:13px;margin-bottom:12px}
   .rm-job{margin-bottom:14px}
+  #runnerActiveJob .jline{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;line-height:1.4}
   .rm-h{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:6px 0 8px}
   .rm-run{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
   .rm-run:hover{background:var(--track);border-color:var(--line)}
@@ -608,8 +609,8 @@ function machineHTML(host, entry){
           const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
           aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${m==='claude'?'12':'0'}px">
             <div style="font-weight:600;width:55px;font-size:13px;flex-shrink:0">${mn}</div>
-            ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Session ${aiMode==='used'?'Used':'Left'}</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
-            ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Weekly ${aiMode==='used'?'Used':'Left'}</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
+            ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Session</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
+            ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Weekly</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
           </div>`;
         }
       }
@@ -625,7 +626,7 @@ function machineHTML(host, entry){
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
       procs: sec('procs', t.topMem, topInner),
-      ai: aiInner ? sec('ai', 'AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem(\'sysdash-aimode\', localStorage.getItem(\'sysdash-aimode\')===\'rem\'?\'used\':\'rem\');renderAll()" title="Toggle Used / Left">⇄</span>', aiInner) : ''
+      ai: aiInner ? sec('ai', 'AI Copilot <span class="pill" style="cursor:pointer;margin-left:8px;font-weight:normal" onclick="event.stopPropagation();localStorage.setItem(\'sysdash-aimode\', localStorage.getItem(\'sysdash-aimode\')===\'rem\'?\'used\':\'rem\');renderAll()" title="Toggle Used / Left">${aiMode==='used'?'Used':'Left'}</span>', aiInner) : ''
     };
     const order = getWidgetOrder();
     // Ensure all widgets are rendered even if missing from order
