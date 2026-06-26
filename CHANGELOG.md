@@ -1,3 +1,9 @@
+## [1.12.0] - 2026-06-26
+### Added
+- **Widget Drag & Drop:** Fully customizable and persistent layout. Reorder Gauges, Runners, System, and Top Processes freely by dragging their headers.
+- **AI Copilot Usage Widget:** Automatically integrates with CodexBar to display active Claude and GitHub Copilot session & weekly usage directly on the dashboard.
+- **Uptime SLA Tracking:** Calculates and displays a 24-hour and 7-day Uptime SLA percentage (`✨ 99.9%`) on the machine header using the existing zero-dependency SQLite history database.
+
 # Changelog
 
 All notable changes to this project are documented here. The format is based on
