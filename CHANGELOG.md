@@ -1,3 +1,12 @@
+## [1.13.0] - 2026-06-26
+### Added
+- **Global Widget Pinning:** Added a star (★) button to pin any widget (AI Copilot, Gauges, Runners, etc.) to a new full-width global header area at the top of the dashboard.
+- **Dynamic AI Copilot Providers:** The AI widget now dynamically reads all available providers (including Antigravity) from `widget-snapshot.json` and automatically scales the layout.
+
+### Changed
+- **Independent Layout States:** Widget collapse and pinning states are now tracked independently per machine (`hostBase`) rather than globally, fixing mirrored layout issues across multiple devices.
+- **Runner UI Clean up:** Removed the 30-day GitHub-style job heatmap from runner cards for a cleaner, less cluttered interface.
+
 ## [1.12.0] - 2026-06-26
 ### Added
 - **Widget Drag & Drop:** Fully customizable and persistent layout. Reorder Gauges, Runners, System, and Top Processes freely by dragging their headers.
