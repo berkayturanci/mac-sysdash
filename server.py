@@ -343,6 +343,27 @@ def _get_ai_stats():
         return _AI_STATS_CACHE["data"]
     try:
         res = {}
+        
+        # 1. Fallback: Read from history (accessible by launchd without Full Disk Access)
+        base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
+        for m in ["claude", "codex"]:
+            p = os.path.join(base_path, f"{m}.json")
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    pref = d.get("preferredAccountKey")
+                    accs = d.get("accounts", {})
+                    acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
+                    if acc:
+                        res[m] = {}
+                        for tracker in acc:
+                            name = tracker.get("name")
+                            if name in ("session", "weekly"):
+                                entries = tracker.get("entries", [])
+                                if entries:
+                                    res[m][name] = entries[-1].get("usedPercent", 0)
+                                    
+        # 2. Primary: Try to read from widget-snapshot (blocked by TCC in launchd, works in Terminal)
         snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
         if os.path.exists(snap_path):
             with open(snap_path, "r", encoding="utf-8") as f:
@@ -376,8 +397,10 @@ def _get_ai_stats():
                     
         _AI_STATS_CACHE.update(ts=now, data=res)
         return res
-    except Exception:
-        # If any file was locked or partially written (invalid JSON), reuse the last known good cache
+    except Exception as e:
+        import traceback
+        with open("/tmp/sysdash_ai_error.txt", "w") as ef:
+            ef.write(traceback.format_exc())
         _AI_STATS_CACHE["ts"] = now
         return _AI_STATS_CACHE["data"]
 
