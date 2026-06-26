@@ -362,6 +362,36 @@ def _get_ai_stats():
                                     res[m][name] = entries[-1].get("usedPercent", 0)
         except Exception:
             pass
+            
+    try:
+        snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
+        if os.path.exists(snap_path):
+            with open(snap_path, "r", encoding="utf-8") as f:
+                snap = json.load(f)
+            for entry in snap.get("entries", []):
+                prov = entry.get("provider")
+                if prov and prov not in res:
+                    spct, wpct = 0, 0
+                    if "primary" in entry:
+                        spct = entry["primary"].get("usedPercent", 0)
+                    if "secondary" in entry:
+                        wpct = entry["secondary"].get("usedPercent", 0)
+                    # For Antigravity, maybe they are in usageRows instead of primary/secondary?
+                    for row in entry.get("usageRows", []):
+                        if row.get("id") == "session":
+                            spct = max(spct, 100 - row.get("percentLeft", 100))
+                        elif row.get("id") == "weekly":
+                            wpct = max(wpct, 100 - row.get("percentLeft", 100))
+                        # Specific to antigravity:
+                        if "antigravity" in row.get("id", ""):
+                            if "session" in row.get("id", "") or "5h" in row.get("id", ""):
+                                spct = max(spct, 100 - row.get("percentLeft", 100))
+                            if "weekly" in row.get("id", ""):
+                                wpct = max(wpct, 100 - row.get("percentLeft", 100))
+                    res[prov] = {"session": spct, "weekly": wpct}
+    except Exception:
+        pass
+
     _AI_STATS_CACHE.update(ts=now, data=res)
     return res
 

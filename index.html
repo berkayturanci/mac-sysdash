@@ -605,7 +605,7 @@ function machineHTML(host, entry){
     let aiInner = '';
     if (s.ai && Object.keys(s.ai).length > 0) {
       aiInner = `<div class="card">`;
-      for (const m of ['claude', 'codex']) {
+      for (const m of Object.keys(s.ai)) {
         if (s.ai[m]) {
           const v = s.ai[m];
           const mn = m.charAt(0).toUpperCase() + m.slice(1);
