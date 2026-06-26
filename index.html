@@ -554,8 +554,8 @@ function machineHTML(host, entry){
         <button class="rf tf ${tf==='cpu'?'on':''}" data-tf="cpu">CPU</button>
       </div><div class="card">
         ${topList.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
-          <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:p.cpu/maxc*100}%"></i></span></span>
-          <span class="pm">${tf==='mem'?gb(p.rss):p.cpu.toFixed(1)+'%'}</span></div>`).join('')}
+          <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:(p.cpu||0)/maxc*100}%"></i></span></span>
+          <span class="pm">${tf==='mem'?gb(p.rss):(p.cpu||0).toFixed(1)+'%'}</span></div>`).join('')}
       </div>`;
     body = `
       <div class="grid gauges">
