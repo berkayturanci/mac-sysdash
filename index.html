@@ -518,27 +518,6 @@ function historyHTML(h){
     return `<span class="hdot ${j.result?(ok?'ok':'fail'):'unk'}" title="${lbl?esc(lbl)+' · ':''}${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}"></span>`;}).join('')}</div>`;
 }
 
-function heatmapHTML(dir, summary) {
-  if (!summary || !summary[dir]) return '';
-  const data = summary[dir];
-  let html = `<div class="heatmap">`;
-  const today = new Date();
-  for(let i=29; i>=0; i--) {
-    const d = new Date(today.getTime() - i*86400000);
-    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
-    const ds = `${y}-${m}-${dd}`;
-    const stat = data[ds];
-    if(stat) {
-      const total = stat.succeeded + stat.failed + stat.other;
-      const pct = stat.failed > 0 ? 'fail' : (total > 5 ? 'high' : (total > 0 ? 'med' : 'low'));
-      html += `<div class="hsq ${pct}" title="${ds}: ${total} jobs (${stat.succeeded} ok, ${stat.failed} fail)"></div>`;
-    } else {
-      html += `<div class="hsq none" title="${ds}: no jobs"></div>`;
-    }
-  }
-  html += '</div>';
-  return html;
-}
 
 function machineHTML(host, entry){
   const online = entry && entry.online;
@@ -560,7 +539,7 @@ function machineHTML(host, entry){
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
-        ${heatmapHTML(r.dir, s.jobs_summary)}
+        
       </div>`;
     }).filter(Boolean);
     const runners = rows.length ? rows.join('')
