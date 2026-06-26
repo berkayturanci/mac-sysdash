@@ -548,7 +548,11 @@ function machineHTML(host, entry){
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
       </div>`;
     
-    const topList = (s.top[tf] || (Array.isArray(s.top)?s.top:[]));
+    const topMem = Array.isArray(s.top) ? s.top : [];
+    const topCpu = Array.isArray(s.top_cpu) ? s.top_cpu : [];
+    const maxr=Math.max(...topMem.map(p=>p.rss),1);
+    const maxc=Math.max(...topCpu.map(p=>p.cpu||0),100);
+    const topList = (tf==='cpu' && topCpu.length) ? topCpu : topMem;
     const topInner = `<div class="runfilter" style="margin-top:0;margin-bottom:12px;">
         <button class="rf tf ${tf==='mem'?'on':''}" data-tf="mem">${L==='tr'?'Bellek':'Memory'}</button>
         <button class="rf tf ${tf==='cpu'?'on':''}" data-tf="cpu">CPU</button>

@@ -587,18 +587,21 @@ def runner_status():
 
 
 def top_processes(n=8):
-    procs = []
+    procs_mem = []
+    procs_cpu = []
     for p in psutil.process_iter(["name", "memory_info", "cpu_percent"]):
         try:
-            rss = p.info["memory_info"].rss
-            cpu = p.info["cpu_percent"]
-            procs.append({"name": p.info["name"] or "?", "rss": rss, "cpu": cpu})
-        except Exception:
-            continue
-    return {
-        "mem": sorted(procs, key=lambda x: x["rss"], reverse=True)[:n],
-        "cpu": sorted(procs, key=lambda x: x["cpu"], reverse=True)[:n]
-    }
+            mem = p.info["memory_info"]
+            rss = mem.rss if mem else 0
+            cpu = p.info["cpu_percent"] or 0
+            name = p.info["name"] or "?"
+            procs_mem.append({"name": name, "rss": rss, "cpu": cpu})
+            procs_cpu.append({"name": name, "rss": rss, "cpu": cpu})
+        except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError):
+            pass
+    procs_mem.sort(key=lambda x: x["rss"], reverse=True)
+    procs_cpu.sort(key=lambda x: x["cpu"], reverse=True)
+    return procs_mem[:n], procs_cpu[:n]
 
 
 def stats():
@@ -625,6 +628,7 @@ def stats():
         load = psutil.getloadavg()
     except Exception:
         load = (0, 0, 0)
+    t_mem, t_cpu = top_processes()
     return {
         "version": VERSION,
         "host": HOSTNAME,
@@ -643,7 +647,8 @@ def stats():
         "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
                  "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"])},
         "runners": runner_status(),
-        "top": top_processes(),
+        "top": t_mem,
+        "top_cpu": t_cpu,
     }
 
 
