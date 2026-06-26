@@ -117,7 +117,7 @@
   .gauge.clickable{cursor:pointer} .gauge.clickable:hover{border-color:var(--accent)}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
   .modal[hidden]{display:none}
-  .modal-card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:22px;max-width:760px;width:100%;box-shadow:var(--shadow)}
+  .modal-card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:22px;max-width:760px;width:100%;box-shadow:var(--shadow);max-height:calc(100vh - 40px);overflow-y:auto}
   .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-weight:650;font-size:15px}
   .mclose{cursor:pointer;color:var(--muted);font-size:18px;line-height:1}
   .mclose:hover{color:var(--txt)}
@@ -177,12 +177,34 @@
   .rm-h{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:6px 0 8px}
   .rm-run{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
   .rm-run:hover{background:var(--track);border-color:var(--line)}
-  .rm-run .rm-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-  .rm-run .rm-job{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rm-run .rm-sub{color:var(--muted);font-weight:400;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rm-run .rm-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;line-height:1.3}
+  .rm-run .rm-job{font-weight:600;font-size:13.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rm-run .rm-sub{color:var(--muted);font-weight:400;font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rm-run .rm-meta{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
   .rm-links{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
   .rm-links a{color:var(--accent);text-decoration:none;font-weight:600;font-size:13px}
+  /* runner modal: summary strip + job-stats table */
+  .rm-sum{display:flex;gap:10px;margin:2px 0 18px}
+  .rm-sum .s{flex:1;background:var(--track);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .rm-sum .s .n{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.05}
+  .rm-sum .s .n.ok{color:var(--green)} .rm-sum .s .n.warn{color:#f5a623} .rm-sum .s .n.bad{color:var(--red)}
+  .rm-sum .s .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+  .rm-stats{display:flex;flex-direction:column;margin-bottom:4px}
+  .rm-sthead,.rm-stat{display:flex;align-items:center;gap:12px;padding:6px 8px}
+  .rm-sthead{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);padding-bottom:7px}
+  .rm-stat{border-radius:8px}
+  .rm-stat:hover{background:var(--track)}
+  .rm-stats .c-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rm-stat .c-name{font-weight:600;font-size:13px}
+  .rm-stats .c-runs{width:54px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .rm-stats .c-sr{width:96px;display:flex;align-items:center;justify-content:flex-end;gap:7px;font-size:12.5px}
+  .rm-stat .c-sr .bar{width:34px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+  .rm-stat .c-sr .bar i{display:block;height:100%;border-radius:3px}
+  .rm-stat .c-sr .pct{font-variant-numeric:tabular-nums;font-weight:600;min-width:34px;text-align:right}
+  .rm-stat .c-sr .pct.ok{color:var(--green)} .rm-stat .c-sr .pct.warn{color:#f5a623} .rm-stat .c-sr .pct.bad{color:var(--red)}
+  .rm-stats .c-med{width:80px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap;overflow:hidden}
+  .rm-stat .trend.up{color:var(--red)} .rm-stat .trend.dn{color:var(--green)}
+  .rm-stats + .rm-h{margin-top:18px}  /* breathing room before "Recent runs" */
   .runner.busy{border-color:var(--pill-busy-bd)}
   .runner.busy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
 
@@ -278,7 +300,7 @@ const T = {
     fAll:'all', fActive:'active', noActive:'No active runners',
     addMachine:'＋ machine', addUrl:'Machine address (IP or URL) — e.g. 100.121.169.10',
     themeNames:{auto:'system', light:'light', dark:'dark', night:'night'},
-    langName:'Language', dunit:{d:'d', h:'h', m:'m'},
+    langName:'Language', dunit:{d:'d', h:'h', m:'m', s:'s'},
   },
   tr: {
     sub:(ip,c)=>`Tailscale ${ip||'-'} · ${c} çekirdek`,
@@ -295,7 +317,7 @@ const T = {
     fAll:'tümü', fActive:'aktif', noActive:'Aktif runner yok',
     addMachine:'＋ makine', addUrl:'Makine adresi (IP veya URL) — örn. 100.121.169.10',
     themeNames:{auto:'sistem', light:'açık', dark:'koyu', night:'gece'},
-    langName:'Dil', dunit:{d:'g', h:'s', m:'d'},
+    langName:'Dil', dunit:{d:'g', h:'s', m:'d', s:'sn'},
   },
 };
 const LKEY='sysdash-lang';
@@ -415,8 +437,8 @@ function sparkSVG(arr,col){
   const pts=arr.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(23-(Math.max(0,Math.min(100,v))/100*21)).toFixed(1)}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
-function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
-  if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; return `${m}${u.m}`}
+function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sec=Math.floor(s%60);
+  if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; if(m)return `${m}${u.m}`; return `${sec}${u.s}`}
 function ringHTML(label,pct,meta,spark,chart){
   const crit=pct>=CRIT, warn=pct>=WARN;
   const col=crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
@@ -618,36 +640,55 @@ function drawRunner(){
   let statsHTML = '';
   if(r.history && r.history.length) {
     const groups = {};
+    let totRuns = 0, totOk = 0;
     for(const j of r.history) {
       if(!j.result) continue;
       const jobName = j.job || j.workflow || 'workflow';
       if(!groups[jobName]) groups[jobName] = {runs:0, ok:0, durs:[], latestDur:null};
-      groups[jobName].runs++;
-      if((j.result||'').toLowerCase() === 'succeeded') groups[jobName].ok++;
-      if(j.dur != null) groups[jobName].durs.push(j.dur);
-      if(groups[jobName].latestDur == null && j.dur != null) groups[jobName].latestDur = j.dur;
+      const g = groups[jobName];
+      g.runs++; totRuns++;
+      if((j.result||'').toLowerCase() === 'succeeded') { g.ok++; totOk++; }
+      if(j.dur != null) { g.durs.push(j.dur); if(g.latestDur == null) g.latestDur = j.dur; }
     }
-    const statsList = Object.entries(groups)
-      .sort((a,b)=>b[1].runs - a[1].runs)
-      .map(([name, g]) => {
-        const sr = Math.round(g.ok / g.runs * 100);
-        let medStr = '', trend = '';
-        if(g.durs.length) {
-           const sorted = [...g.durs].sort((a,b)=>a-b);
-           const med = sorted[Math.floor(sorted.length/2)];
-           medStr = ' · ~' + dur(med) + ' median';
-           if(g.durs.length > 1 && g.latestDur != null) {
-              const diff = g.latestDur - med;
-              if (diff > Math.max(10, med*0.1)) trend = ' <span style="color:var(--red)" title="slower than median">▲</span>';
-              else if (diff < -Math.max(10, med*0.1)) trend = ' <span style="color:var(--green)" title="faster than median">▼</span>';
-           }
+    const srCls = p => p>=90?'ok':p>=70?'warn':'bad';
+    const srCol = p => p>=90?'var(--green)':p>=70?'#f5a623':'var(--red)';
+    const rows = Object.entries(groups).sort((a,b)=>b[1].runs - a[1].runs).map(([name, g]) => {
+      const sr = Math.round(g.ok / g.runs * 100);
+      let med = '—', trend = '';
+      if(g.durs.length) {
+        const sorted = [...g.durs].sort((a,b)=>a-b);
+        const m = sorted[Math.floor(sorted.length/2)];
+        med = dur(m);
+        if(g.durs.length > 1 && g.latestDur != null) {
+          const diff = g.latestDur - m;
+          if(diff > Math.max(10, m*0.1)) trend = ` <span class="trend up" title="${L==='tr'?'medyandan yavaş':'slower than median'}">▲</span>`;
+          else if(diff < -Math.max(10, m*0.1)) trend = ` <span class="trend dn" title="${L==='tr'?'medyandan hızlı':'faster than median'}">▼</span>`;
         }
-        return `<div style="font-size:13.5px; margin-bottom:6px">
-          <span style="color:var(--txt); font-weight:600">${esc(name)}</span> 
-          <span style="color:var(--muted)">· ${g.runs} ${L==='tr'?'çalışma':'runs'} · ${sr}% ok${medStr}</span>${trend}
+      }
+      return `<div class="rm-stat">
+        <span class="c-name" title="${esc(name)}">${esc(name)}</span>
+        <span class="c-runs">${g.runs}</span>
+        <span class="c-sr"><span class="bar"><i style="width:${sr}%;background:${srCol(sr)}"></i></span><span class="pct ${srCls(sr)}">${sr}%</span></span>
+        <span class="c-med">${med}${trend}</span>
+      </div>`;
+    }).join('');
+    if(rows) {
+      const ov = totRuns ? Math.round(totOk/totRuns*100) : 0, fail = totRuns - totOk;
+      statsHTML = `<div class="rm-sum">
+          <div class="s"><div class="n">${totRuns}</div><div class="l">${L==='tr'?'çalışma':'runs'}</div></div>
+          <div class="s"><div class="n ${srCls(ov)}">${ov}%</div><div class="l">${L==='tr'?'başarı':'success'}</div></div>
+          <div class="s"><div class="n ${fail?'bad':''}">${fail}</div><div class="l">${L==='tr'?'başarısız':'failed'}</div></div>
+        </div>
+        <div class="rm-h">${L==='tr'?'İş istatistikleri':'Job stats'}</div>
+        <div class="rm-stats">
+          <div class="rm-sthead">
+            <span class="c-name">${L==='tr'?'İş':'Job'}</span>
+            <span class="c-runs">${L==='tr'?'Çalışma':'Runs'}</span>
+            <span class="c-sr">${L==='tr'?'Başarı':'Success'}</span>
+            <span class="c-med">${L==='tr'?'Medyan':'Median'}</span>
+          </div>${rows}
         </div>`;
-      }).join('');
-    if(statsList) statsHTML = `<div class="rm-h" style="margin-bottom:8px">${L==='tr'?'İş istatistikleri':'Job stats'}</div>${statsList}`;
+    }
   }
 
   const hist=(r.history&&r.history.length)?r.history.slice(0, 8).map(j=>{
@@ -656,12 +697,13 @@ function drawRunner(){
     const brTxt=j.branch?(j.head?`${j.branch} (${j.head})`:j.branch):'';
     const headline=j.job||j.workflow||'workflow';        // the job that ran, not just its workflow
     const sub=(j.job&&j.workflow)?j.workflow:'';          // workflow kept as context
-    const line2=[sub?('⚙ '+esc(sub)):'', brTxt?esc(brTxt):''].filter(Boolean).join(' · ');  // 2nd line
+    const wfLine=sub?`<span class="rm-sub">⚙ ${esc(sub)}</span>`:'';   // workflow on its own line
+    const brLine=brTxt?`<span class="rm-sub">${esc(brTxt)}</span>`:''; // PR / branch on its own line
     const tip=[headline, sub?('⚙ '+sub):'', brTxt, j.result||'?', dur(j.dur), when,
                j.actor?('👤 '+j.actor):''].filter(Boolean).join(' · ');
     return `<a class="rm-run" href="${wfUrl(j.workflow)}" target="_blank" rel="noopener" title="${esc(tip)}">
       <span class="hdot ${cls}"></span>
-      <span class="rm-text"><span class="rm-job">${esc(headline)}</span>${line2?`<span class="rm-sub">${line2}</span>`:''}</span>
+      <span class="rm-text"><span class="rm-job">${esc(headline)}</span>${wfLine}${brLine}</span>
       <span class="rm-meta">${j.result||'?'} · ${dur(j.dur)} · ${dur(j.ago)} ${L==='tr'?'önce':'ago'}</span>
       <span class="ext">↗</span></a>`;
   }).join(''):`<div style="color:var(--muted);font-size:13px">${L==='tr'?'geçmiş çalışma bulunamadı':'no recent runs found'}</div>`;

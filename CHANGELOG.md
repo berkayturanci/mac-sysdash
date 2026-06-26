@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] - 2026-06-26
+
+### Changed
+- **Runner detail modal redesign.** The job-stats section is now an aligned
+  table (Job · Runs · Success · Median) with a colour-coded success bar (red /
+  amber / green), preceded by a summary strip (total runs · overall success ·
+  failed count). Recent-run rows split onto three lines — **job**, `⚙ workflow`,
+  and `PR · branch` — with tightened line spacing, and the "Recent runs" heading
+  gained breathing room above it.
+- **Durations under a minute now show seconds** (`12s`) instead of collapsing to
+  `0m`/`~0d`, in both the job-stats medians and the recent-run list.
+- The modal now **scrolls when its content is taller than the viewport** — a long
+  history no longer clips the title or the footer links.
+
+### Fixed
+- CLI `--status` no longer prints a `BrokenPipeError` traceback when piped (e.g.
+  `--json | head`); it now exits quietly like a normal Unix tool.
+
+[1.9.1]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.9.1
+
 ## [1.9.0] - 2026-06-26
 
 ### Added
