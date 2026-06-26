@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -792,6 +792,11 @@ def format_status_table(s, use_color=True):
 
 if __name__ == "__main__":
     if "--status" in sys.argv:
+        try:
+            import signal
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # exit quietly when piped (e.g. | head)
+        except (ImportError, AttributeError, ValueError):
+            pass
         idx = sys.argv.index("--status")
         url = f"http://localhost:{PORT}/api/stats"
         if len(sys.argv) > idx + 1 and not sys.argv[idx + 1].startswith("--"):
