@@ -604,7 +604,11 @@ function machineHTML(host, entry){
       </div>`;
     let aiInner = '';
     if (s.ai && Object.keys(s.ai).length > 0) {
-      aiInner = `<div class="card">`;
+      const aiMode = localStorage.getItem('sysdash-aimode') || 'used';
+      aiInner = `<div class="runfilter" style="margin-top:0;margin-bottom:12px">
+        <button class="rf ${aiMode!=='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','used');renderAll()">${L==='tr'?'Kullanılan':'Used'}</button>
+        <button class="rf ${aiMode==='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','rem');renderAll()">${L==='tr'?'Kalan':'Left'}</button>
+      </div><div class="card">`;
       for (const m of Object.keys(s.ai)) {
         if (s.ai[m]) {
           const v = s.ai[m];
@@ -632,10 +636,7 @@ function machineHTML(host, entry){
       runners: sec('runners', t.runners, runnersInner),
       system: sec('system', t.system, sysInner),
       procs: sec('procs', t.topMem, topInner),
-      ai: aiInner ? sec('ai', `AI Copilot <div class="runfilter" style="margin-left:8px; display:inline-flex; vertical-align:middle" onclick="event.stopPropagation()">
-  <button class="rf ${localStorage.getItem('sysdash-aimode')!=='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','used');renderAll()" style="padding:2px 8px; font-size:10px">${L==='tr'?'Kullanılan':'Used'}</button>
-  <button class="rf ${localStorage.getItem('sysdash-aimode')==='rem'?'on':''}" onclick="localStorage.setItem('sysdash-aimode','rem');renderAll()" style="padding:2px 8px; font-size:10px">${L==='tr'?'Kalan':'Left'}</button>
-</div>`, aiInner) : ''
+      ai: aiInner ? sec('ai', 'AI Copilot', aiInner) : ''
     };
     const order = getWidgetOrder(host.base);
     // Ensure all widgets are rendered even if missing from order
