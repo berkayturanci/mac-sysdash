@@ -523,8 +523,10 @@ function machineHTML(host, entry){
         <button class="rf ${rf==='all'?'on':''}" data-rf="all">${t.fAll}</button>
         <button class="rf ${rf==='active'?'on':''}" data-rf="active">${t.fActive}</button>
       </div><div class="grid runners">${runners}</div>`;
-    const maxr=s.top.mem ? Math.max(...s.top.mem.map(p=>p.rss),1) : Math.max(...(Array.isArray(s.top)?s.top:[]).map(p=>p.rss),1);
-    const maxc=s.top.cpu ? Math.max(...s.top.cpu.map(p=>p.cpu),1) : 100;
+    const topMem = Array.isArray(s.top) ? s.top : [];
+    const topCpu = Array.isArray(s.top_cpu) ? s.top_cpu : [];
+    const maxr = Math.max(...topMem.map(p=>p.rss), 1);
+    const maxc = Math.max(...topCpu.map(p=>p.cpu||0), 100);
     const load1 = s.cpu.load[0], lratio = s.cpu.count ? load1 / s.cpu.count : 0;
     const lcol = lratio >= 2 ? 'var(--red)' : lratio >= 1 ? '#f5a623' : 'var(--accent)';
     const lpct = Math.min(100, Math.max(2, lratio * 50)); // 1.0 -> 50%, 2.0 -> 100%
@@ -548,10 +550,6 @@ function machineHTML(host, entry){
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
       </div>`;
     
-    const topMem = Array.isArray(s.top) ? s.top : [];
-    const topCpu = Array.isArray(s.top_cpu) ? s.top_cpu : [];
-    const maxr=Math.max(...topMem.map(p=>p.rss),1);
-    const maxc=Math.max(...topCpu.map(p=>p.cpu||0),100);
     const topList = (tf==='cpu' && topCpu.length) ? topCpu : topMem;
     const topInner = `<div class="runfilter" style="margin-top:0;margin-bottom:12px;">
         <button class="rf tf ${tf==='mem'?'on':''}" data-tf="mem">${L==='tr'?'Bellek':'Memory'}</button>

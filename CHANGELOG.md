@@ -3,6 +3,11 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
+
+## [1.10.1] - 2026-06-26
+
+### Fixed
+- **UI render crash:** Fixed a JavaScript SyntaxError caused by duplicate variable declarations that broke the rendering loop.
 ## [1.10.0] - 2026-06-26
 
 ### Added
