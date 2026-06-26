@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-06-26
+
+### Added
+- **Long-term metrics history** — per-minute CPU/RAM/disk averages are persisted
+  to a local SQLite DB (`~/.local/state/sysdash/history.db`, pruned to 7 days);
+  the chart gains **1h / 24h / 7d** ranges next to the live 5m view, served from
+  a new `/api/history?range=…` endpoint. (#3)
+- **Per-job stats** in the runner detail modal — run count, success rate, and
+  median duration per job, from the existing history. (#4)
+- **CLI status mode** — `python server.py --status [URL]` prints runner + system
+  status as a table (`--json` for raw output, ANSI auto-disabled off a TTY). (#5)
+- **Runner alerts** — a runner going offline (after being seen online) or a job
+  stuck busy for >30 min now raises the same banner/notification as the ≥95%
+  system alerts. (#6)
+
+### Fixed
+- `server.py` was missing `import sys`, which the new CLI / `__main__` path
+  references at startup — without it the server failed to start at all. Added a
+  subprocess regression test that exercises the `--status` path.
+
+[1.9.0]: https://github.com/berkayturanci/mac-sysdash/releases/tag/v1.9.0
+
 ## [1.8.1] - 2026-06-26
 
 ### Fixed

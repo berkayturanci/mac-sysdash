@@ -446,5 +446,23 @@ class PushTests(unittest.TestCase):
         self.assertIsNone(server.peer_by_key("bogus"))
 
 
+class CliModeTests(unittest.TestCase):
+    def test_status_path_fails_cleanly_not_with_a_crash(self):
+        # The --status / __main__ path is NOT exercised by `import server`, so a
+        # missing import there (e.g. the v1.9.0 `import sys` fix) slips past every
+        # other test. Run it as a subprocess against an unreachable URL: it must
+        # fail *cleanly* (handled error, exit 1), never crash with a traceback.
+        import subprocess
+        srv = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "server.py")
+        r = subprocess.run(
+            [sys.executable, srv, "--status", "http://127.0.0.1:1/api/stats"],
+            capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(r.returncode, 0)        # connection refused -> exit 1
+        self.assertNotIn("Traceback", r.stderr)     # handled, not crashed
+        self.assertNotIn("NameError", r.stderr)
+        self.assertIn("Error fetching", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
