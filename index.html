@@ -624,7 +624,7 @@ function machineHTML(host, entry){
     }
 
     const widgets = {
-      gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="gauges" style="border:none;margin-bottom:-10px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<span class="chev">${isCollapsed('gauges')?'▸':'▾'}</span></div>${isCollapsed('gauges')?'':`<div class="grid gauges">
+      gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="gauges" style="border:none;margin-bottom:12px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<span class="chev">${isCollapsed('gauges')?'▸':'▾'}</span></div>${isCollapsed('gauges')?'':`<div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
         ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
