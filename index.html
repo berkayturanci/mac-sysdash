@@ -155,7 +155,13 @@
   .runner.clickable{cursor:pointer}
   .runner.clickable:hover{transform:translateY(-2px);border-color:var(--accent)}
   .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .runner .name{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:6px}
+  .runner  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+  .mhead .mname{font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px}
+  .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
+  .grip{color:var(--muted);cursor:grab;font-size:16px;user-select:none;margin-right:2px}
+  .grip:active{cursor:grabbing}
+  .sec-wrap{transition: transform 0.2s; border-radius:8px;}
+  .sec-wrap.dragover{background:var(--track); opacity:0.7;}
   .runner .ext{color:var(--muted);font-size:13px;font-weight:400}
   .runner .repo{color:var(--muted);font-size:12px;margin-top:3px;word-break:break-all}
   .runner .up{color:var(--muted);font-size:12px;margin-top:12px;font-variant-numeric:tabular-nums}
@@ -493,7 +499,7 @@ function collapseState(){try{return JSON.parse(localStorage.getItem('sysdash-col
 function isCollapsed(k){return !!collapseState()[k]}
 function toggleCollapse(k){const s=collapseState();s[k]=!s[k];localStorage.setItem('sysdash-collapse',JSON.stringify(s));renderAll();}
 function sec(key,title,inner){const c=isCollapsed(key);
-  return `<div class="section-title collapsible" data-sec="${key}">${title}<span class="chev">${c?'▸':'▾'}</span></div>${c?'':inner}`;}
+  return `<div class="sec-wrap" draggable="true" data-widget="${key}"><div class="section-title collapsible" data-sec="${key}"><span class="grip" style="font-size:12px">⠿</span>${title}<span class="chev">${c?'▸':'▾'}</span></div>${c?'':inner}</div>`;}
 // recent job history dots
 function historyHTML(h){
   if(!h||!h.length)return '';
@@ -589,15 +595,18 @@ function machineHTML(host, entry){
           <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:(p.cpu||0)/maxc*100}%"></i></span></span>
           <span class="pm">${tf==='mem'?gb(p.rss):(p.cpu||0).toFixed(1)+'%'}</span></div>`).join('')}
       </div>`;
-    body = `
-      <div class="grid gauges">
+    const widgets = {
+      gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="gauges" style="border:none;margin-bottom:-10px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<span class="chev">${isCollapsed('gauges')?'▸':'▾'}</span></div>${isCollapsed('gauges')?'':`<div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
         ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
-      </div>
-      ${sec('runners', t.runners, runnersInner)}
-      ${sec('system', t.system, sysInner)}
-      ${sec('procs', t.topMem, topInner)}`;
+      </div>`}</div>`,
+      runners: sec('runners', t.runners, runnersInner),
+      system: sec('system', t.system, sysInner),
+      procs: sec('procs', t.topMem, topInner)
+    };
+    const order = getWidgetOrder();
+    body = order.map(k => widgets[k] || '').join('');
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
@@ -708,13 +717,56 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
   el.addEventListener('click',()=>{localStorage.setItem(CFKEY,clock12()?'24':'12');clock();});})();
 
 // --- drag to reorder + collapse + gauge chart (delegated on #machines) ---
-let dragBase=null, isDragging=false;
+function getWidgetOrder(){try{return JSON.parse(localStorage.getItem('sysdash-widget-order'))||['gauges','runners','system','procs']}catch(e){return ['gauges','runners','system','procs']}}
+function setWidgetOrder(o){localStorage.setItem('sysdash-widget-order',JSON.stringify(o));}
+
+let dragBase=null, dragWidget=null, isDragging=false;
 const mWrap=document.getElementById('machines');
-mWrap.addEventListener('dragstart',e=>{const h=e.target.closest('.mhead');if(!h)return;dragBase=h.closest('.machine').dataset.base;isDragging=true;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragBase);}catch(_){}});
-mWrap.addEventListener('dragover',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));if(m)m.classList.add('dragover');});
-mWrap.addEventListener('drop',e=>{if(dragBase==null)return;e.preventDefault();const m=e.target.closest('.machine');if(m){const order=hosts().map(h=>h.base).filter(b=>b!==dragBase);const ti=order.indexOf(m.dataset.base);order.splice(ti<0?order.length:ti,0,dragBase);setOrder(order);}dragBase=null;isDragging=false;renderAll();});
-mWrap.addEventListener('dragend',()=>{dragBase=null;isDragging=false;mWrap.querySelectorAll('.machine.dragover').forEach(x=>x.classList.remove('dragover'));});
+mWrap.addEventListener('dragstart',e=>{
+  const h=e.target.closest('.mhead');
+  const w=e.target.closest('.sec-wrap');
+  if(h) {
+    dragBase=h.closest('.machine').dataset.base;
+    dragWidget=null;
+  } else if(w) {
+    dragWidget=w.dataset.widget;
+    dragBase=null;
+  } else return;
+  isDragging=true;
+  try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragBase||dragWidget);}catch(_){}
+});
+mWrap.addEventListener('dragover',e=>{
+  if(!isDragging)return;
+  e.preventDefault();
+  mWrap.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));
+  if(dragBase!=null) {
+    const m=e.target.closest('.machine');
+    if(m) m.classList.add('dragover');
+  } else if(dragWidget!=null) {
+    const w=e.target.closest('.sec-wrap');
+    if(w && w.dataset.widget!==dragWidget) w.classList.add('dragover');
+  }
+});
+mWrap.addEventListener('drop',e=>{
+  if(!isDragging)return;
+  e.preventDefault();
+  if(dragBase!=null) {
+    const m=e.target.closest('.machine');
+    if(m){const order=hosts().map(h=>h.base).filter(b=>b!==dragBase);const ti=order.indexOf(m.dataset.base);order.splice(ti<0?order.length:ti,0,dragBase);setOrder(order);}
+  } else if(dragWidget!=null) {
+    const w=e.target.closest('.sec-wrap');
+    if(w) {
+      let ord=getWidgetOrder().filter(k=>k!==dragWidget);
+      const ti=ord.indexOf(w.dataset.widget);
+      ord.splice(ti<0?ord.length:ti, 0, dragWidget);
+      setWidgetOrder(ord);
+    }
+  }
+  dragBase=null; dragWidget=null; isDragging=false; renderAll();
+});
+mWrap.addEventListener('dragend',()=>{dragBase=null;dragWidget=null;isDragging=false;mWrap.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));});
 mWrap.addEventListener('click',e=>{
+  if(e.target.closest('.grip')) return; // do not collapse on grip click
   const tfb=e.target.closest('.rf.tf'); if(tfb){setTopFilter(tfb.dataset.tf);return;}
   const rfb=e.target.closest('.rf'); if(rfb){setRunFilter(rfb.dataset.rf);return;}
   const st=e.target.closest('.section-title.collapsible'); if(st){toggleCollapse(st.dataset.sec);return;}
