@@ -1,3 +1,12 @@
+## [1.15.2] - 2026-06-29
+### Fixed
+- The Full Disk Access hint still pointed at the wrong binary. Framework Python's
+  `bin/python3.9` is a stub that `exec`s `Resources/Python.app/Contents/MacOS/Python`;
+  TCC matches that real binary, but `realpath(sys.executable)` only resolves
+  symlinks and stops at the stub — so granting FDA to the hinted path had no
+  effect. The hint now reports the actual running executable via
+  `_NSGetExecutablePath` (ctypes), which is what FDA must be granted to.
+
 ## [1.15.1] - 2026-06-29
 ### Fixed
 - The Full Disk Access hint reported `sys.executable`, which is usually a symlink
