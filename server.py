@@ -334,6 +334,11 @@ def discover_runners(ttl=30):
 
 _PEERS = {"ts": 0, "data": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
+# CodexBar data sources (module-level so tests can point them at fixtures).
+_CODEXBAR_HISTORY = os.path.expanduser(
+    "~/Library/Application Support/com.steipete.codexbar/history/")
+_CODEXBAR_SNAPSHOT = os.path.expanduser(
+    "~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
 
 
 
@@ -345,7 +350,7 @@ def _get_ai_stats():
         res = {}
         
         # 1. Fallback: Read from history (accessible by launchd without Full Disk Access)
-        base_path = os.path.expanduser("~/Library/Application Support/com.steipete.codexbar/history/")
+        base_path = _CODEXBAR_HISTORY
         for m in ["claude", "codex"]:
             p = os.path.join(base_path, f"{m}.json")
             if os.path.exists(p):
@@ -368,7 +373,7 @@ def _get_ai_stats():
         # That must NOT discard the history fallback already collected in `res`
         # (the old code let it bubble to the outer except, returning an empty cache).
         try:
-            snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
+            snap_path = _CODEXBAR_SNAPSHOT
             with open(snap_path, "r", encoding="utf-8") as f:
                 snap = json.load(f)
             providers = snap.get("enabledProviders", [])

@@ -464,5 +464,85 @@ class CliModeTests(unittest.TestCase):
         self.assertIn("Error fetching", r.stderr)
 
 
+class HistoryDbTests(unittest.TestCase):
+    """The SQLite-backed history/jobs functions (point _DB_PATH at a temp file)."""
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self._orig = server._DB_PATH
+        server._DB_PATH = os.path.join(self._td.name, "h.db")
+        server._init_db()
+
+    def tearDown(self):
+        server._DB_PATH = self._orig
+        self._td.cleanup()
+
+    def _conn(self):
+        return sqlite3.connect(server._DB_PATH)
+
+    def test_jobs_summary_counts_by_runner_and_day(self):
+        now = int(time.time())
+        rows = [
+            ("rA", "w1", now, 10, "Succeeded", "r", "wf", "j", "b", "a", "h"),
+            ("rA", "w2", now, 10, "Failed", "r", "wf", "j", "b", "a", "h"),
+            ("rA", "w3", now, 10, "Cancelled", "r", "wf", "j", "b", "a", "h"),
+            ("rB", "w1", now, 10, "Succeeded", "r", "wf", "j", "b", "a", "h"),
+        ]
+        with self._conn() as c:
+            c.executemany(
+                "INSERT INTO jobs (runner, logfile, ts, duration, result, repo, "
+                "workflow, job, branch, actor, head) VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        summ = server.get_jobs_summary()
+        day = time.strftime("%Y-%m-%d", time.gmtime(now))  # date(ts,'unixepoch') is UTC
+        self.assertEqual(summ["rA"][day], {"succeeded": 1, "failed": 1, "other": 1})
+        self.assertEqual(summ["rB"][day], {"succeeded": 1, "failed": 0, "other": 0})
+
+    def test_history_stats_shape(self):
+        now = int(time.time())
+        base = now - (now % 60)
+        with self._conn() as c:
+            for i in range(5):
+                c.execute("INSERT OR REPLACE INTO hist (ts, cpu, mem, disk) "
+                          "VALUES (?,?,?,?)", (base - i * 60, 50.0, 60.0, 70.0))
+        h = server.history_stats("1h")
+        self.assertEqual(h["step"], 60)
+        self.assertEqual(sorted(h.keys()), ["cpu", "disk", "mem", "step", "t0"])
+        self.assertTrue(any(v == 50.0 for v in h["cpu"]))
+        self.assertEqual(len(h["cpu"]), len(h["mem"]))
+
+    def test_uptime_sla_in_range(self):
+        now = int(time.time())
+        base = now - (now % 60)
+        with self._conn() as c:
+            for i in range(10):
+                c.execute("INSERT OR REPLACE INTO hist (ts, cpu, mem, disk) "
+                          "VALUES (?,?,?,?)", (base - i * 60, 1, 1, 1))
+        sla = server.uptime_sla()
+        self.assertEqual(sorted(sla.keys()), ["d7", "h24"])
+        for v in sla.values():
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 100.0)
+
+
+class AiStatsTests(unittest.TestCase):
+    def test_history_fallback_survives_unreadable_snapshot(self):
+        # Regression for the launchd TCC bug: a blocked/missing widget-snapshot
+        # must NOT discard the history fallback (Claude/Codex).
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 42}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 7}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing-snapshot.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {"session": 42, "weekly": 7})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
