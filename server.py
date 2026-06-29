@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.15.2"
+VERSION = "1.16.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -397,6 +397,8 @@ def _get_ai_stats():
                                 entries = tracker.get("entries", [])
                                 if entries:
                                     res[m][name] = entries[-1].get("usedPercent", 0)
+                                    if entries[-1].get("resetsAt"):
+                                        res[m][name + "_reset"] = entries[-1]["resetsAt"]
                                     
         # 2. Primary (richer): widget-snapshot. Best-effort ONLY — under launchd this
         # lives in a TCC-protected Group Container and open() raises PermissionError.
@@ -422,6 +424,12 @@ def _get_ai_stats():
                         elif "weekly" in rid or "secondary" in rid:
                             wpct = max(wpct, 100 - row.get("percentLeft", 100))
                     res[prov] = {"session": spct, "weekly": wpct}
+                    sr = entry.get("primary", {}).get("resetsAt")
+                    wr = entry.get("secondary", {}).get("resetsAt")
+                    if sr:
+                        res[prov]["session_reset"] = sr
+                    if wr:
+                        res[prov]["weekly_reset"] = wr
             ordered_res = {}
             for p in providers:
                 if p in res:
