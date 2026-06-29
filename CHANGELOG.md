@@ -1,3 +1,9 @@
+## [1.13.2] - 2026-06-27
+### Fixed
+- Swap usage bar now turns **red** at ≥90%. The colour thresholds were ordered
+  `≥70 → amber` before `≥90 → red`, so the amber branch caught every high value
+  first and the red branch was unreachable (a 95% swap showed amber).
+
 ## [1.13.1] - 2026-06-27
 ### Fixed
 - Fixed an issue where the background `launchd` service silently failed to load dynamic AI Copilot stats due to macOS Sandbox (TCC) restrictions on `Group Containers`, by re-introducing the old `history/` read method as a resilient fallback.
