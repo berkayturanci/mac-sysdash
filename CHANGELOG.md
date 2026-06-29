@@ -1,3 +1,11 @@
+## [1.17.0] - 2026-06-29
+### Changed
+- **Header reworked for the multi-machine reality.** Dropped the app emoji icon
+  and the single-machine "Tailscale <ip> · N cores" subtitle (it only described
+  one PC). The header now shows the connected-**device count** with a status dot
+  per device (green = online), scaling as machines are added. Each machine's
+  Tailscale address + core count moved under its own name in the machine card.
+
 ## [1.16.0] - 2026-06-29
 ### Added
 - **AI Copilot reset times.** Each provider's Session and Weekly rows now show
