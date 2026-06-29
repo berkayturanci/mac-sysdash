@@ -124,9 +124,13 @@ the browser makes no cross-origin calls). Machines that can't accept inbound
 connections POST to `/api/push`. CLI: `python server.py --status [URL]` prints a
 text table (`--json` for raw).
 
-UI (index.html): ring gauges + sparklines, fleet overview banner, per-machine
-collapse + global widget pinning (★), runner cards + a detail modal (job-stats
-table, 30-day health heatmap, Gantt timeline, recent runs), an AI-usage widget,
+UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA), fleet
+overview banner, an "active runs" strip + a "scheduled checks" (dead-man) strip,
+per-machine collapse + global widget pinning (★), a 🌡 thermal chip + self-update
+badge in the header, runner cards + a detail modal (job-stats table, flaky jobs,
+queue pressure, 30-day health heatmap, Gantt timeline, recent runs), system card
+(per-core, load, net + per-interface + daily total, disk I/O), an AI-usage widget,
+a ⚙ settings popover (alert thresholds + webhook), TV/wall mode (📺 / `?tv`),
 light/dark/night themes, EN/TR.
 
 ## Deploy (FYI — usually not the agent's job)

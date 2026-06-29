@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.14.0-blue)
+![version](https://img.shields.io/badge/version-1.24.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -23,9 +23,19 @@ the installer sets that up for you in an isolated virtualenv.
   - On macOS, **disk** usage is read from the APFS data volume and reported as
     `total − free`, and **memory** as `total − available`, so the percentages
     match Finder's Storage and Activity Monitor instead of under-counting.
+  - **Disk-fill ETA** — when the disk is trending up, the disk gauge shows the
+    estimated time-to-full (`⏳~6d`) from the least-squares slope of the last 24h.
 - **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
-- **High-usage alerts** at ≥95%: a red badge on the gauge, a top banner, and a
-  `⚠️` prefix in the browser tab title so you notice even from another tab.
+- **Active runs** — currently-busy runners across every machine grouped by their
+  run (PR / branch + workflow), so one run split across runners/Macs shows as a
+  single entry with per-runner job chips.
+- **High-usage alerts**: a red badge on the gauge, a top banner, and a `⚠️`
+  prefix in the browser tab title so you notice even from another tab. The
+  **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,
+  stuck-job minutes), plus **CI failure alerts** when a runner job finishes
+  `Failed`.
+- **Thermal pressure badge** — a `🌡` chip appears on a machine's header when the
+  SoC throttles (`pmset -g therm`), the build slowdown CPU% can't show.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
   (`busy` / `idle` / `offline`):
   - For a **busy** runner, the card shows what it is working on — the **job**
@@ -38,20 +48,39 @@ the installer sets that up for you in an isolated virtualenv.
   - A **30-day CI health heatmap** per runner in the detail modal, coloured by
     outcome (green = all ok, amber = some fails, red = all fails, muted = none).
   - **Click a runner for a detail modal** — showing the current job, aggregate job statistics (runs, success rate, median duration, trends), a **Gantt chart Timeline** of the last 50 jobs, and recent job details; each row links to that workflow's runs on GitHub.
+  - **Flaky job detection** — jobs that both pass and fail over the last 14 days
+    (10–90 % fail rate) are listed in the modal with their fail rate.
+  - **Queue pressure** — on serial self-hosted runners, jobs that started right
+    after the previous one were queued waiting; the modal shows a pressure bar
+    (% queued + estimated wait), a fleet-sizing signal the busy/idle view can't give.
   - **Persistent history:** A background SQLite thread continually stores finished jobs from local logs, ensuring history survives restarts and spans weeks.
+- **Scheduled (dead-man) checks** — cron jobs ping `/api/ping` on success; a
+  "Scheduled checks" strip flags any that go silent (up → late → down) and raises
+  an alert. Fully self-contained, no external service. See below.
+- **Self-update badge** — a header badge shows how many commits this checkout is
+  behind `origin/main` (hourly background `git fetch`).
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
   can't accept inbound — the browser only talks to the hub, so it works on a phone
   too. **Drag a panel by its header to reorder.**
 - **Collapsible sections** — fold Runner status / System / Top processes to keep just
   the CPU / memory / disk gauges in view.
-- **System detail** — per-core CPU bars, load average, RAM/swap/disk, network
-  throughput sparklines, battery, uptime, and the **top memory or CPU** consuming processes (toggleable).
+- **System detail** — per-core CPU bars, load average (with trend sparkline),
+  RAM/swap/disk, **network throughput** (with per-interface breakdown — en0 vs
+  Tailscale `utun` — and a daily ↓/↑ total), **disk I/O** read/write sparklines,
+  battery, uptime, and the **top memory or CPU** consuming processes (toggleable).
+- **AI Copilot usage** — per-provider session/weekly usage (and reset countdowns),
+  read locally from CodexBar's files (no token, no API).
 - **Trends** — a 60-second sparkline under each gauge (CPU / memory / disk);
   **click a gauge** for a larger ~5-minute time-series chart with a **hover
   crosshair** (value + time at the cursor).
 - **Runner filter** — show **all** runners or only the **active** (busy) ones.
-- **Notifications** — desktop/phone alerts when a metric goes critical (needs HTTPS).
+- **Notifications** — desktop/phone alerts when a metric goes critical (browser
+  notifications need HTTPS), plus two off-browser channels so alerts reach you
+  with the tab closed: a **webhook** (ntfy.sh / Slack / Discord, set in ⚙) and a
+  **native macOS notification** for server-fired dead-man check alerts.
+- **TV / wall mode** — a `📺` toggle (or `?tv`) hides the chrome and scales the
+  layout up for an always-on display.
 - **Per-machine local time** (with timezone) — handy across timezones.
 - **Installable (PWA)** — "Add to Home Screen" on iOS/Android for an app-like,
   full-screen view from your phone.
@@ -205,14 +234,32 @@ tailnet in the Tailscale admin console.)
 > want to see. The dashboard then auto-discovers peers at their HTTPS Tailscale
 > name. Over plain `http://…:8765` on a LAN this isn't needed.
 
+## Scheduled (dead-man) checks
+
+Monitor cron jobs, backups, and scheduled scripts without any external service:
+have each job ping sysdash on **success**. If a job goes silent past its expected
+period (plus a grace window), the dashboard marks it `late` then `down`, shows it
+in the "Scheduled checks" strip, and raises an alert (banner + notification, and
+a native macOS notification).
+
+```sh
+# at the end of your cron job / script, on success:
+… && curl -fsS "http://localhost:8765/api/ping?job=nightly-backup&period=86400&grace=3600"
+```
+
+`period` and `grace` are seconds and only need to be sent once (they're
+remembered); later pings can be just `?job=nightly-backup`. State is stored in the
+local SQLite DB, so checks survive restarts.
+
 ## Tests
 
 A `unittest` suite (no third-party deps beyond `psutil`) covers the server:
 config/event/log parsing (including runner history: result, workflow, job,
 PR/branch, actor, PR head, and the live job name), the disk/memory invariants,
-tailnet peer discovery, push/proxy
-endpoints, battery, and the HTTP routes. The browser UI (themes, filters, charts)
-isn't unit-tested. Run it with any Python that has `psutil`:
+tailnet peer discovery, push/proxy endpoints, battery, the HTTP routes, and the
+SQLite-backed history/flaky/queue/dead-man-check/daily-bandwidth logic. The
+browser UI (themes, filters, charts) isn't unit-tested. Run it with any Python
+that has `psutil`:
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -233,6 +280,9 @@ At the top of `server.py`:
 
 - `RUNNER_ROOTS` — where to scan for runner installs
 - `VERSION` — shown in the page footer
+
+In the UI (⚙ settings popover, stored per-browser in `localStorage`): alert
+thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook URL**.
 
 ## How it works
 
