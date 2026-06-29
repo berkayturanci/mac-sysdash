@@ -1,3 +1,12 @@
+## [1.24.0] - 2026-06-30
+### Added
+- **Per-interface network breakdown** (#38). The system card splits network into
+  per-NIC rates (en0 vs Tailscale `utun…`) from `net_io_counters(pernic=True)`,
+  filtering loopback/trivial interfaces. `stats.net_ifaces`.
+- **Daily bandwidth total** (#38). A new `net_daily` SQLite table accumulates each
+  minute's bytes; the system card shows today's ↓/↑ totals (`stats.net_today`,
+  30-day retention). Closes #38 — the competitor-scan roadmap (#29–#41) is done.
+
 ## [1.23.0] - 2026-06-30
 ### Added
 - **Runner queue depth / wait-time** (#41). `get_queue_stats()` reads the jobs

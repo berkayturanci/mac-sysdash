@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.23.0"
+VERSION = "1.24.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -74,6 +74,9 @@ HOSTNAME = computer_name()
 # UI sparklines.
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
+_NET_IF = {}                               # per-interface rates: {nic: {up, down}}
+_NET_ACC = {"rx": 0, "tx": 0}              # bytes this minute, flushed to net_daily
+_prev_pernic = None
 _IO = {"read": 0.0, "write": 0.0}          # disk throughput, bytes/sec
 _HIST = {"cpu": [], "mem": [], "disk": [], "net_down": [], "net_up": [],
          "disk_read": [], "disk_write": [], "load": []}
@@ -101,6 +104,8 @@ def _init_db():
                 name TEXT PRIMARY KEY, last_seen INTEGER, period INTEGER,
                 grace INTEGER, first_seen INTEGER
             )""")
+            conn.execute("CREATE TABLE IF NOT EXISTS net_daily "
+                         "(day TEXT PRIMARY KEY, rx INTEGER, tx INTEGER)")
     except Exception:
         pass
 
@@ -113,6 +118,38 @@ def _write_hist_db(cpu, mem, disk):
             conn.execute("DELETE FROM hist WHERE ts < ?", (ts - 7 * 24 * 3600,))
     except Exception:
         pass
+
+def _flush_net_daily():
+    """Add this minute's network bytes to today's net_daily row, then reset the
+    accumulator. Keyed by local date so the UI shows a real calendar-day total."""
+    rx, tx = _NET_ACC["rx"], _NET_ACC["tx"]
+    _NET_ACC["rx"] = _NET_ACC["tx"] = 0
+    if rx <= 0 and tx <= 0:
+        return
+    try:
+        day = time.strftime("%Y-%m-%d")
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            conn.execute("INSERT INTO net_daily (day, rx, tx) VALUES (?,?,?) "
+                         "ON CONFLICT(day) DO UPDATE SET rx=rx+?, tx=tx+?",
+                         (day, rx, tx, rx, tx))
+            conn.execute("DELETE FROM net_daily WHERE day < ?",
+                         (time.strftime("%Y-%m-%d", time.localtime(time.time() - 30*24*3600)),))
+    except Exception:
+        pass
+
+
+def get_net_today():
+    """Bytes received/sent so far today (local date), from net_daily."""
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            row = conn.execute("SELECT rx, tx FROM net_daily WHERE day=?",
+                               (time.strftime("%Y-%m-%d"),)).fetchone()
+        if row:
+            return {"rx": row[0] or 0, "tx": row[1] or 0}
+    except Exception:
+        pass
+    return {"rx": 0, "tx": 0}
+
 
 def history_stats(rng="1h"):
     now = int(time.time())
@@ -339,7 +376,7 @@ def _update_checker():
 
 
 def _cpu_sampler():
-    global _prev_net, _prev_io
+    global _prev_net, _prev_io, _prev_pernic
     while True:
         cores = psutil.cpu_percent(interval=1.0, percpu=True)
         _CPU["cores"] = [round(c, 1) for c in cores]
@@ -350,7 +387,26 @@ def _cpu_sampler():
             if _prev_net is not None:
                 _NET["up"] = max(0, n.bytes_sent - _prev_net.bytes_sent)
                 _NET["down"] = max(0, n.bytes_recv - _prev_net.bytes_recv)
+                _NET_ACC["tx"] += _NET["up"]
+                _NET_ACC["rx"] += _NET["down"]
             _prev_net = n
+        except Exception:
+            pass
+        try:
+            pernic = psutil.net_io_counters(pernic=True)
+            if _prev_pernic:
+                out = {}
+                for nic, c in pernic.items():
+                    if nic.startswith(("lo", "gif", "stf", "ap", "awdl", "llw", "bridge")):
+                        continue
+                    if (c.bytes_sent + c.bytes_recv) < 1048576:   # skip trivial nics
+                        continue
+                    p = _prev_pernic.get(nic)
+                    out[nic] = {"up": max(0, c.bytes_sent - p.bytes_sent) if p else 0,
+                                "down": max(0, c.bytes_recv - p.bytes_recv) if p else 0}
+                _NET_IF.clear()
+                _NET_IF.update(out)
+            _prev_pernic = pernic
         except Exception:
             pass
         try:
@@ -390,6 +446,7 @@ def _cpu_sampler():
             if _MIN_ACC["count"] >= 60:
                 c = _MIN_ACC["count"]
                 _write_hist_db(_MIN_ACC["cpu"]/c, _MIN_ACC["mem"]/c, _MIN_ACC["disk"]/c)
+                _flush_net_daily()
                 _MIN_ACC["count"] = 0
                 _MIN_ACC["cpu"] = 0.0
                 _MIN_ACC["mem"] = 0.0
@@ -1064,6 +1121,8 @@ def stats():
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
         "disk_eta_days": disk_eta_days(disk_pct),
         "net": dict(_NET),
+        "net_ifaces": dict(_NET_IF),
+        "net_today": get_net_today(),
         "io": dict(_IO),
         "thermal": dict(_THERM),
         "battery": battery_info(),
