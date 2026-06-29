@@ -344,6 +344,15 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(states["slow"], "late")    # 90 < 100 <= 150
         self.assertEqual(states["dead"], "down")    # 1000 > 150
 
+    def test_net_daily_accumulates(self):
+        server._NET_ACC["rx"], server._NET_ACC["tx"] = 1000, 500
+        server._flush_net_daily()
+        self.assertEqual(server.get_net_today(), {"rx": 1000, "tx": 500})
+        self.assertEqual(server._NET_ACC["rx"], 0)   # reset after flush
+        server._NET_ACC["rx"], server._NET_ACC["tx"] = 200, 0
+        server._flush_net_daily()
+        self.assertEqual(server.get_net_today(), {"rx": 1200, "tx": 500})
+
     def test_queue_stats_detects_back_to_back(self):
         now = int(server.time.time())
         # three 100s jobs starting back-to-back (gap ~0) => 2 contended of 3

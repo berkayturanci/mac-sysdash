@@ -63,11 +63,15 @@ database server, no cloud.
 ## Data model (`/api/stats`, server → client)
 
 `{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net, io,
-thermal, battery, hist, runners[], jobs_summary, flaky, checks, update_behind,
-queue, top[], top_cpu[], ai, uptime, ...}`
+thermal, battery, net_ifaces, net_today, hist, runners[], jobs_summary, flaky, checks,
+update_behind, queue, top[], top_cpu[], ai, uptime, ...}`
 
 - `hist` is ~5 min of per-second samples for the sparklines/chart:
   `{cpu[], mem[], disk[], net_down[], net_up[], disk_read[], disk_write[], load[]}`.
+- `net_ifaces` is per-NIC rates `{nic: {up, down}}` (`net_io_counters(pernic=True)`
+  deltas, loopback/trivial NICs filtered). `net_today` is `{rx, tx}` bytes
+  transferred today (local date), accumulated per-minute into the `net_daily`
+  SQLite table (30-day retention).
 - `io` is disk throughput `{read, write}` bytes/sec (`psutil.disk_io_counters()`
   deltas). `thermal` is `{state: nominal|fair|serious|critical, cpu_limit}` from
   `pmset -g therm` (unprivileged, background thread); the header shows a 🌡 chip
