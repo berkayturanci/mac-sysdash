@@ -1,3 +1,17 @@
+## [1.21.0] - 2026-06-29
+### Added
+- **Thermal pressure badge** (#38). `pmset -g therm` (background thread, 30s)
+  surfaces SoC throttling the CPU% gauge hides — a 🌡 chip appears on a machine's
+  header when its CPU speed limit drops below 100%. `stats.thermal {state,
+  cpu_limit}`.
+- **Disk I/O throughput** (#38). `psutil.disk_io_counters()` read/write rates in
+  the system card with a sparkline (`stats.io`, `hist.disk_read`/`disk_write`).
+- **Load-average sparkline** (#38). The system card's load row gains a trend
+  sparkline from the new `hist.load`.
+
+  (Per-core CPU breakdown was already present; per-interface net split and daily
+  bandwidth total from #38 remain open.)
+
 ## [1.20.0] - 2026-06-29
 ### Added
 - **Flaky CI job detection** (#30). The runner modal lists jobs that both pass

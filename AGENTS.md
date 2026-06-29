@@ -62,12 +62,16 @@ database server, no cloud.
 
 ## Data model (`/api/stats`, server → client)
 
-`{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net,
-battery, hist, runners[], jobs_summary, flaky, update_behind, top[], top_cpu[],
-ai, uptime, ...}`
+`{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net, io,
+thermal, battery, hist, runners[], jobs_summary, flaky, update_behind, top[],
+top_cpu[], ai, uptime, ...}`
 
 - `hist` is ~5 min of per-second samples for the sparklines/chart:
-  `{cpu[], mem[], disk[], net_down[], net_up[]}`.
+  `{cpu[], mem[], disk[], net_down[], net_up[], disk_read[], disk_write[], load[]}`.
+- `io` is disk throughput `{read, write}` bytes/sec (`psutil.disk_io_counters()`
+  deltas). `thermal` is `{state: nominal|fair|serious|critical, cpu_limit}` from
+  `pmset -g therm` (unprivileged, background thread); the header shows a 🌡 chip
+  only when throttled. Both are best-effort and default to safe values.
 - `top[]` / `top_cpu[]` are top processes by RSS / CPU%.
 - `ai` is AI-assistant usage per provider, read locally from CodexBar:
   `~/Library/Application Support/com.steipete.codexbar/history/{claude,codex}.json`

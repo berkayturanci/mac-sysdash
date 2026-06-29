@@ -450,7 +450,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
-  net:{up:120*1024,down:840*1024},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7)},
+  net:{up:120*1024,down:840*1024},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
@@ -461,7 +461,7 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
-  net:{up:2.1*1024*1024,down:480*1024},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8)},
+  net:{up:2.1*1024*1024,down:480*1024},io:{read:42*1024*1024,write:55*1024*1024},thermal:{state:'serious',cpu_limit:70},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8),disk_read:demoHist(42*1024*1024,15*1024*1024,3),disk_write:demoHist(55*1024*1024,20*1024*1024,7),load:demoHist(9.5,3,1)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
     {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200,workflow:'train.yml',job:'train (gpu)'},{result:'Failed',dur:1200,ago:30000,workflow:'train.yml',job:'eval'},{result:'Succeeded',dur:4800,ago:60000,workflow:'train.yml',job:'train (gpu)'},{result:'Succeeded',dur:5100,ago:90000,workflow:'train.yml',job:'train (gpu)'}]}],
@@ -505,6 +505,12 @@ function tsFmt(ts) {
   const time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   if(d.getDate()===n.getDate() && d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear()) return time;
   return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' + time;
+}
+function thermalChip(th){
+  if(!th||th.state==='nominal') return '';   // only surfaces when the SoC throttles
+  const col=th.state==='critical'?'var(--red)':'#f5a623';
+  const lbl={fair:L==='tr'?'ılımlı':'fair',serious:L==='tr'?'ciddi':'serious',critical:L==='tr'?'kritik':'critical'}[th.state]||th.state;
+  return `<span class="batt warn" style="color:${col}" title="${L==='tr'?'Termal baskı — CPU hız limiti ':'Thermal pressure — CPU speed limit '}${th.cpu_limit}%">🌡 ${lbl}${th.cpu_limit<100?' '+th.cpu_limit+'%':''}</span>`;
 }
 function batteryChip(b){
   if(!b)return '';
@@ -616,8 +622,11 @@ function machineHTML(host, entry){
         <div class="cores">${s.cpu.cores.map(c=>`<div class="core" title="${c}%"><i style="height:${c}%"></i></div>`).join('')}</div>
         <div class="kv" style="margin-top:12px"><span class="k">${t.load}</span><span class="v ${lratio>=2?'crit':''}">${s.cpu.load.join('  /  ')}</span></div>
         <div class="bar"><i style="width:${lpct}%;background:${lcol}"></i></div>
+        ${s.hist&&s.hist.load&&s.hist.load.length>1?sparkSVG(s.hist.load,lcol):''}
         ${s.net?`<div class="kv" style="margin-top:12px"><span class="k">${t.network}</span><span class="v">↓ ${rate(s.net.down)}　↑ ${rate(s.net.up)}</span></div>
         ${s.hist&&s.hist.net_down?sparkSVGNet(s.hist.net_down, s.hist.net_up):''}`:''}
+        ${s.io?`<div class="kv" style="margin-top:12px"><span class="k">Disk I/O</span><span class="v">R ${rate(s.io.read)}　W ${rate(s.io.write)}</span></div>
+        ${s.hist&&s.hist.disk_read?sparkSVGNet(s.hist.disk_read, s.hist.disk_write):''}`:''}
         <div style="height:10px"></div>
         ${kv(t.ramUsed, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total)+' ('+s.mem.pct+'%)')}
         <div class="bar"><i style="width:${s.mem.pct}%"></i></div>
@@ -707,6 +716,7 @@ function machineHTML(host, entry){
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
       <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span><span class="mntext"><span class="mn">${esc(name)}</span>${online&&s&&s.tailscale_ip?`<span class="m-net">Tailscale ${esc(s.tailscale_ip)}${s.cpu&&s.cpu.count?' · '+s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'):''}</span>`:''}</span></div>
       <div class="mright">
+        ${online&&!stale&&s.thermal?thermalChip(s.thermal):''}
         ${online&&!stale&&s.battery?batteryChip(s.battery):''}
         ${online&&!stale&&s.sla?`<span class="pill" title="Uptime SLA (24h / 7d): ${s.sla.h24}% / ${s.sla.d7}%" style="background:transparent;border:1px solid var(--line);color:var(--muted)">✨ ${s.sla.d7}%</span>`:''}
         ${online&&s.localtime?`<span class="mtime" title="${esc(name)} local time">🕐 ${s.localtime}${s.tz?' '+esc(s.tz):''}</span>`:''}
