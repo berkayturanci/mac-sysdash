@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.22.0"
+VERSION = "1.23.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -205,6 +205,48 @@ def disk_eta_days(current_pct):
         return None
 
 
+def get_queue_stats(days=7):
+    """Per-runner contention from finished jobs. `ts` is the job's end (Worker log
+    mtime); start = ts - duration. Self-hosted runners are serial (one Worker at a
+    time), so a job starting within GAP seconds of the previous one's end means it
+    was queued waiting — that's the capacity signal the busy/idle view can't show."""
+    GAP = 45
+    cutoff = int(time.time()) - days * 24 * 3600
+    rows = []
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            rows = conn.execute(
+                "SELECT runner, ts, duration FROM jobs WHERE ts >= ? AND duration IS NOT NULL "
+                "ORDER BY runner, ts", (cutoff,)).fetchall()
+    except Exception:
+        return {}
+    by = {}
+    for runner, ts, dur in rows:
+        by.setdefault(runner, []).append((ts - (dur or 0), ts))   # (start, end)
+    res = {}
+    for runner, jobs in by.items():
+        if len(jobs) < 2:
+            continue
+        jobs.sort()
+        overlaps = back2back = wait = 0
+        prev_end = None
+        for start, end in jobs:
+            if prev_end is not None:
+                gap = start - prev_end
+                if gap < 0:
+                    overlaps += 1
+                    wait += -gap
+                elif gap <= GAP:
+                    back2back += 1
+                    wait += max(0, GAP - gap)
+            prev_end = end if prev_end is None else max(prev_end, end)
+        contended = overlaps + back2back
+        res[runner] = {"jobs": len(jobs), "overlaps": overlaps,
+                       "back_to_back": back2back, "wait_secs": int(wait),
+                       "pressure": round(contended / len(jobs) * 100)}
+    return res
+
+
 def record_ping(name, period=None, grace=None):
     """Dead-man check: a cron job hits /api/ping?job=<name> on success. We remember
     the last ping + its expected period/grace so get_checks() can flag silence."""
@@ -354,6 +396,39 @@ def _cpu_sampler():
                 _MIN_ACC["disk"] = 0.0
         except Exception:
             pass
+
+
+def _notify_native(msg):
+    """Best-effort native macOS notification. Works from the launchd user agent
+    because it runs in the Aqua session. No-op if osascript is unavailable."""
+    try:
+        subprocess.run(["/usr/bin/osascript", "-e",
+                        'display notification "%s" with title "sysdash"' % msg.replace('"', "'")],
+                       capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
+_FIRED_CHECKS = set()
+
+def _check_alert_sampler():
+    """Off-browser delivery (#40) for server-known alerts: fire a native
+    notification when a dead-man check goes late/down, deduped until it recovers."""
+    while True:
+        try:
+            for c in get_checks():
+                late_key, down_key = c["name"] + ":late", c["name"] + ":down"
+                if c["state"] == "up":
+                    _FIRED_CHECKS.discard(late_key)
+                    _FIRED_CHECKS.discard(down_key)
+                else:
+                    key = c["name"] + ":" + c["state"]
+                    if key not in _FIRED_CHECKS:
+                        _FIRED_CHECKS.add(key)
+                        _notify_native("Check '%s' is %s" % (c["name"], c["state"]))
+        except Exception:
+            pass
+        time.sleep(60)
 
 
 def _thermal_sampler():
@@ -998,6 +1073,7 @@ def stats():
         "runners": runner_status(),
         "jobs_summary": get_jobs_summary(),
         "flaky": get_flaky_jobs(),
+        "queue": get_queue_stats(),
         "checks": get_checks(),
         "update_behind": _UPDATE["behind"],
         "top": t_mem,
@@ -1271,6 +1347,7 @@ if __name__ == "__main__":
     threading.Thread(target=_peer_sampler, daemon=True).start()
     threading.Thread(target=_update_checker, daemon=True).start()
     threading.Thread(target=_thermal_sampler, daemon=True).start()
+    threading.Thread(target=_check_alert_sampler, daemon=True).start()
     if PUSH_TO:
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True

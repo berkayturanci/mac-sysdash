@@ -1,3 +1,16 @@
+## [1.23.0] - 2026-06-30
+### Added
+- **Runner queue depth / wait-time** (#41). `get_queue_stats()` reads the jobs
+  table and flags contention: on serial self-hosted runners a job starting within
+  45s of the previous one's end was queued waiting. The runner modal shows a
+  "Queue pressure" bar (% of jobs queued + est. wait) — a fleet-sizing capacity
+  signal the busy/idle view can't give. `stats.queue` keyed by runner dir.
+### Changed
+- **Off-browser alerts** (#40, complete). Server-fired dead-man check alerts now
+  also post a native macOS notification (`osascript`) when a check goes
+  late/down, deduped until it recovers — delivery no longer needs an open browser
+  tab. (The webhook channel shipped in 1.22.0.)
+
 ## [1.22.0] - 2026-06-30
 ### Added
 - **Dead-man / cron health checks** (#39). A cron job hits
