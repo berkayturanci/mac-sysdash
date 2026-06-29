@@ -119,6 +119,13 @@
   .ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .ar-chip{display:inline-flex;align-items:center;gap:6px;background:var(--track);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:12px}
   .ar-chip .ar-rn{color:var(--muted);font-size:11px}
+  /* scheduled / dead-man checks (#39) */
+  .chk-grid{display:flex;flex-wrap:wrap;gap:8px}
+  .chk{display:inline-flex;align-items:center;gap:7px;background:var(--track);border:1px solid var(--line);border-radius:9px;padding:5px 11px;font-size:12.5px}
+  .chk-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--green)}
+  .chk-late .chk-dot{background:#f5a623} .chk-down .chk-dot{background:var(--red)}
+  .chk-late{border-color:rgba(245,166,35,.45)} .chk-down{border-color:rgba(255,92,92,.5)}
+  .chk-ago{color:var(--muted);font-size:11px}
   /* flaky jobs (#30) */
   .rm-flaky{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
   .fl-row{display:flex;align-items:center;gap:9px;font-size:12.5px}
@@ -335,10 +342,12 @@
     <label>Critical %<input type="number" min="1" max="100" id="cfgCrit" oninput="setCfg('crit',this.value)"></label>
     <label>Warning %<input type="number" min="1" max="100" id="cfgWarn" oninput="setCfg('warn',this.value)"></label>
     <label>Stuck job (min)<input type="number" min="1" id="cfgStuck" oninput="setCfg('stuck',this.value)"></label>
+    <label title="ntfy.sh / Slack / Discord webhook — alerts POST here">Alert webhook<input type="url" id="cfgHook" placeholder="https://ntfy.sh/your-topic" oninput="setHook(this.value)"></label>
   </div>
   <div class="banner" id="alertBanner"></div>
   <div id="fleetOverview"></div>
   <div id="activeRuns"></div>
+  <div id="checksStrip"></div>
   <div id="machines"></div>
   <div class="foot" id="foot"></div>
 </div>
@@ -450,7 +459,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
-  net:{up:120*1024,down:840*1024},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
+  net:{up:120*1024,down:840*1024},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},checks:[{name:'nightly-backup',ago:3600,period:86400,grace:3600,state:'up'},{name:'db-snapshot',ago:5400,period:3600,grace:600,state:'late'}],hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
@@ -461,7 +470,7 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
-  net:{up:2.1*1024*1024,down:480*1024},io:{read:42*1024*1024,write:55*1024*1024},thermal:{state:'serious',cpu_limit:70},hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8),disk_read:demoHist(42*1024*1024,15*1024*1024,3),disk_write:demoHist(55*1024*1024,20*1024*1024,7),load:demoHist(9.5,3,1)},
+  net:{up:2.1*1024*1024,down:480*1024},io:{read:42*1024*1024,write:55*1024*1024},thermal:{state:'serious',cpu_limit:70},checks:[{name:'weekly-cleanup',ago:180000,period:604800,grace:3600,state:'up'},{name:'cache-warm',ago:9000,period:3600,grace:600,state:'down'}],hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8),disk_read:demoHist(42*1024*1024,15*1024*1024,3),disk_write:demoHist(55*1024*1024,20*1024*1024,7),load:demoHist(9.5,3,1)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
     {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200,workflow:'train.yml',job:'train (gpu)'},{result:'Failed',dur:1200,ago:30000,workflow:'train.yml',job:'eval'},{result:'Succeeded',dur:4800,ago:60000,workflow:'train.yml',job:'train (gpu)'},{result:'Succeeded',dur:5100,ago:90000,workflow:'train.yml',job:'train (gpu)'}]}],
@@ -738,8 +747,13 @@ function toggleCfg(){
     document.getElementById('cfgCrit').value=CRIT;
     document.getElementById('cfgWarn').value=WARN;
     document.getElementById('cfgStuck').value=Math.round(STUCK_SECS/60);
+    document.getElementById('cfgHook').value=localStorage.getItem('sysdash-webhook')||'';
   }
   p.hidden=!p.hidden;
+}
+function setHook(v){
+  v=(v||'').trim();
+  if(v) localStorage.setItem('sysdash-webhook',v); else localStorage.removeItem('sysdash-webhook');
 }
 function setCfg(k,v){
   v=+v; if(!(v>=1))return;
@@ -778,6 +792,10 @@ function computeAlerts(){
         firedFails.add(fk);
       }
     }
+    for(const c of (s.checks||[])){          // dead-man checks (#39)
+      if(c.state==='late') sysAl.push(`${nm} ⏰ ${c.name} ${L==='tr'?'gecikti':'late'}`);
+      else if(c.state==='down') sysAl.push(`${nm} ⛔ ${c.name} ${L==='tr'?'yanıt yok':'down'}`);
+    }
   }
   failsInit = true;  // first pass only seeds firedFails; alert on failures seen afterwards
   const al = sysAl.concat(runAl);
@@ -791,11 +809,25 @@ function computeAlerts(){
   }
   notifyAlerts(al);
 }
-let prevAlerts=new Set();
+let prevAlerts=new Set(), alertsInit=false;
+// Off-browser alert delivery (#40): POST each new alert to a user-set webhook
+// (ntfy.sh / Slack / Discord). Fire-and-forget; failures are swallowed.
+function dispatchWebhook(news){
+  const url=localStorage.getItem('sysdash-webhook'); if(!url||!news.length)return;
+  for(const a of news){
+    try{fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:'sysdash',text:'⚠️ '+a,message:'⚠️ '+a})});}catch(_){}
+  }
+}
 function notifyAlerts(al){
-  if(localStorage.getItem('sysdash-notify')!=='1'||!('Notification' in window)||Notification.permission!=='granted'){prevAlerts=new Set(al);return;}
-  for(const a of al){ if(!prevAlerts.has(a)){ try{new Notification('⚠️ '+a);}catch(_){} } }
+  const news=al.filter(a=>!prevAlerts.has(a));
   prevAlerts=new Set(al);
+  if(!alertsInit){alertsInit=true;return;}   // seed on first pass — don't blast pre-existing alerts
+  if(!news.length)return;
+  dispatchWebhook(news);
+  if(localStorage.getItem('sysdash-notify')==='1'&&('Notification' in window)&&Notification.permission==='granted'){
+    for(const a of news){ try{new Notification('⚠️ '+a);}catch(_){} }
+  }
 }
 
 function renderAll(){
@@ -862,6 +894,21 @@ function renderAll(){
     ub.title=L==='tr'?`${behind} commit geride — git pull --ff-only && launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
       :`${behind} commits behind — git pull --ff-only && restart the service`;
   }else ub.hidden=true;
+
+  // Scheduled (dead-man) checks strip (#39): aggregated across machines.
+  const checkItems=[];
+  for(const h of hs){const e=lastData[h.base]; if(!e||!e.online)continue;
+    const mn=h.self?(e.data.host||'Bu Mac'):(h.name||e.data.host||h.base);
+    for(const c of (e.data.checks||[])) checkItems.push(Object.assign({mn},c));
+  }
+  const _so={down:0,late:1,up:2};
+  checkItems.sort((a,b)=>(_so[a.state]-_so[b.state])||a.name.localeCompare(b.name));
+  document.getElementById('checksStrip').innerHTML = checkItems.length?
+    `<div class="aruns"><div class="aruns-h">${L==='tr'?'ZAMANLANMIŞ KONTROLLER':'SCHEDULED CHECKS'}</div><div class="chk-grid">`+
+    checkItems.map(c=>`<div class="chk chk-${c.state}" title="${esc(c.mn)} · ${L==='tr'?'periyot':'every'} ${dur(c.period)}${c.state!=='up'?' · '+c.state.toUpperCase():''}">
+      <span class="chk-dot"></span><span class="chk-name">${esc(c.name)}</span>
+      <span class="chk-ago">${dur(c.ago)} ${L==='tr'?'önce':'ago'}</span></div>`).join('')+
+    `</div></div>`:'';
 
   window.pinnedHtml = [];
   const mHtml = hs.map(h=>machineHTML(h, lastData[h.base])).join('');

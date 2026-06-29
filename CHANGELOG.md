@@ -1,3 +1,17 @@
+## [1.22.0] - 2026-06-30
+### Added
+- **Dead-man / cron health checks** (#39). A cron job hits
+  `GET /api/ping?job=<name>&period=<sec>&grace=<sec>` on success; the server
+  remembers the last ping in SQLite and derives a state (up → late → down) once
+  the job goes silent past `period + grace`. A "Scheduled checks" strip shows
+  every check across the fleet, and late/down checks raise the existing alert
+  banner + notifications. Fully self-contained — no external service.
+- **Off-browser alerts** (#40, webhook). The ⚙ settings popover takes an alert
+  webhook URL (ntfy.sh / Slack / Discord); each *new* alert is POSTed there so
+  notifications reach you when the dashboard tab isn't open. Alerts are seeded on
+  first load so a refresh doesn't replay old ones. (Native `osascript`
+  notifications for server-fired alerts remain open in #40.)
+
 ## [1.21.0] - 2026-06-29
 ### Added
 - **Thermal pressure badge** (#38). `pmset -g therm` (background thread, 30s)

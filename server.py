@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.21.0"
+VERSION = "1.22.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -96,6 +96,10 @@ def _init_db():
                 runner TEXT, logfile TEXT, ts INTEGER, duration INTEGER, result TEXT,
                 repo TEXT, workflow TEXT, job TEXT, branch TEXT, actor TEXT, head TEXT,
                 PRIMARY KEY (runner, logfile)
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS checks (
+                name TEXT PRIMARY KEY, last_seen INTEGER, period INTEGER,
+                grace INTEGER, first_seen INTEGER
             )""")
     except Exception:
         pass
@@ -199,6 +203,52 @@ def disk_eta_days(current_pct):
         return round(days, 1) if days > 0 else None
     except Exception:
         return None
+
+
+def record_ping(name, period=None, grace=None):
+    """Dead-man check: a cron job hits /api/ping?job=<name> on success. We remember
+    the last ping + its expected period/grace so get_checks() can flag silence."""
+    name = (name or "").strip()[:64]
+    if not name:
+        return False
+    now = int(time.time())
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            row = conn.execute("SELECT period, grace, first_seen FROM checks WHERE name=?",
+                               (name,)).fetchone()
+            p = period if period else (row[0] if row else 3600)
+            g = grace if grace is not None else (row[1] if row else 300)
+            fs = row[2] if row else now
+            conn.execute("INSERT OR REPLACE INTO checks "
+                         "(name, last_seen, period, grace, first_seen) VALUES (?,?,?,?,?)",
+                         (name, now, p, g, fs))
+        return True
+    except Exception:
+        return False
+
+
+def get_checks():
+    """Each registered dead-man check with derived state: up while within
+    period+grace of the last ping, late up to one more period, then down."""
+    now = int(time.time())
+    out = []
+    try:
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            rows = conn.execute("SELECT name, last_seen, period, grace, first_seen "
+                                "FROM checks ORDER BY name").fetchall()
+        for name, last, period, grace, _first in rows:
+            diff = now - last
+            if diff <= period + grace:
+                state = "up"
+            elif diff <= 2 * period + grace:
+                state = "late"
+            else:
+                state = "down"
+            out.append({"name": name, "last_seen": last, "ago": diff,
+                        "period": period, "grace": grace, "state": state})
+    except Exception:
+        pass
+    return out
 
 
 def get_flaky_jobs(days=14):
@@ -948,6 +998,7 @@ def stats():
         "runners": runner_status(),
         "jobs_summary": get_jobs_summary(),
         "flaky": get_flaky_jobs(),
+        "checks": get_checks(),
         "update_behind": _UPDATE["behind"],
         "top": t_mem,
         "top_cpu": t_cpu,
@@ -1060,6 +1111,19 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(),
                            "application/json")
+            return
+        if self.path.startswith("/api/ping"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                name = (q.get("job") or q.get("name") or [""])[0]
+                period = int((q.get("period") or ["0"])[0] or 0) or None
+                graces = (q.get("grace") or [""])[0]
+                grace = int(graces) if graces else None
+                ok = record_ping(name, period, grace)
+                self._send(200 if ok else 400, json.dumps({"ok": ok}).encode(),
+                           "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
         if self.path.startswith("/api/history"):
             try:
