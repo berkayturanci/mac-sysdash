@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.13.2"
+VERSION = "1.13.3"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -363,12 +363,14 @@ def _get_ai_stats():
                                 if entries:
                                     res[m][name] = entries[-1].get("usedPercent", 0)
                                     
-        # 2. Primary: Try to read from widget-snapshot (blocked by TCC in launchd, works in Terminal)
-        snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
-        if os.path.exists(snap_path):
+        # 2. Primary (richer): widget-snapshot. Best-effort ONLY — under launchd this
+        # lives in a TCC-protected Group Container and open() raises PermissionError.
+        # That must NOT discard the history fallback already collected in `res`
+        # (the old code let it bubble to the outer except, returning an empty cache).
+        try:
+            snap_path = os.path.expanduser("~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
             with open(snap_path, "r", encoding="utf-8") as f:
                 snap = json.load(f)
-            
             providers = snap.get("enabledProviders", [])
             for entry in snap.get("entries", []):
                 prov = entry.get("provider")
@@ -385,7 +387,6 @@ def _get_ai_stats():
                         elif "weekly" in rid or "secondary" in rid:
                             wpct = max(wpct, 100 - row.get("percentLeft", 100))
                     res[prov] = {"session": spct, "weekly": wpct}
-            
             ordered_res = {}
             for p in providers:
                 if p in res:
@@ -394,7 +395,9 @@ def _get_ai_stats():
                 if p not in ordered_res:
                     ordered_res[p] = v
             res = ordered_res
-                    
+        except Exception:
+            pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
+
         _AI_STATS_CACHE.update(ts=now, data=res)
         return res
     except Exception as e:
