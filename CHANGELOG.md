@@ -1,3 +1,14 @@
+## [1.13.3] - 2026-06-29
+### Fixed
+- AI Copilot widget was empty under the `launchd` agent. `_get_ai_stats()` read
+  the history fallback first, then attempted the richer Group-Containers
+  `widget-snapshot.json`; under `launchd` that `open()` raises a TCC
+  `PermissionError` that fell through to the outer `except`, which returned the
+  (empty) cache and **discarded the fallback data just collected**. The
+  snapshot read is now wrapped in its own `try/except`, so a blocked/missing
+  primary keeps the history fallback (Claude + Codex). Antigravity still needs
+  the primary (grant the agent Full Disk Access to surface it under launchd).
+
 ## [1.13.2] - 2026-06-27
 ### Fixed
 - Swap usage bar now turns **red** at ≥90%. The colour thresholds were ordered
