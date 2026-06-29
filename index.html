@@ -78,6 +78,11 @@
   .iconbtn:hover{transform:translateY(-1px)}
   .iconbtn:active{transform:scale(.94)}
   .iconbtn.active{background:var(--accent);border-color:var(--accent);box-shadow:0 4px 14px rgba(79,140,255,.45)}
+  .cfgpop{position:fixed;top:66px;right:20px;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px;min-width:210px}
+  .cfgpop[hidden]{display:none}
+  .cfgpop .cfgttl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:2px}
+  .cfgpop label{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:var(--txt)}
+  .cfgpop input{width:68px;background:var(--track);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:5px 8px;font-size:13px;font-variant-numeric:tabular-nums}
   .clock{text-align:right}
   .clock .t{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
   .clock .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:2px}
@@ -286,6 +291,7 @@
       <button id="bellBtn" class="iconbtn" title="Notifications">🔕</button>
       <button id="langBtn" class="iconbtn" title="Language">🌐</button>
       <button id="themeBtn" class="iconbtn" title="Theme">🌓</button>
+      <button class="iconbtn" title="Settings · alert thresholds" onclick="toggleCfg()">⚙</button>
       <div class="clock">
         <div class="t" id="clock">--:--:--</div>
         <div class="live"><span class="dotlive"></span><span id="updated">live</span></div>
@@ -293,6 +299,12 @@
     </div>
   </header>
 
+  <div id="cfgPop" class="cfgpop" hidden>
+    <div class="cfgttl">Alert thresholds</div>
+    <label>Critical %<input type="number" min="1" max="100" id="cfgCrit" oninput="setCfg('crit',this.value)"></label>
+    <label>Warning %<input type="number" min="1" max="100" id="cfgWarn" oninput="setCfg('warn',this.value)"></label>
+    <label>Stuck job (min)<input type="number" min="1" id="cfgStuck" oninput="setCfg('stuck',this.value)"></label>
+  </div>
   <div class="banner" id="alertBanner"></div>
   <div id="fleetOverview"></div>
   <div id="machines"></div>
@@ -439,7 +451,8 @@ function orderHosts(list){const ord=getOrder();const ix=b=>{const i=ord.indexOf(
 
 
 // ---------------- rendering ----------------
-const WARN=75, CRIT=95, R=66, C=2*Math.PI*R;
+let CRIT=+localStorage.getItem('sysdash-crit')||95, WARN=+localStorage.getItem('sysdash-warn')||75;
+const R=66, C=2*Math.PI*R;
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function jobHTML(j){
   const p=[];
@@ -632,7 +645,7 @@ function machineHTML(host, entry){
       gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="${host.base}-gauges" style="border:none;margin-bottom:12px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<div style="margin-left:auto;display:flex;gap:12px;align-items:center"><span class="pin" data-sec="${host.base}-gauges" style="font-size:16px;color:${isPinned(host.base+'-gauges')?'var(--accent)':'var(--muted)'};transition:color 0.2s" title="Pin to top">★</span><span class="chev" style="margin-left:0">${isCollapsed(host.base+'-gauges')?'▸':'▾'}</span></div></div>${isCollapsed(host.base+'-gauges')?'':`<div class="grid gauges">
         ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
         ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
-        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total), s.hist&&s.hist.disk, host.base+'|disk')}
+        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+(s.disk_eta_days!=null&&s.disk_eta_days<30?` · ⏳~${Math.round(s.disk_eta_days)}${L==='tr'?'g':'d'}`:''), s.hist&&s.hist.disk, host.base+'|disk')}
       </div>`}</div>`,
       runners: sec('runners', t.runners, runnersInner, host.base),
       system: sec('system', t.system, sysInner, host.base),
@@ -675,8 +688,24 @@ function machineHTML(host, entry){
 
 let seenRunners={};
 let firedFails=new Set(), failsInit=false;   // CI failure-alert dedup (seeded on first pass)
-const STUCK_SECS=30*60;
+let STUCK_SECS=(+localStorage.getItem('sysdash-stuck')||30)*60;
 
+function toggleCfg(){
+  const p=document.getElementById('cfgPop');
+  if(p.hidden){
+    document.getElementById('cfgCrit').value=CRIT;
+    document.getElementById('cfgWarn').value=WARN;
+    document.getElementById('cfgStuck').value=Math.round(STUCK_SECS/60);
+  }
+  p.hidden=!p.hidden;
+}
+function setCfg(k,v){
+  v=+v; if(!(v>=1))return;
+  if(k==='crit'){CRIT=v;localStorage.setItem('sysdash-crit',v);}
+  else if(k==='warn'){WARN=v;localStorage.setItem('sysdash-warn',v);}
+  else if(k==='stuck'){STUCK_SECS=v*60;localStorage.setItem('sysdash-stuck',v);}
+  renderAll();
+}
 function computeAlerts(){
   const sysAl=[], runAl=[];
   for(const h of hosts()){
