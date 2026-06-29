@@ -344,6 +344,28 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(states["slow"], "late")    # 90 < 100 <= 150
         self.assertEqual(states["dead"], "down")    # 1000 > 150
 
+    def test_queue_stats_detects_back_to_back(self):
+        now = int(server.time.time())
+        # three 100s jobs starting back-to-back (gap ~0) => 2 contended of 3
+        with sqlite3.connect(server._DB_PATH) as conn:
+            for i, end in enumerate((now-800, now-700, now-600)):
+                conn.execute("INSERT INTO jobs (runner, logfile, ts, duration, result) "
+                             "VALUES (?,?,?,?,?)", ("/r", "log%d" % i, end, 100, "Succeeded"))
+        q = server.get_queue_stats()["/r"]
+        self.assertEqual(q["jobs"], 3)
+        self.assertEqual(q["back_to_back"], 2)
+        self.assertGreater(q["pressure"], 0)
+
+    def test_queue_stats_ignores_spaced_out_jobs(self):
+        now = int(server.time.time())
+        with sqlite3.connect(server._DB_PATH) as conn:
+            for i, end in enumerate((now-100000, now-50000, now-1000)):
+                conn.execute("INSERT INTO jobs (runner, logfile, ts, duration, result) "
+                             "VALUES (?,?,?,?,?)", ("/q", "log%d" % i, end, 60, "Succeeded"))
+        q = server.get_queue_stats()["/q"]
+        self.assertEqual(q["back_to_back"], 0)
+        self.assertEqual(q["overlaps"], 0)
+
     def test_record_ping_upsert_and_reject(self):
         self.assertTrue(server.record_ping("job1", 120, 30))
         c = [x for x in server.get_checks() if x["name"] == "job1"][0]

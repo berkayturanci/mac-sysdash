@@ -134,6 +134,11 @@
   .fl-bar i{display:block;height:100%;background:#f5a623}
   .fl-rate{flex-shrink:0;width:38px;text-align:right;color:#f5a623;font-variant-numeric:tabular-nums;font-weight:600}
   .fl-runs{flex-shrink:0;width:46px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* runner queue pressure (#41) */
+  .rm-queue{margin-bottom:14px}
+  .rm-queue .qbar{height:8px;border-radius:4px;background:var(--track);overflow:hidden}
+  .rm-queue .qbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#f5a623)}
+  .rm-queue .qmeta{font-size:12px;color:var(--muted);margin-top:5px;font-variant-numeric:tabular-nums}
   /* TV / wall mode (#34): hide chrome, scale up, emphasize machines */
   body.tv .right .iconbtn:not(#tvBtn){display:none}
   body.tv .foot{display:none}
@@ -459,7 +464,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
-  net:{up:120*1024,down:840*1024},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},checks:[{name:'nightly-backup',ago:3600,period:86400,grace:3600,state:'up'},{name:'db-snapshot',ago:5400,period:3600,grace:600,state:'late'}],hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
+  net:{up:120*1024,down:840*1024},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},checks:[{name:'nightly-backup',ago:3600,period:86400,grace:3600,state:'up'},{name:'db-snapshot',ago:5400,period:3600,grace:600,state:'late'}],queue:{'':{jobs:48,overlaps:2,back_to_back:15,wait_secs:1320,pressure:35}},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
@@ -1113,6 +1118,12 @@ function drawRunner(){
       <span class="fl-bar"><i style="width:${f.fail_rate}%"></i></span>
       <span class="fl-rate">${f.fail_rate}%</span>
       <span class="fl-runs">${f.fails}/${f.runs}</span></div>`).join('')}</div>`:'';
+  const q=e.data.queue&&e.data.queue[r.dir];
+  const queueHTML=(q&&q.pressure>0)?`<div class="rm-h">⏳ ${L==='tr'?'Kuyruk baskısı (7g)':'Queue pressure (7d)'}</div>
+    <div class="rm-queue" title="${L==='tr'?'işlerin yüzde kaçı bir öncekinin hemen ardından başladı (kuyrukta bekledi)':'share of jobs that started right after the previous one (were queued)'}">
+      <div class="qbar"><i style="width:${q.pressure}%"></i></div>
+      <div class="qmeta">${q.pressure}% · ${q.back_to_back+q.overlaps}/${q.jobs} ${L==='tr'?'sırada':'queued'}${q.wait_secs?' · ~'+dur(q.wait_secs)+' '+(L==='tr'?'bekleme':'wait'):''}</div>
+    </div>`:'';
   const hist=(r.history&&r.history.length)?r.history.slice(0, 8).map(j=>{
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
     const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -1135,6 +1146,7 @@ function drawRunner(){
     <div id="runnerActiveJob" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
     ${statsHTML}
     ${flakyHTML}
+    ${queueHTML}
     ${heatmapHTML(e.data.jobs_summary && e.data.jobs_summary[r.dir])}
     <div id="timelineContainer" style="margin-top:16px"><div style="color:var(--muted);font-size:13px">${L==='tr'?'Zaman çizelgesi yükleniyor...':'Loading timeline...'}</div></div>
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
