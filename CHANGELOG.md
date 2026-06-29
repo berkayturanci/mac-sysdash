@@ -1,3 +1,10 @@
+## [1.15.1] - 2026-06-29
+### Fixed
+- The Full Disk Access hint reported `sys.executable`, which is usually a symlink
+  (`venv/bin/python`). macOS's FDA file picker won't let you select an alias, so
+  the path was unusable. It now reports `os.path.realpath(sys.executable)` — the
+  real Mach-O binary, which is selectable.
+
 ## [1.15.0] - 2026-06-29
 ### Added
 - **Full Disk Access hint in the AI widget.** When CodexBar's richer

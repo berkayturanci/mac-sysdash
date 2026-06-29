@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.15.0"
+VERSION = "1.15.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -350,7 +350,10 @@ def _ai_fda_status():
         with open(_CODEXBAR_SNAPSHOT, "rb"):
             return {"blocked": False}
     except PermissionError:
-        return {"blocked": True, "path": sys.executable}
+        # Report the RESOLVED binary: venv/bin/python is usually a symlink, and
+        # the Full Disk Access picker won't let you select an alias — the real
+        # Mach-O is selectable.
+        return {"blocked": True, "path": os.path.realpath(sys.executable)}
     except Exception:
         return {"blocked": False}
 
