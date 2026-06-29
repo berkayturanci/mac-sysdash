@@ -1,3 +1,10 @@
+## [1.16.0] - 2026-06-29
+### Added
+- **AI Copilot reset times.** Each provider's Session and Weekly rows now show
+  when the quota resets (`↻ <time left>`, e.g. `Session · ↻46m`, `Weekly · ↻5d 18h`),
+  with the absolute reset time on hover. Parsed from CodexBar's `resetsAt`
+  timestamps in both the history fallback and the snapshot.
+
 ## [1.15.2] - 2026-06-29
 ### Fixed
 - The Full Disk Access hint still pointed at the wrong binary. Framework Python's

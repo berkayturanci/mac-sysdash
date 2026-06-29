@@ -603,10 +603,13 @@ function machineHTML(host, entry){
           const mSession = Math.round(aiMode==='used' ? v.session : Math.max(0, 100 - v.session));
           const mWeekly = Math.round(aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly));
           const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
+          const resetIn = iso => { if(!iso) return ''; const s=(new Date(iso)-Date.now())/1000; return s>0 ? ' · ↻'+dur(s) : ''; };
+          const resetTitle = iso => iso ? ' title="'+(L==='tr'?'sıfırlanma: ':'resets: ')+new Date(iso).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'"' : '';
+          const sR=v.session_reset, wR=v.weekly_reset;
           aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${Object.keys(s.ai).indexOf(m)===Object.keys(s.ai).length-1?'0':'12'}px">
             <div style="font-weight:600;width:75px;font-size:13px;flex-shrink:0">${mn}</div>
-            ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Session</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
-            ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span>Weekly</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
+            ${v.session!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span${resetTitle(sR)}>Session${resetIn(sR)}</span><span>${mSession}%</span></div><div class="bar"><i style="width:${mSession}%;background:${colorCls(mSession)}"></i></div></div>` : ''}
+            ${v.weekly!==undefined ? `<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap"><span${resetTitle(wR)}>Weekly${resetIn(wR)}</span><span>${mWeekly}%</span></div><div class="bar"><i style="width:${mWeekly}%;background:${colorCls(mWeekly)}"></i></div></div>` : ''}
           </div>`;
         }
       }
