@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.24.0"
+VERSION = "1.24.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -650,18 +650,52 @@ def _real_executable():
     return os.path.realpath(sys.executable)
 
 
+def _read_tcc_file(path, timeout=1.5):
+    """Read a (possibly TCC-protected) file off the hot path without ever blocking.
+
+    Under launchd the TCC gate denies instantly (PermissionError). But in an
+    interactive terminal (`python server.py` for local preview) reading a
+    Group Container can pop a consent *dialog* and the open()/read() blocks
+    until someone clicks it — hanging /api/stats and `--status`. So we do the
+    read in a daemon thread and give up after `timeout`; a skipped read is fine
+    because every caller has a fallback.
+
+    Returns (status, data): status is 'ok'|'denied'|'timeout'|'missing'|'error',
+    data is the file bytes on 'ok' else None. A timed-out thread stays parked on
+    the blocked syscall (can't be killed) but is a daemon, so it dies at exit."""
+    out = {}
+
+    def work():
+        try:
+            with open(path, "rb") as f:
+                out["data"] = f.read()
+        except PermissionError:
+            out["status"] = "denied"
+        except FileNotFoundError:
+            out["status"] = "missing"
+        except Exception:
+            out["status"] = "error"
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return ("timeout", None)
+    if "data" in out:
+        return ("ok", out["data"])
+    return (out.get("status", "error"), None)
+
+
 def _ai_fda_status():
     """If the richer CodexBar snapshot exists but the agent can't read it (TCC
     blocks Group Containers under launchd), tell the UI which binary to grant
     Full Disk Access to — otherwise the user is guessing among generic "Python"
-    entries. `blocked` stays False when the snapshot is simply absent."""
-    try:
-        with open(_CODEXBAR_SNAPSHOT, "rb"):
-            return {"blocked": False}
-    except PermissionError:
+    entries. `blocked` stays False when the snapshot is simply absent. A timeout
+    (interactive consent dialog) counts as blocked — the read can't complete."""
+    status, _ = _read_tcc_file(_CODEXBAR_SNAPSHOT)
+    if status in ("denied", "timeout"):
         return {"blocked": True, "path": _real_executable()}
-    except Exception:
-        return {"blocked": False}
+    return {"blocked": False}
 
 
 
@@ -698,9 +732,10 @@ def _get_ai_stats():
         # That must NOT discard the history fallback already collected in `res`
         # (the old code let it bubble to the outer except, returning an empty cache).
         try:
-            snap_path = _CODEXBAR_SNAPSHOT
-            with open(snap_path, "r", encoding="utf-8") as f:
-                snap = json.load(f)
+            status, raw = _read_tcc_file(_CODEXBAR_SNAPSHOT)
+            if status != "ok":
+                raise OSError(status)  # timeout/denied/missing — keep fallback
+            snap = json.loads(raw)
             providers = snap.get("enabledProviders", [])
             for entry in snap.get("entries", []):
                 prov = entry.get("provider")
