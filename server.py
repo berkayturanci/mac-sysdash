@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.15.1"
+VERSION = "1.15.2"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -341,6 +341,22 @@ _CODEXBAR_SNAPSHOT = os.path.expanduser(
     "~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
 
 
+def _real_executable():
+    """The actual running Mach-O. For framework Python, `bin/python3.9` is a stub
+    that execs `Resources/Python.app/Contents/MacOS/Python` — and *that* is what
+    TCC / Full Disk Access matches. `realpath(sys.executable)` resolves symlinks
+    but not this exec redirect, so it points at the unhelpful stub."""
+    try:
+        import ctypes
+        buf = ctypes.create_string_buffer(4096)
+        size = ctypes.c_uint32(len(buf))
+        if ctypes.CDLL(None)._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
+            return os.path.realpath(buf.value.decode())
+    except Exception:
+        pass
+    return os.path.realpath(sys.executable)
+
+
 def _ai_fda_status():
     """If the richer CodexBar snapshot exists but the agent can't read it (TCC
     blocks Group Containers under launchd), tell the UI which binary to grant
@@ -350,10 +366,7 @@ def _ai_fda_status():
         with open(_CODEXBAR_SNAPSHOT, "rb"):
             return {"blocked": False}
     except PermissionError:
-        # Report the RESOLVED binary: venv/bin/python is usually a symlink, and
-        # the Full Disk Access picker won't let you select an alias — the real
-        # Mach-O is selectable.
-        return {"blocked": True, "path": os.path.realpath(sys.executable)}
+        return {"blocked": True, "path": _real_executable()}
     except Exception:
         return {"blocked": False}
 
