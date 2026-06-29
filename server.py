@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.14.0"
+VERSION = "1.15.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -339,6 +339,20 @@ _CODEXBAR_HISTORY = os.path.expanduser(
     "~/Library/Application Support/com.steipete.codexbar/history/")
 _CODEXBAR_SNAPSHOT = os.path.expanduser(
     "~/Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json")
+
+
+def _ai_fda_status():
+    """If the richer CodexBar snapshot exists but the agent can't read it (TCC
+    blocks Group Containers under launchd), tell the UI which binary to grant
+    Full Disk Access to — otherwise the user is guessing among generic "Python"
+    entries. `blocked` stays False when the snapshot is simply absent."""
+    try:
+        with open(_CODEXBAR_SNAPSHOT, "rb"):
+            return {"blocked": False}
+    except PermissionError:
+        return {"blocked": True, "path": sys.executable}
+    except Exception:
+        return {"blocked": False}
 
 
 
@@ -796,6 +810,7 @@ def stats():
         "top": t_mem,
         "top_cpu": t_cpu,
         "ai": _get_ai_stats(),
+        "ai_fda": _ai_fda_status(),
         "sla": uptime_sla()
     }
 

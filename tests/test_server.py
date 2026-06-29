@@ -543,6 +543,25 @@ class AiStatsTests(unittest.TestCase):
             res = server._get_ai_stats()
             self.assertEqual(res.get("claude"), {"session": 42, "weekly": 7})
 
+    def test_fda_status_blocked_when_snapshot_unreadable(self):
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            self.skipTest("root bypasses file permissions")
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "snap.json")
+            with open(p, "w") as f:
+                f.write("{}")
+            os.chmod(p, 0)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            server._CODEXBAR_SNAPSHOT = p
+            st = server._ai_fda_status()
+            self.assertTrue(st["blocked"])
+            self.assertIn("path", st)
+
+    def test_fda_status_not_blocked_when_snapshot_missing(self):
+        self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+        server._CODEXBAR_SNAPSHOT = "/no/such/dir/snap.json"
+        self.assertFalse(server._ai_fda_status()["blocked"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
