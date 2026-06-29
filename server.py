@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.17.0"
+VERSION = "1.18.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -662,6 +662,7 @@ def runner_history(runner_dir, n=20, ttl=45):
             st = os.stat(lg)
             job = _parse_worker_log(lg, st)
             job["ago"] = int(now - st.st_mtime)
+            job["id"] = os.path.basename(lg)  # unique per job run, for failure-alert dedup
             out.append(job)
     except Exception:
         pass

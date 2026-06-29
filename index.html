@@ -608,7 +608,7 @@ function machineHTML(host, entry){
           const mSession = Math.round(aiMode==='used' ? v.session : Math.max(0, 100 - v.session));
           const mWeekly = Math.round(aiMode==='used' ? v.weekly : Math.max(0, 100 - v.weekly));
           const colorCls = p => (aiMode==='used' ? (p>=90?'var(--red)':'var(--accent)') : (p<=10?'var(--red)':'var(--accent)'));
-          const resetIn = iso => { if(!iso) return ''; const s=(new Date(iso)-Date.now())/1000; return s>0 ? ' · ↻'+dur(s) : ''; };
+          const resetIn = iso => { if(!iso) return ''; const s=(new Date(iso)-Date.now())/1000; return s>0 ? ' · ↻ '+dur(s) : ''; };
           const resetTitle = iso => iso ? ' title="'+(L==='tr'?'sıfırlanma: ':'resets: ')+new Date(iso).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'"' : '';
           const sR=v.session_reset, wR=v.weekly_reset;
           aiInner += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:${Object.keys(s.ai).indexOf(m)===Object.keys(s.ai).length-1?'0':'12'}px">
@@ -674,6 +674,7 @@ function machineHTML(host, entry){
 }
 
 let seenRunners={};
+let firedFails=new Set(), failsInit=false;   // CI failure-alert dedup (seeded on first pass)
 const STUCK_SECS=30*60;
 
 function computeAlerts(){
@@ -693,8 +694,18 @@ function computeAlerts(){
       if(r.status==='busy' && r.job && r.job.elapsed > STUCK_SECS) {
         runAl.push(`${nm} ${r.name}: ${r.job.name||'job'} ${dur(r.job.elapsed)}`);
       }
+      // CI failure alert: a job that just finished as Failed (deduped by log id)
+      for(const j of (r.history||[])){
+        if((j.result||'').toLowerCase()!=='failed') continue;
+        if(j.ago!=null && j.ago>600) continue;                 // only recent failures
+        const fk = k+'|'+(j.id||(j.job+'|'+(j.head||'')));
+        if(failsInit && !firedFails.has(fk))
+          runAl.push(`${nm} ✗ ${r.name}: ${j.job||j.workflow||'job'}${j.branch?' ('+j.branch+')':''} ${L==='tr'?'başarısız':'failed'}`);
+        firedFails.add(fk);
+      }
     }
   }
+  failsInit = true;  // first pass only seeds firedFails; alert on failures seen afterwards
   const al = sysAl.concat(runAl);
   const banner=document.getElementById('alertBanner');
   if(al.length){
