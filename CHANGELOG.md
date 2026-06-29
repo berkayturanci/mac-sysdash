@@ -1,3 +1,13 @@
+## [1.18.0] - 2026-06-29
+### Added
+- **CI failure alerts.** A runner job that just finished as `Failed` now raises a
+  banner + browser notification (via the existing alert pipeline), deduped per
+  job run so old failures and page reloads don't spam (the first poll only seeds
+  the seen-set; `runner_history` items now carry a unique `id`).
+
+### Fixed
+- AI widget reset times: a space after the `↻` (`↻ 46m`) so it's readable.
+
 ## [1.17.0] - 2026-06-29
 ### Changed
 - **Header reworked for the multi-machine reality.** Dropped the app emoji icon
