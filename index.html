@@ -66,7 +66,11 @@
   .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#4f8cff,#9b5cff);
     display:grid;place-items:center;font-size:22px;box-shadow:0 6px 20px rgba(79,140,255,.35);flex:0 0 auto}
   h1{font-size:18px;font-weight:650;letter-spacing:.2px}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px;display:flex;align-items:center}
+  .sub .ddots{display:inline-flex;gap:5px;margin-left:8px}
+  .ddot{width:8px;height:8px;border-radius:50%;background:var(--gray);display:inline-block}
+  .ddot.on{background:var(--green)}
+  .ddot.off{background:var(--gray);opacity:.5}
   .right{display:flex;align-items:center;gap:10px}
   .iconbtn{cursor:pointer;height:42px;min-width:42px;padding:0 12px;border-radius:12px;border:1px solid var(--line);
     background:var(--panel);color:var(--txt);font-size:16px;display:grid;place-items:center;
@@ -105,6 +109,8 @@
   .mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .mname{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700}
   .mname .ic{font-size:20px}
+  .mname .mntext{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+  .mname .m-net{font-size:11.5px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mright{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
   .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
   .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
@@ -271,7 +277,6 @@
 <div class="wrap">
   <header>
     <div class="hl">
-      <div class="logo">💻</div>
       <div>
         <h1 id="title">Mac Dashboard</h1>
         <div class="sub" id="subtitle"></div>
@@ -655,7 +660,7 @@ function machineHTML(host, entry){
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
-      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${esc(name)}</div>
+      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span><span class="mntext"><span class="mn">${esc(name)}</span>${online&&s&&s.tailscale_ip?`<span class="m-net">Tailscale ${esc(s.tailscale_ip)}${s.cpu&&s.cpu.count?' · '+s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'):''}</span>`:''}</span></div>
       <div class="mright">
         ${online&&!stale&&s.battery?batteryChip(s.battery):''}
         ${online&&!stale&&s.sla?`<span class="pill" title="Uptime SLA (24h / 7d): ${s.sla.h24}% / ${s.sla.d7}%" style="background:transparent;border:1px solid var(--line);color:var(--muted)">✨ ${s.sla.d7}%</span>`:''}
@@ -712,7 +717,12 @@ function renderAll(){
   document.getElementById('title').textContent='Mac Dashboard';
   // subtitle from self
   const self=lastData[''];
-  document.getElementById('subtitle').textContent = self&&self.online ? t.sub(self.data.tailscale_ip, self.data.cpu.count) : '';
+  const _hs=hosts();
+  const _dots=_hs.map(h=>{const e=lastData[h.base];const on=!!(e&&e.online);
+    const nm=h.self?(on?e.data.host:'Bu Mac'):(h.name||(on?e.data.host:h.base));
+    return `<span class="ddot ${on?'on':'off'}" title="${esc(nm)}${on?'':' · '+(L==='tr'?'çevrimdışı':'offline')}"></span>`;}).join('');
+  document.getElementById('subtitle').innerHTML =
+    `${_hs.length} ${L==='tr'?'cihaz':_hs.length===1?'device':'devices'}<span class="ddots">${_dots}</span>`;
   
   let mTotal=0, mOnline=0, rBusy=0, rIdle=0, rOff=0;
   const hs=hosts();
