@@ -304,6 +304,35 @@ class HistoryTests(unittest.TestCase):
             c = conn.execute("SELECT COUNT(*) FROM hist")
             self.assertEqual(c.fetchone()[0], 1)
 
+    def _seed_jobs(self, rows):
+        now = int(server.time.time())
+        with sqlite3.connect(server._DB_PATH) as conn:
+            for i, (runner, job, result) in enumerate(rows):
+                conn.execute(
+                    "INSERT OR REPLACE INTO jobs (runner, logfile, ts, duration, result, "
+                    "repo, workflow, job, branch, actor, head) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (runner, "log%d" % i, now - 3600, 60, result, "o/r", "wf", job,
+                     "main", "me", "abc"))
+
+    def test_flaky_detects_mixed_outcomes(self):
+        self._seed_jobs([("/r1", "test", "Succeeded"), ("/r1", "test", "Failed"),
+                         ("/r1", "test", "Succeeded"), ("/r1", "test", "Failed")])
+        res = server.get_flaky_jobs()
+        self.assertIn("/r1", res)
+        self.assertEqual(res["/r1"][0]["job"], "test")
+        self.assertEqual(res["/r1"][0]["runs"], 4)
+        self.assertEqual(res["/r1"][0]["fail_rate"], 50)
+
+    def test_flaky_ignores_always_pass_and_always_fail(self):
+        self._seed_jobs([("/r1", "good", "Succeeded"), ("/r1", "good", "Succeeded"),
+                         ("/r1", "good", "Succeeded"),
+                         ("/r1", "broken", "Failed"), ("/r1", "broken", "Failed"),
+                         ("/r1", "broken", "Failed")])
+        self.assertEqual(server.get_flaky_jobs(), {})
+
+    def test_disk_eta_none_when_history_thin(self):
+        self.assertIsNone(server.disk_eta_days(80.0))
+
 
 class BatteryTests(unittest.TestCase):
     def test_battery_normalizes_unknown_time(self):

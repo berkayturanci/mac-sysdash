@@ -62,8 +62,9 @@ database server, no cloud.
 
 ## Data model (`/api/stats`, server → client)
 
-`{version, host, localtime, tz, cpu, mem, disk, swap, net, battery, hist,
-runners[], jobs_summary, top[], top_cpu[], ai, uptime, ...}`
+`{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net,
+battery, hist, runners[], jobs_summary, flaky, update_behind, top[], top_cpu[],
+ai, uptime, ...}`
 
 - `hist` is ~5 min of per-second samples for the sparklines/chart:
   `{cpu[], mem[], disk[], net_down[], net_up[]}`.
@@ -75,6 +76,11 @@ runners[], jobs_summary, top[], top_cpu[], ai, uptime, ...}`
   PermissionError doesn't discard the fallback. Shape: `{provider: {session, weekly}}`.
 - `jobs_summary` is `{runner_dir: {"YYYY-MM-DD": {succeeded, failed, other}}}`
   (UTC dates) — feeds the per-runner 30-day CI health heatmap in the modal.
+- `flaky` is `{runner_dir: [{job, runs, fails, fail_rate}]}` — jobs that both
+  pass and fail over 14 days (10–90% fail rate, ≥3 runs); shown in the modal.
+- `disk_eta_days` is days-to-full from the 24h disk%-slope (or null); the disk
+  gauge shows `⏳~Nd`. `update_behind` is commits behind `origin/main` (hourly
+  background `git fetch`; header badge), 0 when current/offline.
 
 Each `runners[]` item: `{name, repo, dir, status: 'busy'|'idle'|'offline',
 uptime, url, history[], job?}`.
