@@ -1,3 +1,13 @@
+## [1.15.0] - 2026-06-29
+### Added
+- **Full Disk Access hint in the AI widget.** When CodexBar's richer
+  `widget-snapshot.json` exists but the `launchd` agent can't read it (macOS TCC
+  blocks Group Containers), the AI widget now shows the **exact binary path** to
+  grant Full Disk Access to. A background launchd agent appears as a generic
+  "Python" entry with no app name, so this removes the guesswork. Claude + Codex
+  keep coming from the always-readable history fallback with no FDA needed; this
+  only unlocks providers that live solely in the snapshot (e.g. Antigravity).
+
 ## [1.14.0] - 2026-06-29
 ### Added
 - **Runner CI health heatmap (rebuilt).** A 30-day GitHub-style grid in the
