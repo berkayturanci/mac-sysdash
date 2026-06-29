@@ -237,13 +237,17 @@
   .core>i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#9b5cff,#4f8cff);transition:height .4s}
   .offline-card{color:var(--muted);text-align:center;padding:40px 18px}
   .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
-  .heatmap{display:flex;gap:3px;flex-wrap:wrap;margin-top:12px}
-  .hsq{width:11px;height:11px;border-radius:2px;background:var(--track)}
-  .hsq.none{background:var(--track)}
-  .hsq.low{background:#238636;opacity:0.6}
-  .hsq.med{background:#238636;opacity:0.8}
-  .hsq.high{background:#39d353;opacity:1.0}
-  .hsq.fail{background:var(--red)}
+  /* runner CI heatmap (modal): coloured by health (not volume), GitHub-style grid */
+  .heatwrap{margin-top:2px}
+  .heatgrid{display:grid;grid-template-rows:repeat(7,11px);grid-auto-flow:column;grid-auto-columns:11px;gap:3px}
+  .hsq{width:11px;height:11px;border-radius:3px;background:var(--line)}
+  .hsq.none{background:var(--line)}
+  .hsq.ok{background:var(--green)}
+  .hsq.mix{background:#f5a623}
+  .hsq.bad{background:var(--red)}
+  .hsq.pad{background:transparent}
+  .heatleg{display:flex;align-items:center;gap:6px;margin-top:9px;color:var(--muted);font-size:11.5px}
+  .heatleg .hsq{width:10px;height:10px}
 
   @media(max-width:520px){
     body{padding:14px}
@@ -468,7 +472,7 @@ function sparkSVG(arr,col){
   return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
 function sparkSVGNet(arrDown, arrUp){
-  if(!arrDown||arrDown.length<2)return '';
+  if(!arrDown||arrDown.length<2||!arrUp||!arrUp.length)return '';
   const n=arrDown.length;
   const maxD=Math.max(...arrDown, 1), maxU=Math.max(...arrUp, 1);
   const maxAll=Math.max(maxD, maxU);
@@ -580,7 +584,7 @@ function machineHTML(host, entry){
         <button class="rf tf ${tf==='mem'?'on':''}" data-tf="mem">${L==='tr'?'Bellek':'Memory'}</button>
         <button class="rf tf ${tf==='cpu'?'on':''}" data-tf="cpu">CPU</button>
       </div><div class="card">
-        ${topList.map(p=>`<div class="proc"><span class="pn">${p.name}</span>
+        ${topList.map(p=>`<div class="proc"><span class="pn">${esc(p.name)}</span>
           <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:(p.cpu||0)/maxc*100}%"></i></span></span>
           <span class="pm">${tf==='mem'?gb(p.rss):(p.cpu||0).toFixed(1)+'%'}</span></div>`).join('')}
       </div>`;
@@ -631,7 +635,7 @@ function machineHTML(host, entry){
       if (isPinned(ck)) {
         let w = widgets[k];
         w = w.replace('<span class="grip" style="font-size:12px">⠿</span>', '');
-        w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${host.name||host.base||'Local'}</span><div style="margin-left:auto;`);
+        w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${esc(host.name||host.base||'Local')}</span><div style="margin-left:auto;`);
         window.pinnedHtml.push(w);
       } else {
         bodyArr.push(widgets[k]);
@@ -641,7 +645,7 @@ function machineHTML(host, entry){
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
-      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${name}</div>
+      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span>${esc(name)}</div>
       <div class="mright">
         ${online&&!stale&&s.battery?batteryChip(s.battery):''}
         ${online&&!stale&&s.sla?`<span class="pill" title="Uptime SLA (24h / 7d): ${s.sla.h24}% / ${s.sla.d7}%" style="background:transparent;border:1px solid var(--line);color:var(--muted)">✨ ${s.sla.d7}%</span>`:''}
@@ -795,7 +799,7 @@ mWrap.addEventListener('drop',e=>{
   } else if(dragWidget!=null) {
     const w=e.target.closest('.sec-wrap');
     if(w) {
-      const col = w.closest('.column');
+      const col = w.closest('.machine');
       const hb = col ? col.dataset.base : '';
       let ord=getWidgetOrder(hb).filter(k=>k!==dragWidget);
       const ti=ord.indexOf(w.dataset.widget);
@@ -821,6 +825,32 @@ let runnerKey=null;
 function openRunner(base,ri){runnerKey={base,ri};document.getElementById('runnerBody').dataset.histHash='';drawRunner();document.getElementById('runnerModal').hidden=false;}
 function closeRunner(){runnerKey=null;document.getElementById('runnerModal').hidden=true;}
 let currentRunnerFetches=0;
+// 30-day CI health heatmap for one runner. Coloured by OUTCOME, not volume:
+// green = all ok, amber = some fails, red = all fails, muted = no jobs. Dates are
+// UTC to match the server's date(ts,'unixepoch') keys in jobs_summary.
+function heatmapHTML(summary){
+  const data = summary || {};
+  if(!Object.keys(data).length) return '';
+  const today = new Date(), cells = [];
+  for(let i=29;i>=0;i--){
+    const dt = new Date(today.getTime() - i*86400000);
+    const ds = dt.toISOString().slice(0,10);
+    const st = data[ds]; let cls='none', tip=ds+' · '+(L==='tr'?'iş yok':'no jobs');
+    if(st){
+      const ok=st.succeeded||0, fail=st.failed||0, tot=ok+fail+(st.other||0);
+      cls = fail>0 ? (ok===0?'bad':'mix') : (ok>0?'ok':(tot>0?'mix':'none'));
+      tip = `${ds} · ${tot} ${L==='tr'?'iş':'jobs'} · ${ok} ok · ${fail} fail`;
+    }
+    cells.push({cls, tip, wd: dt.getUTCDay()});
+  }
+  let sq='';
+  for(let p=0;p<cells[0].wd;p++) sq+='<div class="hsq pad"></div>';
+  for(const c of cells) sq+=`<div class="hsq ${c.cls}" title="${esc(c.tip)}"></div>`;
+  const lg=(cls,txt)=>`<span class="hsq ${cls}"></span>${txt}`;
+  return `<div class="rm-h">${L==='tr'?'Son 30 gün':'Last 30 days'}</div>
+    <div class="heatwrap"><div class="heatgrid">${sq}</div>
+    <div class="heatleg">${lg('ok',L==='tr'?'başarılı':'all ok')} ${lg('mix',L==='tr'?'kısmi':'some fails')} ${lg('bad',L==='tr'?'başarısız':'all fail')} ${lg('none',L==='tr'?'yok':'none')}</div></div>`;
+}
 function drawRunner(){
   if(!runnerKey)return;
   const e=lastData[runnerKey.base]; if(!e||!e.online){closeRunner();return;}
@@ -913,6 +943,7 @@ function drawRunner(){
     <div class="rm-repo">${esc(r.repo||'—')}</div>
     <div id="runnerActiveJob" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
     ${statsHTML}
+    ${heatmapHTML(e.data.jobs_summary && e.data.jobs_summary[r.dir])}
     <div id="timelineContainer" style="margin-top:16px"><div style="color:var(--muted);font-size:13px">${L==='tr'?'Zaman çizelgesi yükleniyor...':'Loading timeline...'}</div></div>
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
     ${hist}

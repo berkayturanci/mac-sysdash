@@ -1,3 +1,25 @@
+## [1.14.0] - 2026-06-29
+### Added
+- **Runner CI health heatmap (rebuilt).** A 30-day GitHub-style grid in the
+  runner detail modal, coloured by **outcome** — green (all ok), amber (some
+  fails), red (all fails), muted (no jobs) — with a legend. The earlier card
+  heatmap was removed for being confusing: it mixed failure *and* job volume in
+  one colour scale and sat next to the recent-job dots. This version lives in the
+  modal, colours by health only, and uses UTC dates to match stored timestamps.
+
+### Fixed
+- **Escaping:** three remote-controlled strings were rendered into the DOM
+  without `esc()` — top-process names, the machine/host name, and the pinned
+  widget's machine label. Process names are notable because runners execute
+  untrusted CI code, so an injected name could run in a viewer's browser.
+- **Per-machine widget reorder** targeted a non-existent `.column` element, so a
+  drag-reorder on a peer machine was saved under the local key; now uses
+  `.machine` (matching how the order key is written/read).
+- **`sparkSVGNet`** no longer throws when a payload has `net_down` history but no
+  `net_up` (now guards both arrays).
+- **Heatmap edge case:** a day with only non-pass/fail outcomes showed as empty
+  while the tooltip reported jobs; now rendered as a neutral cell.
+
 ## [1.13.3] - 2026-06-29
 ### Fixed
 - AI Copilot widget was empty under the `launchd` agent. `_get_ai_stats()` read
