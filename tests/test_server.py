@@ -333,6 +333,27 @@ class HistoryTests(unittest.TestCase):
     def test_disk_eta_none_when_history_thin(self):
         self.assertIsNone(server.disk_eta_days(80.0))
 
+    def test_checks_state_machine(self):
+        now = int(server.time.time())
+        with sqlite3.connect(server._DB_PATH) as conn:
+            conn.execute("INSERT INTO checks VALUES (?,?,?,?,?)", ("fresh", now-10, 60, 30, now-9999))
+            conn.execute("INSERT INTO checks VALUES (?,?,?,?,?)", ("slow", now-100, 60, 30, now-9999))
+            conn.execute("INSERT INTO checks VALUES (?,?,?,?,?)", ("dead", now-1000, 60, 30, now-9999))
+        states = {c["name"]: c["state"] for c in server.get_checks()}
+        self.assertEqual(states["fresh"], "up")     # 10 <= 90
+        self.assertEqual(states["slow"], "late")    # 90 < 100 <= 150
+        self.assertEqual(states["dead"], "down")    # 1000 > 150
+
+    def test_record_ping_upsert_and_reject(self):
+        self.assertTrue(server.record_ping("job1", 120, 30))
+        c = [x for x in server.get_checks() if x["name"] == "job1"][0]
+        self.assertEqual((c["period"], c["grace"], c["state"]), (120, 30, "up"))
+        self.assertFalse(server.record_ping("", None, None))   # empty name rejected
+        # a second ping without params keeps the remembered period/grace
+        self.assertTrue(server.record_ping("job1"))
+        c = [x for x in server.get_checks() if x["name"] == "job1"][0]
+        self.assertEqual((c["period"], c["grace"]), (120, 30))
+
 
 class BatteryTests(unittest.TestCase):
     def test_battery_normalizes_unknown_time(self):

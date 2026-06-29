@@ -63,8 +63,8 @@ database server, no cloud.
 ## Data model (`/api/stats`, server → client)
 
 `{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net, io,
-thermal, battery, hist, runners[], jobs_summary, flaky, update_behind, top[],
-top_cpu[], ai, uptime, ...}`
+thermal, battery, hist, runners[], jobs_summary, flaky, checks, update_behind,
+top[], top_cpu[], ai, uptime, ...}`
 
 - `hist` is ~5 min of per-second samples for the sparklines/chart:
   `{cpu[], mem[], disk[], net_down[], net_up[], disk_read[], disk_write[], load[]}`.
@@ -82,6 +82,10 @@ top_cpu[], ai, uptime, ...}`
   (UTC dates) — feeds the per-runner 30-day CI health heatmap in the modal.
 - `flaky` is `{runner_dir: [{job, runs, fails, fail_rate}]}` — jobs that both
   pass and fail over 14 days (10–90% fail rate, ≥3 runs); shown in the modal.
+- `checks` is `[{name, last_seen, ago, period, grace, state}]` — dead-man checks
+  (`state`: up → late → down). Cron jobs register/refresh via
+  `GET /api/ping?job=<name>&period=<sec>&grace=<sec>` on success (stored in the
+  `checks` SQLite table). Late/down checks raise the client alert pipeline.
 - `disk_eta_days` is days-to-full from the 24h disk%-slope (or null); the disk
   gauge shows `⏳~Nd`. `update_behind` is commits behind `origin/main` (hourly
   background `git fetch`; header badge), 0 when current/offline.
