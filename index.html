@@ -569,7 +569,7 @@ function machineHTML(host, entry){
         <div class="bar"><i style="width:${s.mem.pct}%"></i></div>
         <div style="height:10px"></div>
         ${kv(t.swap, s.swap.pct, gb(s.swap.used)+' / '+gb(s.swap.total)+' ('+s.swap.pct+'%)')}
-        <div class="bar"><i style="width:${s.swap.pct}%;background:${s.swap.pct>=70?'#f5a623':s.swap.pct>=90?'var(--red)':'var(--accent)'}"></i></div>
+        <div class="bar"><i style="width:${s.swap.pct}%;background:${s.swap.pct>=90?'var(--red)':s.swap.pct>=70?'#f5a623':'var(--accent)'}"></i></div>
         <div style="height:10px"></div>
         ${kv(t.diskFull, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+' ('+s.disk.pct+'%)')}
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
