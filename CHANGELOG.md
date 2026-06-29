@@ -1,3 +1,12 @@
+## [1.19.0] - 2026-06-29
+### Added
+- **Disk-fill ETA** (#29). The disk gauge shows time-to-full (`⏳~6d`) when the
+  disk is trending up — from the least-squares slope of disk% over the last 24h
+  of history. Hidden when flat/shrinking or more than 30 days out.
+- **Configurable alert thresholds** (#33). A ⚙ settings popover sets Critical %,
+  Warning %, and stuck-job minutes; persisted in localStorage and applied live
+  (defaults 95 / 75 / 30 unchanged when untouched).
+
 ## [1.18.0] - 2026-06-29
 ### Added
 - **CI failure alerts.** A runner job that just finished as `Failed` now raises a

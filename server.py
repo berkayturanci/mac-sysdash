@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.18.0"
+VERSION = "1.19.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -166,6 +166,35 @@ def uptime_sla():
     except Exception:
         pass
     return res
+
+def disk_eta_days(current_pct):
+    """Days until the disk fills, from the least-squares slope of disk% over the
+    last 24h of history. None when flat/shrinking or history is too thin."""
+    try:
+        now = int(time.time())
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            rows = conn.execute(
+                "SELECT ts, disk FROM hist WHERE ts >= ? ORDER BY ts",
+                (now - 24 * 3600,)).fetchall()
+        n = len(rows)
+        if n < 30:
+            return None
+        xs = [r[0] for r in rows]
+        ys = [r[1] for r in rows]
+        mx = sum(xs) / n
+        my = sum(ys) / n
+        denom = sum((x - mx) ** 2 for x in xs)
+        if denom == 0:
+            return None
+        slope = sum((xs[i] - mx) * (ys[i] - my) for i in range(n)) / denom  # %/sec
+        per_day = slope * 86400
+        if per_day <= 0.05:          # essentially flat or shrinking
+            return None
+        days = (100 - current_pct) / per_day
+        return round(days, 1) if days > 0 else None
+    except Exception:
+        return None
+
 
 def _cpu_sampler():
     global _prev_net
@@ -826,6 +855,7 @@ def stats():
         "mem": {"pct": mem_pct, "used": mem_used, "total": vm.total},
         "swap": {"pct": sw.percent, "used": sw.used, "total": sw.total},
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
+        "disk_eta_days": disk_eta_days(disk_pct),
         "net": dict(_NET),
         "battery": battery_info(),
         "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
