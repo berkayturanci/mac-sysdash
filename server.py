@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.20.0"
+VERSION = "1.21.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -74,10 +74,15 @@ HOSTNAME = computer_name()
 # UI sparklines.
 _CPU = {"pct": 0.0, "cores": [], "count": psutil.cpu_count() or 0}
 _NET = {"up": 0.0, "down": 0.0}
-_HIST = {"cpu": [], "mem": [], "disk": [], "net_down": [], "net_up": []}
+_IO = {"read": 0.0, "write": 0.0}          # disk throughput, bytes/sec
+_HIST = {"cpu": [], "mem": [], "disk": [], "net_down": [], "net_up": [],
+         "disk_read": [], "disk_write": [], "load": []}
 _HIST_LEN = 300  # ~5 min of 1s samples (sparkline uses the last 60; chart uses all)
 _MIN_ACC = {"count": 0, "cpu": 0.0, "mem": 0.0, "disk": 0.0}
 _prev_net = None
+_prev_io = None
+# macOS thermal pressure (pmset -g therm). nominal until the sampler proves otherwise.
+_THERM = {"state": "nominal", "cpu_limit": 100}
 
 _STATE_DIR = os.path.join(HOME, ".local", "state", "sysdash")
 _DB_PATH = os.path.join(_STATE_DIR, "history.db")
@@ -242,7 +247,7 @@ def _update_checker():
 
 
 def _cpu_sampler():
-    global _prev_net
+    global _prev_net, _prev_io
     while True:
         cores = psutil.cpu_percent(interval=1.0, percpu=True)
         _CPU["cores"] = [round(c, 1) for c in cores]
@@ -257,16 +262,31 @@ def _cpu_sampler():
         except Exception:
             pass
         try:
+            io = psutil.disk_io_counters()
+            if io is not None and _prev_io is not None:
+                _IO["read"] = max(0, io.read_bytes - _prev_io.read_bytes)
+                _IO["write"] = max(0, io.write_bytes - _prev_io.write_bytes)
+            _prev_io = io
+        except Exception:
+            pass
+        try:
             vm = psutil.virtual_memory()
             mp = round((vm.total - vm.available) / vm.total * 100, 1) if vm.total else 0.0
             dpath = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
             du = psutil.disk_usage(dpath)
             dp = round((du.total - du.free) / du.total * 100, 1) if du.total else 0.0
+            try:
+                load1 = psutil.getloadavg()[0]
+            except Exception:
+                load1 = 0.0
             _HIST["cpu"].append(_CPU["pct"])
             _HIST["mem"].append(mp)
             _HIST["disk"].append(dp)
             _HIST["net_down"].append(_NET["down"])
             _HIST["net_up"].append(_NET["up"])
+            _HIST["disk_read"].append(_IO["read"])
+            _HIST["disk_write"].append(_IO["write"])
+            _HIST["load"].append(round(load1, 2))
             for k in _HIST:
                 if len(_HIST[k]) > _HIST_LEN:
                     del _HIST[k][:-_HIST_LEN]
@@ -284,6 +304,23 @@ def _cpu_sampler():
                 _MIN_ACC["disk"] = 0.0
         except Exception:
             pass
+
+
+def _thermal_sampler():
+    """macOS thermal pressure via `pmset -g therm` (unprivileged). CPU_Speed_Limit
+    drops below 100 when the SoC throttles — invisible in CPU% (which stays high)."""
+    while True:
+        try:
+            out = subprocess.run(["/usr/bin/pmset", "-g", "therm"],
+                                 capture_output=True, text=True, timeout=5).stdout
+            m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", out)
+            lim = int(m.group(1)) if m else 100
+            _THERM["cpu_limit"] = lim
+            _THERM["state"] = ("nominal" if lim >= 100 else "fair" if lim >= 75
+                               else "serious" if lim >= 50 else "critical")
+        except Exception:
+            pass
+        time.sleep(30)
 
 
 def battery_info():
@@ -902,9 +939,12 @@ def stats():
         "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
         "disk_eta_days": disk_eta_days(disk_pct),
         "net": dict(_NET),
+        "io": dict(_IO),
+        "thermal": dict(_THERM),
         "battery": battery_info(),
         "hist": {"cpu": list(_HIST["cpu"]), "mem": list(_HIST["mem"]),
-                 "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"])},
+                 "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"]),
+                 "disk_read": list(_HIST["disk_read"]), "disk_write": list(_HIST["disk_write"]), "load": list(_HIST["load"])},
         "runners": runner_status(),
         "jobs_summary": get_jobs_summary(),
         "flaky": get_flaky_jobs(),
@@ -1166,6 +1206,7 @@ if __name__ == "__main__":
     threading.Thread(target=_jobs_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
     threading.Thread(target=_update_checker, daemon=True).start()
+    threading.Thread(target=_thermal_sampler, daemon=True).start()
     if PUSH_TO:
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
