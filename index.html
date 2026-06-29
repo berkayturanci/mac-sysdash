@@ -761,7 +761,6 @@ function clock(){document.getElementById('clock').textContent=fmtTime(new Date()
 
 // --- drag to reorder + collapse + gauge chart (delegated on #machines) ---
 function getWidgetOrder(hb){try{return JSON.parse(localStorage.getItem('sysdash-widget-order-'+hb))||['gauges','runners','system','procs','ai']}catch(e){return ['gauges','runners','system','procs','ai']}}
-function setWidgetOrder(o){localStorage.setItem('sysdash-widget-order',JSON.stringify(o));}
 
 let dragBase=null, dragWidget=null, isDragging=false;
 const mWrap=document.getElementById('machines');

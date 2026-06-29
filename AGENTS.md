@@ -62,26 +62,49 @@ database server, no cloud.
 
 ## Data model (`/api/stats`, server → client)
 
-`{version, host, localtime, cpu, mem, disk, swap, net, battery, hist,
-runners[], top[], uptime, ...}`
+`{version, host, localtime, tz, cpu, mem, disk, swap, net, battery, hist,
+runners[], jobs_summary, top[], top_cpu[], ai, uptime, ...}`
 
-Each `runners[]` item: `{name, repo, status: 'busy'|'idle'|'offline', uptime,
-url, history[], job?}`.
+- `hist` is ~5 min of per-second samples for the sparklines/chart:
+  `{cpu[], mem[], disk[], net_down[], net_up[]}`.
+- `top[]` / `top_cpu[]` are top processes by RSS / CPU%.
+- `ai` is AI-assistant usage per provider, read locally from CodexBar:
+  `~/Library/Application Support/com.steipete.codexbar/history/{claude,codex}.json`
+  (the launchd-safe fallback) plus the richer `…/Group Containers/…/widget-snapshot.json`
+  (TCC-blocked under launchd). The snapshot read MUST stay best-effort so a
+  PermissionError doesn't discard the fallback. Shape: `{provider: {session, weekly}}`.
+- `jobs_summary` is `{runner_dir: {"YYYY-MM-DD": {succeeded, failed, other}}}`
+  (UTC dates) — feeds the per-runner 30-day CI health heatmap in the modal.
+
+Each `runners[]` item: `{name, repo, dir, status: 'busy'|'idle'|'offline',
+uptime, url, history[], job?}`.
 
 - `status` is derived from running `Runner.Listener` / `Runner.Worker` processes.
 - For a **busy** runner, `job` is local context: PR / branch / commit / actor
   from `_work/_temp/_github_workflow/event.json` (the workflow **trigger**,
   shared by every job in a run) **plus** `job.name` — the specific job —
   read from the newest `_diag/Worker_*.log` (`"jobDisplayName"`). event.json has
-  no per-job identity; the Worker log does. This distinction matters: one
-  workflow can split its jobs across several runners.
+  no per-job identity; the Worker log does. One workflow can split its jobs
+  across several runners.
 - `history[]` are recent finished jobs, one per Worker log:
   `{result, dur, ago, workflow, job, branch, actor, head}`.
 
-Peers: `/api/peers` lists reachable machines; `/api/peer?key=…` proxies one
-peer's stats (the hub fetches peers server-side so the browser never makes
-cross-origin calls). Machines that can't accept inbound connections POST to
-`/api/push`.
+Persistence: a background thread keeps a SQLite DB at
+`~/.local/state/sysdash/history.db` — `hist` (per-minute cpu/mem/disk averages,
+7-day retention; served at `/api/history?range=1h|24h|7d`) and `jobs` (finished
+runner jobs, PK `(runner, logfile)`, deduped; feeds `jobs_summary` and the modal
+Gantt timeline via `/api/jobs`). `sqlite3` is stdlib, so this is allowed.
+
+Endpoints: `/api/peers` lists reachable machines; `/api/peer?key=…` proxies one
+peer's stats and `/api/peer_jobs` its jobs (the hub fetches peers server-side so
+the browser makes no cross-origin calls). Machines that can't accept inbound
+connections POST to `/api/push`. CLI: `python server.py --status [URL]` prints a
+text table (`--json` for raw).
+
+UI (index.html): ring gauges + sparklines, fleet overview banner, per-machine
+collapse + global widget pinning (★), runner cards + a detail modal (job-stats
+table, 30-day health heatmap, Gantt timeline, recent runs), an AI-usage widget,
+light/dark/night themes, EN/TR.
 
 ## Deploy (FYI — usually not the agent's job)
 
