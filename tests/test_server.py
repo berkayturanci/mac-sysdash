@@ -643,6 +643,43 @@ class AiStatsTests(unittest.TestCase):
         server._CODEXBAR_SNAPSHOT = "/no/such/dir/snap.json"
         self.assertFalse(server._ai_fda_status()["blocked"])
 
+    def test_tcc_read_times_out_without_blocking(self):
+        # A read that blocks forever (the interactive TCC consent dialog) must
+        # be abandoned after the timeout, not hang the caller.
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = os.path.join(tmp, "blocking.fifo")
+            os.mkfifo(fifo)  # opening for read blocks until a writer appears
+            start = time.monotonic()
+            status, data = server._read_tcc_file(fifo, timeout=0.3)
+            elapsed = time.monotonic() - start
+            self.assertEqual(status, "timeout")
+            self.assertIsNone(data)
+            self.assertLess(elapsed, 2.0)
+
+    def test_history_fallback_survives_blocked_snapshot_read(self):
+        # Same invariant as the unreadable case, but for a *blocking* snapshot:
+        # the timeout-guarded read is skipped and the history fallback survives.
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 42}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 7}]}]}}, f)
+            fifo = os.path.join(tmp, "snap.fifo")
+            os.mkfifo(fifo)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(setattr, server, "_read_tcc_file", server._read_tcc_file)
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = fifo
+            server._AI_STATS_CACHE["ts"] = 0
+            orig = server._read_tcc_file
+            server._read_tcc_file = lambda p, timeout=1.5: orig(p, timeout=0.3)
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {"session": 42, "weekly": 7})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

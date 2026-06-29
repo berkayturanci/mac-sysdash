@@ -1,3 +1,13 @@
+## [1.24.1] - 2026-06-30
+### Fixed
+- **Interactive runs no longer hang on the CodexBar snapshot.** The richer
+  `widget-snapshot.json` lives in a TCC-protected Group Container. Under launchd
+  the gate denies instantly, but in an interactive terminal (`python server.py`
+  for local preview) it can pop a consent dialog and block the read forever,
+  hanging `/api/stats` and `--status`. The snapshot read now runs in a daemon
+  thread with a short timeout; on timeout it's skipped and the history-based
+  fallback is kept. launchd behavior is unchanged.
+
 ## [1.24.0] - 2026-06-30
 ### Added
 - **Per-interface network breakdown** (#38). The system card splits network into
