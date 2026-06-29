@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.7.1-blue)
+![version](https://img.shields.io/badge/version-1.14.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -35,7 +35,8 @@ the installer sets that up for you in an isolated virtualenv.
     tells each runner's work apart (the same run otherwise looks identical on all
     of them).
   - A row of **recent-job dots** (green = succeeded, red = failed) per runner.
-  - A **30-day contribution heatmap** per runner directly on the main card.
+  - A **30-day CI health heatmap** per runner in the detail modal, coloured by
+    outcome (green = all ok, amber = some fails, red = all fails, muted = none).
   - **Click a runner for a detail modal** — showing the current job, aggregate job statistics (runs, success rate, median duration, trends), a **Gantt chart Timeline** of the last 50 jobs, and recent job details; each row links to that workflow's runs on GitHub.
   - **Persistent history:** A background SQLite thread continually stores finished jobs from local logs, ensuring history survives restarts and spans weeks.
 - **Multiple machines side by side**, filling the width and wrapping down. One
