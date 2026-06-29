@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.19.0"
+VERSION = "1.20.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -194,6 +194,51 @@ def disk_eta_days(current_pct):
         return round(days, 1) if days > 0 else None
     except Exception:
         return None
+
+
+def get_flaky_jobs(days=14):
+    """Jobs that both pass and fail recently — likely flaky. Keyed by runner dir.
+    A job is flaky when it has >=3 runs with both outcomes and a 10–90% fail rate
+    (a job that always fails is broken, not flaky)."""
+    res = {}
+    try:
+        cutoff = int(time.time()) - days * 24 * 3600
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            rows = conn.execute(
+                "SELECT runner, job, "
+                "  SUM(result='Succeeded'), SUM(result='Failed'), COUNT(*) "
+                "FROM jobs WHERE ts >= ? AND job IS NOT NULL AND job != '' "
+                "GROUP BY runner, job", (cutoff,)).fetchall()
+        for runner, job, ok, fail, tot in rows:
+            ok, fail = ok or 0, fail or 0
+            if tot < 3 or not ok or not fail:
+                continue
+            rate = round(fail / tot * 100)
+            if 10 <= rate <= 90:
+                res.setdefault(runner, []).append(
+                    {"job": job, "runs": tot, "fails": fail, "fail_rate": rate})
+        for r in res:
+            res[r].sort(key=lambda x: -x["fail_rate"])
+    except Exception:
+        pass
+    return res
+
+
+# Self-update check: how many commits this checkout is behind origin/main.
+# Refreshed by a slow background thread so the hot stats path never shells out.
+_UPDATE = {"behind": 0}
+
+def _update_checker():
+    while True:
+        try:
+            subprocess.run(["/usr/bin/git", "-C", HERE, "fetch", "-q", "origin", "main"],
+                           capture_output=True, timeout=30)
+            out = subprocess.run(["/usr/bin/git", "-C", HERE, "rev-list", "--count",
+                                  "HEAD..origin/main"], capture_output=True, text=True, timeout=10)
+            _UPDATE["behind"] = int(out.stdout.strip() or 0)
+        except Exception:
+            pass
+        time.sleep(3600)
 
 
 def _cpu_sampler():
@@ -862,6 +907,8 @@ def stats():
                  "disk": list(_HIST["disk"]), "net_down": list(_HIST["net_down"]), "net_up": list(_HIST["net_up"])},
         "runners": runner_status(),
         "jobs_summary": get_jobs_summary(),
+        "flaky": get_flaky_jobs(),
+        "update_behind": _UPDATE["behind"],
         "top": t_mem,
         "top_cpu": t_cpu,
         "ai": _get_ai_stats(),
@@ -1118,6 +1165,7 @@ if __name__ == "__main__":
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_jobs_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
+    threading.Thread(target=_update_checker, daemon=True).start()
     if PUSH_TO:
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True

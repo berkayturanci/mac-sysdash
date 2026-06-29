@@ -1,3 +1,19 @@
+## [1.20.0] - 2026-06-29
+### Added
+- **Flaky CI job detection** (#30). The runner modal lists jobs that both pass
+  and fail over the last 14 days (10–90% fail rate, ≥3 runs) with their fail
+  rate — a job that always fails is broken, not flaky, and is excluded. Served
+  as `stats.flaky` keyed by runner dir.
+- **Active runs view** (#31). A fleet panel groups currently-busy runners across
+  all machines by their run identity (PR / branch + workflow), so one run split
+  across several runners/Macs shows as a single entry with per-runner job chips.
+- **Self-update badge** (#32). A header badge shows how many commits this
+  checkout is behind `origin/main`, refreshed hourly by a background thread
+  (`stats.update_behind`); the hot stats path never shells out to git.
+- **TV / wall-display mode** (#34). A 📺 toggle (or `?tv`) hides the chrome,
+  scales the layout up, and widens the machine grid for an always-on display.
+  Persists in localStorage.
+
 ## [1.19.0] - 2026-06-29
 ### Added
 - **Disk-fill ETA** (#29). The disk gauge shows time-to-full (`⏳~6d`) when the

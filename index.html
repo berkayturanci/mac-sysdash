@@ -105,6 +105,36 @@
   .f-stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
   .f-sep{width:1px;height:24px;background:var(--line)}
 
+  /* self-update badge (#32) */
+  .updbadge{font-size:12px;font-weight:600;vertical-align:middle;margin-left:8px;padding:2px 9px;border-radius:999px;
+    background:rgba(245,166,35,.16);color:#f5a623;border:1px solid rgba(245,166,35,.4);text-decoration:none;cursor:default;white-space:nowrap}
+  /* active runs — one run across runners/Macs (#31) */
+  .aruns{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .aruns-h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px}
+  .ar-run{padding:7px 0;border-top:1px solid var(--line)}
+  .ar-run:first-of-type{border-top:0}
+  .ar-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;flex-wrap:wrap}
+  .ar-wf{color:var(--muted);font-weight:400;font-size:12.5px}
+  .ar-n{margin-left:auto;color:var(--green);font-variant-numeric:tabular-nums;font-size:12px;font-weight:700}
+  .ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .ar-chip{display:inline-flex;align-items:center;gap:6px;background:var(--track);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:12px}
+  .ar-chip .ar-rn{color:var(--muted);font-size:11px}
+  /* flaky jobs (#30) */
+  .rm-flaky{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+  .fl-row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .fl-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fl-bar{flex-shrink:0;width:80px;height:6px;border-radius:3px;background:var(--track);overflow:hidden}
+  .fl-bar i{display:block;height:100%;background:#f5a623}
+  .fl-rate{flex-shrink:0;width:38px;text-align:right;color:#f5a623;font-variant-numeric:tabular-nums;font-weight:600}
+  .fl-runs{flex-shrink:0;width:46px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* TV / wall mode (#34): hide chrome, scale up, emphasize machines */
+  body.tv .right .iconbtn:not(#tvBtn){display:none}
+  body.tv .foot{display:none}
+  body.tv #tvBtn{background:var(--accent);color:#fff;border-color:var(--accent)}
+  body.tv{zoom:1.12}
+  body.tv .machines{grid-template-columns:repeat(auto-fit,minmax(540px,1fr))}
+  body.tv .machine{max-width:none}
+
 
   /* fit as many machines side by side as the width allows, then wrap down */
   .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
@@ -283,7 +313,7 @@
   <header>
     <div class="hl">
       <div>
-        <h1 id="title">Mac Dashboard</h1>
+        <h1 id="title"><span id="titleText">Mac Dashboard</span> <a id="updBadge" class="updbadge" hidden></a></h1>
         <div class="sub" id="subtitle"></div>
       </div>
     </div>
@@ -291,6 +321,7 @@
       <button id="bellBtn" class="iconbtn" title="Notifications">🔕</button>
       <button id="langBtn" class="iconbtn" title="Language">🌐</button>
       <button id="themeBtn" class="iconbtn" title="Theme">🌓</button>
+      <button id="tvBtn" class="iconbtn" title="TV / wall mode" onclick="toggleTv()">📺</button>
       <button class="iconbtn" title="Settings · alert thresholds" onclick="toggleCfg()">⚙</button>
       <div class="clock">
         <div class="t" id="clock">--:--:--</div>
@@ -307,6 +338,7 @@
   </div>
   <div class="banner" id="alertBanner"></div>
   <div id="fleetOverview"></div>
+  <div id="activeRuns"></div>
   <div id="machines"></div>
   <div class="foot" id="foot"></div>
 </div>
@@ -706,6 +738,9 @@ function setCfg(k,v){
   else if(k==='stuck'){STUCK_SECS=v*60;localStorage.setItem('sysdash-stuck',v);}
   renderAll();
 }
+// TV / wall mode (#34): big gauges, chrome hidden. Toggle persists; ?tv forces on.
+function toggleTv(){const on=document.body.classList.toggle('tv');try{localStorage.setItem('sysdash-tv',on?'1':'')}catch(e){}}
+(function(){try{if(new URLSearchParams(location.search).has('tv')||localStorage.getItem('sysdash-tv'))document.body.classList.add('tv');}catch(e){}})();
 function computeAlerts(){
   const sysAl=[], runAl=[];
   for(const h of hosts()){
@@ -754,7 +789,7 @@ function notifyAlerts(al){
 }
 
 function renderAll(){
-  document.getElementById('title').textContent='Mac Dashboard';
+  document.getElementById('titleText').textContent='Mac Dashboard';
   // subtitle from self
   const self=lastData[''];
   const _hs=hosts();
@@ -784,6 +819,39 @@ function renderAll(){
     <div class="f-stat"><div class="n" style="color:var(--muted)">${rOff}</div><div class="l">${L==='tr'?'KAPALI RUNNER':'OFFLINE RUNNERS'}</div></div>
   </div>`;
   document.getElementById('fleetOverview').innerHTML = fHtml;
+
+  // Active runs (#31): group currently-busy runners across all machines by their
+  // run identity (PR / branch + workflow). One run can span several runners/Macs.
+  const runs={};
+  for(const h of hs){const e=lastData[h.base]; if(!e||!e.online)continue;
+    const mn=h.self?(e.data.host||'Bu Mac'):(h.name||e.data.host||h.base);
+    for(const r of (e.data.runners||[])){
+      if(r.status!=='busy'||!r.job)continue;
+      const j=r.job;
+      const key=(j.pr?'PR#'+j.pr:(j.branch||j.tag||r.repo||'?'))+'·'+(j.workflow||'');
+      (runs[key]=runs[key]||{j,repo:r.repo,items:[]}).items.push(
+        {mn,runner:r.name,job:j.name||(L==='tr'?'iş':'job')});
+    }
+  }
+  const runKeys=Object.keys(runs);
+  document.getElementById('activeRuns').innerHTML = runKeys.length?
+    `<div class="aruns"><div class="aruns-h">${L==='tr'?'AKTİF ÇALIŞMALAR':'ACTIVE RUNS'}</div>`+
+    runKeys.map(k=>{const g=runs[k],j=g.j;
+      const head=j.pr?`🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}`
+        :j.branch?`⎇ ${esc(j.branch)}`:j.tag?`🏷 ${esc(j.tag)}`:esc(j.workflow||g.repo||'?');
+      const wf=j.workflow?`<span class="ar-wf">⚙ ${esc(j.workflow)}</span>`:'';
+      const chips=g.items.map(it=>`<span class="ar-chip" title="${esc(it.mn)} · ${esc(it.runner)}">${esc(it.job)}<span class="ar-rn">${esc(it.mn)}</span></span>`).join('');
+      return `<div class="ar-run"><div class="ar-head">${head} ${wf}<span class="ar-n">${g.items.length}×</span></div><div class="ar-chips">${chips}</div></div>`;
+    }).join('')+`</div>`:'';
+
+  // Self-update badge (#32): show how many commits this checkout is behind.
+  const ub=document.getElementById('updBadge');
+  const behind=(self&&self.online&&self.data.update_behind)||0;
+  if(behind>0){ub.hidden=false;
+    ub.textContent=`⬆ ${behind} ${L==='tr'?'güncelleme':'update'+(behind>1?'s':'')}`;
+    ub.title=L==='tr'?`${behind} commit geride — git pull --ff-only && launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
+      :`${behind} commits behind — git pull --ff-only && restart the service`;
+  }else ub.hidden=true;
 
   window.pinnedHtml = [];
   const mHtml = hs.map(h=>machineHTML(h, lastData[h.base])).join('');
@@ -981,6 +1049,13 @@ function drawRunner(){
     }
   }
 
+  const flakyList=(e.data.flaky&&e.data.flaky[r.dir])||[];
+  const flakyHTML=flakyList.length?`<div class="rm-h">⚡ ${L==='tr'?'Kararsız işler (14g)':'Flaky jobs (14d)'}</div>
+    <div class="rm-flaky">${flakyList.map(f=>`<div class="fl-row" title="${esc(f.job)} · ${f.fails}/${f.runs} ${L==='tr'?'başarısız':'failed'}">
+      <span class="fl-name">${esc(f.job)}</span>
+      <span class="fl-bar"><i style="width:${f.fail_rate}%"></i></span>
+      <span class="fl-rate">${f.fail_rate}%</span>
+      <span class="fl-runs">${f.fails}/${f.runs}</span></div>`).join('')}</div>`:'';
   const hist=(r.history&&r.history.length)?r.history.slice(0, 8).map(j=>{
     const ok=(j.result||'').toLowerCase()==='succeeded', cls=j.result?(ok?'ok':'fail'):'unk';
     const when=new Date(Date.now()-(j.ago||0)*1000).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -1002,6 +1077,7 @@ function drawRunner(){
     <div class="rm-repo">${esc(r.repo||'—')}</div>
     <div id="runnerActiveJob" style="margin-bottom:12px">${r.job?jobHTML(r.job):''}</div>
     ${statsHTML}
+    ${flakyHTML}
     ${heatmapHTML(e.data.jobs_summary && e.data.jobs_summary[r.dir])}
     <div id="timelineContainer" style="margin-top:16px"><div style="color:var(--muted);font-size:13px">${L==='tr'?'Zaman çizelgesi yükleniyor...':'Loading timeline...'}</div></div>
     <div class="rm-h">${L==='tr'?'Son çalışmalar':'Recent runs'}</div>
