@@ -64,7 +64,7 @@ database server, no cloud.
 
 `{version, host, localtime, tz, cpu, mem, disk, disk_eta_days, swap, net, io,
 thermal, battery, net_ifaces, net_today, hist, runners[], jobs_summary, flaky, checks,
-update_behind, queue, top[], top_cpu[], ai, uptime, ...}`
+update_behind, queue, top[], top_cpu[], top_groups, baseline, ai, uptime, ...}`
 
 - `hist` is ~5 min of per-second samples for the sparklines/chart:
   `{cpu[], mem[], disk[], net_down[], net_up[], disk_read[], disk_write[], load[]}`.
@@ -76,7 +76,12 @@ update_behind, queue, top[], top_cpu[], ai, uptime, ...}`
   deltas). `thermal` is `{state: nominal|fair|serious|critical, cpu_limit}` from
   `pmset -g therm` (unprivileged, background thread); the header shows a 🌡 chip
   only when throttled. Both are best-effort and default to safe values.
-- `top[]` / `top_cpu[]` are top processes by RSS / CPU%.
+- `top[]` / `top_cpu[]` are top processes by RSS / CPU%. `top_groups` is the same
+  processes aggregated per app (`{name, rss, cpu, procs}`) — children like
+  `AppName Helper (…)` collapse to `AppName` (feeds the top widget's "Apps" view).
+- `baseline` is `{cpu|mem|disk: {mean, z}}` — z-score of the current value vs the
+  last-24h history mean/std; the UI shows a subtle `↑ unusual` cue at |z|≥2. `{}`
+  until ≥30 history rows; a metric is omitted when its std is ~0 (flat).
 - `ai` is AI-assistant usage per provider, read locally from CodexBar:
   `~/Library/Application Support/com.steipete.codexbar/history/{claude,codex}.json`
   (the launchd-safe fallback) plus the richer `…/Group Containers/…/widget-snapshot.json`

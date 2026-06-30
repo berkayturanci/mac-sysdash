@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.24.1"
+VERSION = "1.25.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -212,6 +212,32 @@ def uptime_sla():
     except Exception:
         pass
     return res
+
+def get_baseline(cpu, mem, disk):
+    """z-score of the current cpu/mem/disk vs the last 24h baseline (mean/std from
+    the per-minute history). Lets the UI flag "unusual for now" without a fixed
+    threshold. Returns {} until there's enough history to be meaningful."""
+    out = {}
+    try:
+        now = int(time.time())
+        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+            rows = conn.execute("SELECT cpu, mem, disk FROM hist WHERE ts >= ?",
+                                (now - 24 * 3600,)).fetchall()
+        n = len(rows)
+        if n < 30:
+            return {}
+        cur = {"cpu": cpu, "mem": mem, "disk": disk}
+        for i, key in enumerate(("cpu", "mem", "disk")):
+            vals = [r[i] for r in rows]
+            mean = sum(vals) / n
+            std = (sum((v - mean) ** 2 for v in vals) / n) ** 0.5
+            if std < 1e-6:
+                continue
+            out[key] = {"mean": round(mean, 1), "z": round((cur[key] - mean) / std, 2)}
+    except Exception:
+        return {}
+    return out
+
 
 def disk_eta_days(current_pct):
     """Days until the disk fills, from the least-squares slope of disk% over the
@@ -1098,9 +1124,17 @@ def runner_status():
     return result
 
 
+def _app_group(name):
+    """Collapse a multi-process app's children to one app name. macOS apps spawn
+    'AppName Helper (Renderer/GPU/Plugin)' children — the bit before ' Helper' is
+    the app (e.g. 'Google Chrome Helper (Renderer)' -> 'Google Chrome')."""
+    return name.split(" Helper")[0].strip() or name
+
+
 def top_processes(n=8):
     procs_mem = []
     procs_cpu = []
+    groups = {}
     for p in psutil.process_iter(["name", "memory_info", "cpu_percent"]):
         try:
             mem = p.info["memory_info"]
@@ -1109,11 +1143,19 @@ def top_processes(n=8):
             name = p.info["name"] or "?"
             procs_mem.append({"name": name, "rss": rss, "cpu": cpu})
             procs_cpu.append({"name": name, "rss": rss, "cpu": cpu})
+            key = _app_group(name)
+            g = groups.setdefault(key, {"name": key, "rss": 0, "cpu": 0.0, "procs": 0})
+            g["rss"] += rss
+            g["cpu"] += cpu
+            g["procs"] += 1
         except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError):
             pass
     procs_mem.sort(key=lambda x: x["rss"], reverse=True)
     procs_cpu.sort(key=lambda x: x["cpu"], reverse=True)
-    return procs_mem[:n], procs_cpu[:n]
+    grp = sorted(groups.values(), key=lambda x: x["rss"], reverse=True)
+    for g in grp:
+        g["cpu"] = round(g["cpu"], 1)
+    return procs_mem[:n], procs_cpu[:n], grp[:n]
 
 
 def stats():
@@ -1140,7 +1182,7 @@ def stats():
         load = psutil.getloadavg()
     except Exception:
         load = (0, 0, 0)
-    t_mem, t_cpu = top_processes()
+    t_mem, t_cpu, t_groups = top_processes()
     return {
         "version": VERSION,
         "host": HOSTNAME,
@@ -1172,6 +1214,8 @@ def stats():
         "update_behind": _UPDATE["behind"],
         "top": t_mem,
         "top_cpu": t_cpu,
+        "top_groups": t_groups,
+        "baseline": get_baseline(cpu, mem_pct, disk_pct),
         "ai": _get_ai_stats(),
         "ai_fda": _ai_fda_status(),
         "sla": uptime_sla()

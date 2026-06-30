@@ -134,6 +134,10 @@
   .fl-bar i{display:block;height:100%;background:#f5a623}
   .fl-rate{flex-shrink:0;width:38px;text-align:right;color:#f5a623;font-variant-numeric:tabular-nums;font-weight:600}
   .fl-runs{flex-shrink:0;width:46px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* process app-rollup count + baseline anomaly cue */
+  .proc .pcount{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+  .gmeta .bl{font-weight:600}
+  .gmeta .bl.hi{color:#f5a623} .gmeta .bl.lo{color:var(--accent)}
   /* per-interface net breakdown (#38) */
   .ifaces{margin-top:6px;display:flex;flex-direction:column;gap:3px}
   .iface{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
@@ -474,8 +478,10 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
     {name:'ci-runner-2',repo:'acme/api',status:'idle',uptime:4*86400,url:'',history:[{result:'Succeeded',dur:192,ago:600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:205,ago:3600,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:88,ago:8000,workflow:'lint.yml',job:'eslint',branch:'feature/api-v2'},{result:'Succeeded',dur:176,ago:12000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:210,ago:20000,workflow:'deploy.yml',job:'deploy (prod)',branch:'main'},{result:'Succeeded',dur:185,ago:25000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Failed',dur:195,ago:30000,workflow:'test.yml',job:'unit tests',branch:'main'},{result:'Succeeded',dur:190,ago:40000,workflow:'test.yml',job:'unit tests',branch:'main'}]},
     {name:'ci-runner-3',repo:'acme/mobile',status:'idle',uptime:10*86400,url:'',history:[{result:'Succeeded',dur:300,ago:1800,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:280,ago:9000,workflow:'build.yml',job:'build (release)',branch:'main'},{result:'Succeeded',dur:265,ago:18000,workflow:'build.yml',job:'build (debug)',branch:'develop'}]}],
-  top:{mem:[{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'python',rss:0.34*GiB,cpu:45.0},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1},{name:'Music',rss:0.1*GiB,cpu:0.8}],
-       cpu:[{name:'python',rss:0.34*GiB,cpu:45.0},{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Music',rss:0.1*GiB,cpu:0.8},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1}]}};
+  baseline:{cpu:{mean:39,z:0.4},mem:{mean:63,z:0.6},disk:{mean:73,z:0.3}},
+  top:[{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'python',rss:0.34*GiB,cpu:45.0},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1},{name:'Music',rss:0.1*GiB,cpu:0.8}],
+  top_cpu:[{name:'python',rss:0.34*GiB,cpu:45.0},{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Music',rss:0.1*GiB,cpu:0.8},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1}],
+  top_groups:[{name:'Google Chrome',rss:2.2*GiB,cpu:8.0,procs:41},{name:'node',rss:1.0*GiB,cpu:12.5,procs:3},{name:'figma',rss:0.5*GiB,cpu:2.1,procs:2},{name:'claude',rss:0.46*GiB,cpu:2.0,procs:4},{name:'python',rss:0.34*GiB,cpu:45.0,procs:1},{name:'Slack',rss:0.28*GiB,cpu:1.0,procs:3}]};
 const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
@@ -484,8 +490,10 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
     {name:'gpu-runner-2',repo:'acme/ml-pipeline',status:'idle',uptime:2*86400,url:'',history:[{result:'Succeeded',dur:5400,ago:7200,workflow:'train.yml',job:'train (gpu)'},{result:'Failed',dur:1200,ago:30000,workflow:'train.yml',job:'eval'},{result:'Succeeded',dur:4800,ago:60000,workflow:'train.yml',job:'train (gpu)'},{result:'Succeeded',dur:5100,ago:90000,workflow:'train.yml',job:'train (gpu)'}]}],
-  top:{mem:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}],
-       cpu:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}]}};
+  baseline:{cpu:{mean:34,z:2.6},mem:{mean:79,z:0.7},disk:{mean:90,z:0.4}},
+  top:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}],
+  top_cpu:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}],
+  top_groups:[{name:'python',rss:4.2*GiB,cpu:85.0,procs:1},{name:'Google Chrome',rss:1.1*GiB,cpu:3.4,procs:18},{name:'node',rss:0.8*GiB,cpu:5.0,procs:2},{name:'Xcode',rss:0.6*GiB,cpu:15.2,procs:5},{name:'Docker',rss:0.3*GiB,cpu:1.0,procs:2},{name:'java',rss:0.2*GiB,cpu:8.4,procs:1}]};
 const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
 
 let autoPeers=[];  // tailnet peers discovered to be running sysdash
@@ -561,6 +569,14 @@ function sparkSVGNet(arrDown, arrUp){
 }
 function dur(s){if(s==null)return '—';const u=t.dunit;let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sec=Math.floor(s%60);
   if(d)return `${d}${u.d} ${h}${u.h}`; if(h)return `${h}${u.h} ${m}${u.m}`; if(m)return `${m}${u.m}`; return `${sec}${u.s}`}
+// Baseline anomaly cue (#): subtle "unusual for now" hint from the 24h z-score.
+function blCue(bl,key){
+  if(!bl||!bl[key])return '';
+  const z=bl[key].z;
+  if(z>=2)return ` · <span class="bl hi" title="${L==='tr'?'son 24s ortalamasına göre alışılmadık yüksek (z=':'unusual vs the last-24h average (z='}${z})">↑ ${L==='tr'?'alışılmadık':'unusual'}</span>`;
+  if(z<=-2)return ` · <span class="bl lo" title="z=${z}">↓ ${L==='tr'?'düşük':'low'}</span>`;
+  return '';
+}
 function ringHTML(label,pct,meta,spark,chart){
   const crit=pct>=CRIT, warn=pct>=WARN;
   const col=crit?'#ff5c5c':warn?'#f5a623':'#4f8cff';
@@ -660,14 +676,17 @@ function machineHTML(host, entry){
         <div class="kv"><span class="k">${t.uptime}</span><span class="v">${dur(s.uptime)}</span></div>
       </div>`;
     
-    const topList = (tf==='cpu' && topCpu.length) ? topCpu : topMem;
+    const topGroups = Array.isArray(s.top_groups) ? s.top_groups : [];
+    const maxg = Math.max(...topGroups.map(g=>g.rss), 1);
+    const topList = tf==='cpu' ? topCpu : tf==='app' ? topGroups : topMem;
     const topInner = `<div class="runfilter" style="margin-top:0;margin-bottom:12px;">
         <button class="rf tf ${tf==='mem'?'on':''}" data-tf="mem">${L==='tr'?'Bellek':'Memory'}</button>
         <button class="rf tf ${tf==='cpu'?'on':''}" data-tf="cpu">CPU</button>
+        <button class="rf tf ${tf==='app'?'on':''}" data-tf="app">${L==='tr'?'Uygulama':'Apps'}</button>
       </div><div class="card">
-        ${topList.map(p=>`<div class="proc"><span class="pn">${esc(p.name)}</span>
-          <span style="width:80px"><span class="bar"><i style="width:${tf==='mem'?p.rss/maxr*100:(p.cpu||0)/maxc*100}%"></i></span></span>
-          <span class="pm">${tf==='mem'?gb(p.rss):(p.cpu||0).toFixed(1)+'%'}</span></div>`).join('')}
+        ${topList.map(p=>`<div class="proc"><span class="pn">${esc(p.name)}${tf==='app'&&p.procs>1?` <span class="pcount">×${p.procs}</span>`:''}</span>
+          <span style="width:80px"><span class="bar"><i style="width:${tf==='cpu'?(p.cpu||0)/maxc*100:p.rss/(tf==='app'?maxg:maxr)*100}%"></i></span></span>
+          <span class="pm">${tf==='cpu'?(p.cpu||0).toFixed(1)+'%':gb(p.rss)}</span></div>`).join('')}
       </div>`;
     let aiInner = '';
     if (s.ai && Object.keys(s.ai).length > 0) {
@@ -706,9 +725,9 @@ function machineHTML(host, entry){
 
     const widgets = {
       gauges: `<div class="sec-wrap" draggable="true" data-widget="gauges"><div class="section-title collapsible" data-sec="${host.base}-gauges" style="border:none;margin-bottom:12px;padding-bottom:0"><span class="grip" style="font-size:12px">⠿</span>Gauges<div style="margin-left:auto;display:flex;gap:12px;align-items:center"><span class="pin" data-sec="${host.base}-gauges" style="font-size:16px;color:${isPinned(host.base+'-gauges')?'var(--accent)':'var(--muted)'};transition:color 0.2s" title="Pin to top">★</span><span class="chev" style="margin-left:0">${isCollapsed(host.base+'-gauges')?'▸':'▾'}</span></div></div>${isCollapsed(host.base+'-gauges')?'':`<div class="grid gauges">
-        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'), s.hist&&s.hist.cpu, host.base+'|cpu')}
-        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total), s.hist&&s.hist.mem, host.base+'|mem')}
-        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+(s.disk_eta_days!=null&&s.disk_eta_days<30?` · ⏳~${Math.round(s.disk_eta_days)}${L==='tr'?'g':'d'}`:''), s.hist&&s.hist.disk, host.base+'|disk')}
+        ${ringHTML(t.cpu, s.cpu.pct, s.cpu.count+' '+(L==='tr'?'çekirdek':'cores')+blCue(s.baseline,'cpu'), s.hist&&s.hist.cpu, host.base+'|cpu')}
+        ${ringHTML(t.mem, s.mem.pct, gb(s.mem.used)+' / '+gb(s.mem.total)+blCue(s.baseline,'mem'), s.hist&&s.hist.mem, host.base+'|mem')}
+        ${ringHTML(t.diskUsed, s.disk.pct, gb(s.disk.used)+' / '+gb(s.disk.total)+(s.disk_eta_days!=null&&s.disk_eta_days<30?` · ⏳~${Math.round(s.disk_eta_days)}${L==='tr'?'g':'d'}`:'')+blCue(s.baseline,'disk'), s.hist&&s.hist.disk, host.base+'|disk')}
       </div>`}</div>`,
       runners: sec('runners', t.runners, runnersInner, host.base),
       system: sec('system', t.system, sysInner, host.base),

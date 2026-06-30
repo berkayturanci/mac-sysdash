@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.24.0-blue)
+![version](https://img.shields.io/badge/version-1.25.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -68,7 +68,12 @@ the installer sets that up for you in an isolated virtualenv.
 - **System detail** — per-core CPU bars, load average (with trend sparkline),
   RAM/swap/disk, **network throughput** (with per-interface breakdown — en0 vs
   Tailscale `utun` — and a daily ↓/↑ total), **disk I/O** read/write sparklines,
-  battery, uptime, and the **top memory or CPU** consuming processes (toggleable).
+  battery, uptime, and the **top memory or CPU** consuming processes — with an
+  **Apps** view that rolls a multi-process app's children into one line
+  (`Google Chrome ×41 · 2.2 GB`).
+- **Baseline anomaly cue** — each gauge shows a subtle `↑ unusual` hint when a
+  metric is more than 2σ from its own last-24h average, catching "abnormal for
+  now" that fixed thresholds miss.
 - **AI Copilot usage** — per-provider session/weekly usage (and reset countdowns),
   read locally from CodexBar's files (no token, no API).
 - **Trends** — a 60-second sparkline under each gauge (CPU / memory / disk);
