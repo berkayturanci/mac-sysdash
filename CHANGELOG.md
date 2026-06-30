@@ -1,3 +1,17 @@
+## [1.25.0] - 2026-06-30
+### Added
+- **Process app rollup.** The top-processes widget gains an **Apps** view that
+  groups a multi-process app's children into one row — `Google Chrome ×41 ·
+  2.2 GB` — so you see which *app* is eating RAM, not eight scattered helper rows.
+  `stats.top_groups`; grouping collapses `AppName Helper (…)` → `AppName`.
+- **Baseline anomaly cue.** Each gauge shows a subtle `↑ unusual` / `↓ low` hint
+  when the current CPU/mem/disk is more than 2σ from its own last-24h average
+  (z-score from the history DB) — catches "abnormal for *now*" that fixed
+  thresholds miss. No extra alerts/banners; `stats.baseline`.
+### Fixed
+- Demo mode (`?demo`) top-processes widget was empty: the sample data used an old
+  `top:{mem,cpu}` object instead of the `top[]` / `top_cpu[]` arrays the UI reads.
+
 ## [1.24.1] - 2026-06-30
 ### Fixed
 - **Interactive runs no longer hang on the CodexBar snapshot.** The richer

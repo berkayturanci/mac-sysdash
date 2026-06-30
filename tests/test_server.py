@@ -344,6 +344,22 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(states["slow"], "late")    # 90 < 100 <= 150
         self.assertEqual(states["dead"], "down")    # 1000 > 150
 
+    def test_app_group_collapses_helpers(self):
+        self.assertEqual(server._app_group("Google Chrome Helper (Renderer)"), "Google Chrome")
+        self.assertEqual(server._app_group("Claude Helper (GPU)"), "Claude")
+        self.assertEqual(server._app_group("python3.9"), "python3.9")  # no helper → unchanged
+
+    def test_baseline_flags_spike_and_thin_history(self):
+        self.assertEqual(server.get_baseline(50, 50, 50), {})   # no history yet → {}
+        now = int(server.time.time())
+        with sqlite3.connect(server._DB_PATH) as conn:
+            for i in range(40):
+                conn.execute("INSERT INTO hist (ts,cpu,mem,disk) VALUES (?,?,?,?)",
+                             (now - i*60, 40.0 + (i % 3), 60.0, 70.0))
+        bl = server.get_baseline(95, 60, 70)   # cpu way above the ~41 baseline
+        self.assertGreater(bl["cpu"]["z"], 3)
+        self.assertNotIn("mem", bl)             # mem flat (std≈0) → omitted
+
     def test_net_daily_accumulates(self):
         server._NET_ACC["rx"], server._NET_ACC["tx"] = 1000, 500
         server._flush_net_daily()
