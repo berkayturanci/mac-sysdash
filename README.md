@@ -35,7 +35,10 @@ the installer sets that up for you in an isolated virtualenv.
   **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,
   stuck-job minutes), plus **CI failure alerts** when a runner job finishes
   `Failed`. A 🔔 toggle on a runner card **mutes its offline alert** (for runners
-  you stop on purpose); stuck-job and failure alerts for it still fire.
+  you stop on purpose); stuck-job and failure alerts for it still fire. A 📋
+  **recent-events log** records offline/online, failures, and check state changes
+  ("what happened while I was away"), and a 😴 **snooze** button silences all
+  alerts for an hour (maintenance mode) while still logging events.
 - **Thermal pressure badge** — a `🌡` chip appears on a machine's header when the
   SoC throttles (`pmset -g therm`), the build slowdown CPU% can't show.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill

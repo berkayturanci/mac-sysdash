@@ -98,6 +98,19 @@
   .banner{display:none;align-items:center;gap:10px;background:rgba(255,92,92,.13);
     border:1px solid rgba(255,92,92,.5);color:var(--red);padding:12px 16px;border-radius:14px;
     margin-bottom:16px;font-weight:650;font-size:14px;animation:pulse 1.8s infinite}
+  .banner.snoozed{background:var(--track);border-color:var(--line);color:var(--muted);animation:none}
+  /* snooze / maintenance button + recent-events log */
+  #snoozeBtn.on{background:rgba(245,166,35,.16);border-color:rgba(245,166,35,.5)}
+  .evt-clear{background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:11px;padding:2px 8px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500}
+  .evt-clear:hover{color:var(--txt)}
+  .evt{display:flex;align-items:center;gap:8px;padding:6px 2px;border-top:1px solid var(--line);font-size:12.5px}
+  .evt:first-child{border-top:0}
+  .evt-ic{flex:none;width:16px;text-align:center}
+  .evt-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .evt-ago{flex:none;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+  .evt-offline .evt-ic,.evt-down .evt-ic,.evt-fail .evt-ic{color:var(--red)}
+  .evt-online .evt-ic{color:var(--green)} .evt-late .evt-ic{color:#f5a623}
+  .evt-empty{color:var(--muted);font-size:12.5px;padding:6px 2px}
 
   .fleet{display:flex;align-items:center;gap:18px;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);padding:14px 20px;border-radius:14px;margin-bottom:16px;box-shadow:var(--shadow);flex-wrap:wrap}
   .f-stat{display:flex;align-items:center;gap:8px}
@@ -355,6 +368,8 @@
       <button id="langBtn" class="iconbtn" title="Language">🌐</button>
       <button id="themeBtn" class="iconbtn" title="Theme">🌓</button>
       <button id="tvBtn" class="iconbtn" title="TV / wall mode" onclick="toggleTv()">📺</button>
+      <button id="evtBtn" class="iconbtn" title="Recent events" onclick="toggleEvents()">📋</button>
+      <button id="snoozeBtn" class="iconbtn" title="Snooze all alerts" onclick="toggleSnooze()">😴</button>
       <button class="iconbtn" title="Settings · alert thresholds" onclick="toggleCfg()">⚙</button>
       <div class="clock">
         <div class="t" id="clock">--:--:--</div>
@@ -369,6 +384,10 @@
     <label>Warning %<input type="number" min="1" max="100" id="cfgWarn" oninput="setCfg('warn',this.value)"></label>
     <label>Stuck job (min)<input type="number" min="1" id="cfgStuck" oninput="setCfg('stuck',this.value)"></label>
     <label title="ntfy.sh / Slack / Discord webhook — alerts POST here">Alert webhook<input type="url" id="cfgHook" placeholder="https://ntfy.sh/your-topic" oninput="setHook(this.value)"></label>
+  </div>
+  <div id="evtPop" class="cfgpop" hidden style="min-width:300px;max-width:390px">
+    <div class="cfgttl" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><span id="evtTitle">Recent events</span><button class="evt-clear" onclick="clearEvents()">clear</button></div>
+    <div id="evtList" style="max-height:340px;overflow:auto;margin-top:4px"></div>
   </div>
   <div class="banner" id="alertBanner"></div>
   <div id="fleetOverview"></div>
@@ -806,6 +825,41 @@ function mutedRunners(){try{return new Set(JSON.parse(localStorage.getItem('sysd
 function isRunnerMuted(k){return mutedRunners().has(k)}
 function toggleRunnerMute(ev,k){ev.stopPropagation();ev.preventDefault();const s=mutedRunners();s.has(k)?s.delete(k):s.add(k);localStorage.setItem('sysdash-muted-runners',JSON.stringify([...s]));renderAll();}
 let firedFails=new Set(), failsInit=false;   // CI failure-alert dedup (seeded on first pass)
+
+// Recent-events log (#3): persisted ring of state transitions the alert pipeline sees.
+let runnerLast={}, checkLast={};             // transition trackers (offline↔online, check state)
+function loadEvents(){try{return JSON.parse(localStorage.getItem('sysdash-events')||'[]')}catch(_){return []}}
+let eventLog=loadEvents();
+function logEvent(type,text){
+  if(eventLog[0]&&eventLog[0].type===type&&eventLog[0].text===text)return;  // no consecutive dupes
+  eventLog.unshift({ts:Date.now(),type,text});
+  if(eventLog.length>60)eventLog.length=60;
+  try{localStorage.setItem('sysdash-events',JSON.stringify(eventLog))}catch(_){}
+}
+const EVT_IC={offline:'⛔',online:'✅',fail:'✗',late:'⏰',down:'⛔'};
+function toggleEvents(){const p=document.getElementById('evtPop');if(p.hidden){document.getElementById('cfgPop').hidden=true;renderEvents();}p.hidden=!p.hidden;}
+function renderEvents(){
+  document.getElementById('evtTitle').textContent=L==='tr'?'Son olaylar':'Recent events';
+  document.querySelector('.evt-clear').textContent=L==='tr'?'temizle':'clear';
+  const b=document.getElementById('evtList');
+  if(!eventLog.length){b.innerHTML=`<div class="evt-empty">${L==='tr'?'henüz olay yok':'no events yet'}</div>`;return;}
+  b.innerHTML=eventLog.slice(0,40).map(ev=>`<div class="evt evt-${ev.type}"><span class="evt-ic">${EVT_IC[ev.type]||'•'}</span><span class="evt-txt">${esc(ev.text)}</span><span class="evt-ago">${dur((Date.now()-ev.ts)/1000)}</span></div>`).join('');
+}
+function clearEvents(){eventLog=[];try{localStorage.removeItem('sysdash-events')}catch(_){}renderEvents();}
+
+// Snooze all alerts / maintenance mode (#4): suppress banner + notifications until a timestamp.
+function snoozeUntil(){return +localStorage.getItem('sysdash-snooze-until')||0;}
+function isSnoozed(){return Date.now()<snoozeUntil();}
+function toggleSnooze(){
+  if(isSnoozed())localStorage.removeItem('sysdash-snooze-until');
+  else localStorage.setItem('sysdash-snooze-until',Date.now()+60*60*1000);   // 1h
+  renderAll();
+}
+function updateSnoozeBtn(){
+  const b=document.getElementById('snoozeBtn');if(!b)return;
+  if(isSnoozed()){const m=Math.ceil((snoozeUntil()-Date.now())/60000);b.classList.add('on');b.textContent='🔕';b.title=(L==='tr'?'Alarmlar susturuldu · ':'Alerts snoozed · ')+m+(L==='tr'?'dk kaldı (aç)':'m left (click to resume)');}
+  else{b.classList.remove('on');b.textContent='😴';b.title=L==='tr'?'Tüm alarmları 1s sustur (bakım modu)':'Snooze all alerts for 1h (maintenance)';}
+}
 let STUCK_SECS=(+localStorage.getItem('sysdash-stuck')||30)*60;
 
 function toggleCfg(){
@@ -844,6 +898,10 @@ function computeAlerts(){
     for(const r of (s.runners||[])){
       const k = nm+':'+r.name;
       const isOnline = r.status!=='offline';
+      const rlk=h.base+'|'+r.name, wasOn=runnerLast[rlk];   // event-log transitions
+      if(wasOn===true && !isOnline){ if(!isRunnerMuted(rlk)) logEvent('offline', `${nm} · ${r.name}`); }
+      else if(wasOn===false && isOnline) logEvent('online', `${nm} · ${r.name}`);
+      runnerLast[rlk]=isOnline;
       // A runner you stopped on purpose shouldn't nag: its offline alert can be
       // muted per-runner (🔕). Other anomalies (stuck job, CI failure) still fire.
       if(seenRunners[k] && !isOnline && !isRunnerMuted(h.base+'|'+r.name))
@@ -857,19 +915,34 @@ function computeAlerts(){
         if((j.result||'').toLowerCase()!=='failed') continue;
         if(j.ago!=null && j.ago>600) continue;                 // only recent failures
         const fk = k+'|'+(j.id||(j.job+'|'+(j.head||'')));
-        if(failsInit && !firedFails.has(fk))
+        if(failsInit && !firedFails.has(fk)){
           runAl.push(`${nm} ✗ ${r.name}: ${j.job||j.workflow||'job'}${j.branch?' ('+j.branch+')':''} ${L==='tr'?'başarısız':'failed'}`);
+          logEvent('fail', `${nm} · ${r.name}: ${j.job||j.workflow||'job'}${j.branch?' ('+j.branch+')':''}`);
+        }
         firedFails.add(fk);
       }
     }
     for(const c of (s.checks||[])){          // dead-man checks (#39)
+      const ckey=h.base+'|'+c.name, prevSt=checkLast[ckey];
       if(c.state==='late') sysAl.push(`${nm} ⏰ ${c.name} ${L==='tr'?'gecikti':'late'}`);
       else if(c.state==='down') sysAl.push(`${nm} ⛔ ${c.name} ${L==='tr'?'yanıt yok':'down'}`);
+      if(c.state!==prevSt && (c.state==='late'||c.state==='down')) logEvent(c.state, `${nm} · ${c.name}`);
+      checkLast[ckey]=c.state;
     }
   }
   failsInit = true;  // first pass only seeds firedFails; alert on failures seen afterwards
   const al = sysAl.concat(runAl);
   const banner=document.getElementById('alertBanner');
+  updateSnoozeBtn();
+  if(isSnoozed()){                              // maintenance mode: log events but don't alert
+    const m=Math.ceil((snoozeUntil()-Date.now())/60000);
+    banner.style.display='flex'; banner.classList.add('snoozed');
+    banner.textContent=`🔕 ${L==='tr'?'Alarmlar susturuldu':'Alerts snoozed'} · ${m}${L==='tr'?'dk':'m'}${al.length?` · ${al.length} ${L==='tr'?'gizli':'hidden'}`:''}`;
+    document.title='Mac Dashboard';
+    prevAlerts=new Set(al);                     // keep synced so nothing fires when snooze ends
+    return;
+  }
+  banner.classList.remove('snoozed');
   if(al.length){
     banner.style.display='flex';
     banner.textContent='⚠️ ' + (sysAl.length ? t.highUse+' ' : '') + al.join('  ·  ');
