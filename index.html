@@ -114,7 +114,10 @@
   .ar-run{padding:7px 0;border-top:1px solid var(--line)}
   .ar-run:first-of-type{border-top:0}
   .ar-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;flex-wrap:wrap}
+  .ar-repo{font-weight:700;color:var(--txt)}
+  .ar-ref{font-weight:500;color:var(--muted)}
   .ar-wf{color:var(--muted);font-weight:400;font-size:12.5px}
+  .ar-sub{font-size:12px;color:var(--muted);margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ar-n{margin-left:auto;color:var(--green);font-variant-numeric:tabular-nums;font-size:12px;font-weight:700}
   .ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .ar-chip{display:inline-flex;align-items:center;gap:6px;background:var(--track);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:12px}
@@ -935,7 +938,8 @@ function renderAll(){
     for(const r of (e.data.runners||[])){
       if(r.status!=='busy'||!r.job)continue;
       const j=r.job;
-      const key=(j.pr?'PR#'+j.pr:(j.branch||j.tag||r.repo||'?'))+'·'+(j.workflow||'');
+      // Key by repo first so two projects both building "main" stay separate.
+      const key=(r.repo||'?')+'·'+(j.pr?'PR#'+j.pr:(j.branch||j.tag||''))+'·'+(j.workflow||'');
       (runs[key]=runs[key]||{j,repo:r.repo,items:[]}).items.push(
         {mn,runner:r.name,job:j.name||(L==='tr'?'iş':'job')});
     }
@@ -944,11 +948,13 @@ function renderAll(){
   document.getElementById('activeRuns').innerHTML = runKeys.length?
     `<div class="aruns"><div class="aruns-h">${L==='tr'?'AKTİF ÇALIŞMALAR':'ACTIVE RUNS'}</div>`+
     runKeys.map(k=>{const g=runs[k],j=g.j;
-      const head=j.pr?`🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}`
-        :j.branch?`⎇ ${esc(j.branch)}`:j.tag?`🏷 ${esc(j.tag)}`:esc(j.workflow||g.repo||'?');
+      const repo=g.repo?`<span class="ar-repo">${esc(g.repo)}</span>`:'';
+      const ref=j.pr?`🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}`
+        :j.branch?`⎇ ${esc(j.branch)}`:j.tag?`🏷 ${esc(j.tag)}`:'';
       const wf=j.workflow?`<span class="ar-wf">⚙ ${esc(j.workflow)}</span>`:'';
+      const sub=[j.commit?`“${esc(j.commit)}”`:'', j.actor?`👤 ${esc(j.actor)}`:''].filter(Boolean).join(' · ');
       const chips=g.items.map(it=>`<span class="ar-chip" title="${esc(it.mn)} · ${esc(it.runner)}">${esc(it.job)}<span class="ar-rn">${esc(it.mn)}</span></span>`).join('');
-      return `<div class="ar-run"><div class="ar-head">${head} ${wf}<span class="ar-n">${g.items.length}×</span></div><div class="ar-chips">${chips}</div></div>`;
+      return `<div class="ar-run"><div class="ar-head">${repo}${ref?` <span class="ar-ref">${ref}</span>`:''} ${wf}<span class="ar-n">${g.items.length}×</span></div>${sub?`<div class="ar-sub">${sub}</div>`:''}<div class="ar-chips">${chips}</div></div>`;
     }).join('')+`</div>`:'';
 
   // Self-update badge (#32): show how many commits this checkout is behind.
