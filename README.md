@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.25.0-blue)
+![version](https://img.shields.io/badge/version-1.26.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -59,6 +59,11 @@ the installer sets that up for you in an isolated virtualenv.
   an alert. Fully self-contained, no external service. See below.
 - **Self-update badge** — a header badge shows how many commits this checkout is
   behind `origin/main` (hourly background `git fetch`).
+- **Per-machine SSH shortcut** — a `>_` chip in each machine header opens
+  `ssh://<user>@<tailscale-ip>` (set **iTerm2 as your `ssh://` handler** to use it,
+  otherwise Terminal opens), with a copy button for the `ssh <user>@<tailscale-ip>`
+  command. The session starts from the machine viewing the dashboard and connects
+  over the tailnet (needs **Remote Login** enabled on the target).
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
   can't accept inbound — the browser only talks to the hub, so it works on a phone

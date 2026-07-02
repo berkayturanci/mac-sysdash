@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.25.0"
+VERSION = "1.26.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -68,6 +68,13 @@ def computer_name():
 
 
 HOSTNAME = computer_name()
+
+# Login user, so the UI can build an `ssh <user>@<tailscale-ip>` shortcut.
+try:
+    import getpass
+    SSH_USER = getpass.getuser()
+except Exception:
+    SSH_USER = os.environ.get("USER", "")
 
 # Background sampler so HTTP requests never block. It also derives network
 # throughput (per-second deltas) and keeps a short CPU/memory history for the
@@ -1189,6 +1196,7 @@ def stats():
         "localtime": time.strftime("%H:%M:%S"),
         "tz": time.strftime("%Z"),
         "tailscale_ip": TAILSCALE_IP,
+        "user": SSH_USER,
         "ts": time.time(),
         "uptime": int(time.time() - psutil.boot_time()),
         "cpu": {"pct": cpu, "cores": cores,
