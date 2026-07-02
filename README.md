@@ -27,8 +27,9 @@ the installer sets that up for you in an isolated virtualenv.
     estimated time-to-full (`⏳~6d`) from the least-squares slope of the last 24h.
 - **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
 - **Active runs** — currently-busy runners across every machine grouped by their
-  run (PR / branch + workflow), so one run split across runners/Macs shows as a
-  single entry with per-runner job chips.
+  run (**repo** + PR / branch + workflow), so one run split across runners/Macs
+  shows as a single entry led by its repository, with a commit + actor line and
+  per-runner job chips.
 - **High-usage alerts**: a red badge on the gauge, a top banner, and a `⚠️`
   prefix in the browser tab title so you notice even from another tab. The
   **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,

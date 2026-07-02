@@ -1,3 +1,12 @@
+## [1.28.0] - 2026-07-02
+### Changed
+- **Active runs now show which repo/project they belong to.** Each active-run row
+  leads with the repository (e.g. `berkayturanci/ingreview`) instead of just the
+  branch, plus a commit-message + actor subline — so a plain push to `main` is no
+  longer ambiguous when several projects are running. Runs are now grouped by repo
+  too, so two projects both building `main` stay separate (they could previously
+  merge into one row).
+
 ## [1.27.1] - 2026-07-02
 ### Changed
 - **Pinned widgets show the machine's name, not "Local".** A widget pinned (★)
