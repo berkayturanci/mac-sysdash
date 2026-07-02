@@ -170,6 +170,10 @@
   .mright{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
   .mtime{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
   .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
+  .sshchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .sshchip .ssh-open,.sshchip .ssh-copy{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);padding:3px 8px;cursor:pointer;text-decoration:none;background:transparent;border:0;line-height:1.4}
+  .sshchip .ssh-copy{border-left:1px solid var(--line)}
+  .sshchip .ssh-open:hover,.sshchip .ssh-copy:hover{background:var(--track);color:var(--txt)}
   .batt.low{color:var(--red)}
   .batt.warn{color:var(--amber)}
   .spark{width:100%;height:22px;margin-top:8px;opacity:.75;display:block}
@@ -469,7 +473,7 @@ const lastData={};  // base -> {data, online}
 const DEMO_MODE=new URLSearchParams(location.search).has('demo');
 const GiB=1073741824;
 function demoHist(base,amp,seed){return Array.from({length:60},(_,i)=>Math.max(4,Math.min(97,base+amp*Math.sin((i+seed)/6.5)+(i%4)*1.2)));}
-const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',tailscale_ip:'100.x.y.z',
+const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',tailscale_ip:'100.x.y.z',user:'dev',
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
@@ -482,7 +486,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   top:[{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'python',rss:0.34*GiB,cpu:45.0},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1},{name:'Music',rss:0.1*GiB,cpu:0.8}],
   top_cpu:[{name:'python',rss:0.34*GiB,cpu:45.0},{name:'node',rss:1.0*GiB,cpu:12.5},{name:'Chrome',rss:0.62*GiB,cpu:4.2},{name:'figma',rss:0.5*GiB,cpu:2.1},{name:'Slack',rss:0.28*GiB,cpu:1.0},{name:'Music',rss:0.1*GiB,cpu:0.8},{name:'Docker',rss:0.21*GiB,cpu:0.5},{name:'Terminal',rss:0.12*GiB,cpu:0.1}],
   top_groups:[{name:'Google Chrome',rss:2.2*GiB,cpu:8.0,procs:41},{name:'node',rss:1.0*GiB,cpu:12.5,procs:3},{name:'figma',rss:0.5*GiB,cpu:2.1,procs:2},{name:'claude',rss:0.46*GiB,cpu:2.0,procs:4},{name:'python',rss:0.34*GiB,cpu:45.0,procs:1},{name:'Slack',rss:0.28*GiB,cpu:1.0,procs:3}]};
-const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',
+const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',tailscale_ip:'100.a.b.c',user:'studio',
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
@@ -533,6 +537,21 @@ function tsFmt(ts) {
   const time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   if(d.getDate()===n.getDate() && d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear()) return time;
   return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' + time;
+}
+// Per-machine SSH shortcut: >_ opens ssh://user@ip (the OS ssh handler — iTerm2
+// if set as the ssh:// handler, else Terminal); ⧉ copies `ssh user@ip`.
+function sshChip(s){
+  if(!s||!s.tailscale_ip)return '';
+  const tgt=(s.user?esc(s.user)+'@':'')+esc(s.tailscale_ip), cmd='ssh '+tgt;
+  return `<span class="sshchip">`+
+    `<a class="ssh-open" href="ssh://${tgt}" title="${L==='tr'?'terminalde aç':'open in terminal'}: ${cmd}">&gt;_</a>`+
+    `<button class="ssh-copy" onclick="copySsh(this,'${cmd}')" title="${L==='tr'?'komutu kopyala':'copy command'}: ${cmd}">⧉</button></span>`;
+}
+function copySsh(el,cmd){
+  let ok=false;
+  try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(cmd);ok=true;}}catch(_){}
+  if(!ok){try{const ta=document.createElement('textarea');ta.value=cmd;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();document.execCommand('copy');document.body.removeChild(ta);}catch(_){}}
+  const o=el.textContent; el.textContent='✓'; setTimeout(()=>{el.textContent=o;},1000);
 }
 function thermalChip(th){
   if(!th||th.state==='nominal') return '';   // only surfaces when the SoC throttles
@@ -757,6 +776,7 @@ function machineHTML(host, entry){
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
       <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span><span class="mntext"><span class="mn">${esc(name)}</span>${online&&s&&s.tailscale_ip?`<span class="m-net">Tailscale ${esc(s.tailscale_ip)}${s.cpu&&s.cpu.count?' · '+s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'):''}</span>`:''}</span></div>
       <div class="mright">
+        ${online&&!stale?sshChip(s):''}
         ${online&&!stale&&s.thermal?thermalChip(s.thermal):''}
         ${online&&!stale&&s.battery?batteryChip(s.battery):''}
         ${online&&!stale&&s.sla?`<span class="pill" title="Uptime SLA (24h / 7d): ${s.sla.h24}% / ${s.sla.d7}%" style="background:transparent;border:1px solid var(--line);color:var(--muted)">✨ ${s.sla.d7}%</span>`:''}

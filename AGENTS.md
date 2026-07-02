@@ -103,6 +103,9 @@ update_behind, queue, top[], top_cpu[], top_groups, baseline, ai, uptime, ...}`
 - `disk_eta_days` is days-to-full from the 24h disk%-slope (or null); the disk
   gauge shows `⏳~Nd`. `update_behind` is commits behind `origin/main` (hourly
   background `git fetch`; header badge), 0 when current/offline.
+- `user` is the server's login user (`getpass.getuser()`) — the client builds a
+  per-machine `ssh <user>@<tailscale_ip>` shortcut (a `>_` ssh:// link + a copy
+  button in the machine header). Pure client-side; no backend/exec.
 
 Each `runners[]` item: `{name, repo, dir, status: 'busy'|'idle'|'offline',
 uptime, url, history[], job?}`.

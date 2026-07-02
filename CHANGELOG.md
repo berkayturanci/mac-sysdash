@@ -1,3 +1,13 @@
+## [1.26.0] - 2026-07-02
+### Added
+- **Per-machine SSH shortcut.** Each machine header gets a `>_` chip: click it to
+  open `ssh://<user>@<tailscale-ip>` in the OS's `ssh://` handler (set iTerm2 as
+  that handler to use it, otherwise Terminal opens), plus a `⧉` button that copies
+  the `ssh <user>@<tailscale-ip>` command. The login user is read locally
+  (`getpass.getuser()` → `stats.user`); the session opens from whichever machine is
+  viewing the dashboard and connects over the tailnet (plain sshd — needs Remote
+  Login enabled on the target). No backend call — a pure client-side link/clipboard.
+
 ## [1.25.0] - 2026-06-30
 ### Added
 - **Process app rollup.** The top-processes widget gains an **Apps** view that
