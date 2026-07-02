@@ -132,14 +132,19 @@ the browser makes no cross-origin calls). Machines that can't accept inbound
 connections POST to `/api/push`. CLI: `python server.py --status [URL]` prints a
 text table (`--json` for raw).
 
-UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA), fleet
-overview banner, an "active runs" strip + a "scheduled checks" (dead-man) strip,
-per-machine collapse + global widget pinning (★), a 🌡 thermal chip + self-update
-badge in the header, runner cards + a detail modal (job-stats table, flaky jobs,
-queue pressure, 30-day health heatmap, Gantt timeline, recent runs), system card
-(per-core, load, net + per-interface + daily total, disk I/O), an AI-usage widget,
-a ⚙ settings popover (alert thresholds + webhook), TV/wall mode (📺 / `?tv`),
-light/dark/night themes, EN/TR.
+UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA, a
+baseline `↑ unusual` cue), fleet overview banner, an "active runs" strip
+(repo · ref · workflow · elapsed) + a "scheduled checks" (dead-man) strip,
+per-machine collapse + global widget pinning (★, labeled with the machine name),
+a 🌡 thermal chip + self-update badge + a `>_`/🖥 SSH & screen-share (`ssh://` /
+`vnc://`) chip in each machine header; header controls include a 📋 recent-events
+log (client-side, localStorage) and a 😴 snooze/maintenance toggle (1h) alongside
+the ⚙ settings popover (alert thresholds + webhook). Runner cards carry a 🔔
+per-runner offline-alert mute + a detail modal (job-stats table, flaky jobs,
+queue pressure, 30-day health heatmap, Gantt timeline, recent runs). System card:
+per-core, load, net + per-interface + daily total, disk I/O; top-processes widget
+has Memory/CPU/**Apps** (per-app rollup) views. Plus an AI-usage widget, TV/wall
+mode (📺 / `?tv`), light/dark/night themes, EN/TR.
 
 ## Deploy (FYI — usually not the agent's job)
 
