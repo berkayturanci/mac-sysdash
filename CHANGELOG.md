@@ -1,3 +1,15 @@
+## [1.30.0] - 2026-07-02
+### Added
+- **Recent-events log** (📋). A header button opens a popover listing the last
+  state transitions the alert pipeline saw — runner offline/online, CI failures,
+  dead-man check late/down — each with an icon + relative time, so you can see
+  "what happened while I was away." Persisted per browser (last 60), with a clear
+  button. Purely client-side, derived from the polled data.
+- **Snooze all alerts / maintenance mode** (😴). A header button silences every
+  alert (banner, notifications, webhook) for 1 hour; the banner shows a muted
+  `🔕 snoozed · Nm · K hidden` instead of the red alert. Events are still logged
+  while snoozed, and nothing re-fires when the snooze ends. Click again to resume.
+
 ## [1.29.0] - 2026-07-02
 ### Added
 - **Active runs show elapsed time.** Each active-run row now shows how long it has
