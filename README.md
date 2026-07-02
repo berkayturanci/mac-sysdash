@@ -28,8 +28,8 @@ the installer sets that up for you in an isolated virtualenv.
 - **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
 - **Active runs** — currently-busy runners across every machine grouped by their
   run (**repo** + PR / branch + workflow), so one run split across runners/Macs
-  shows as a single entry led by its repository, with a commit + actor line and
-  per-runner job chips.
+  shows as a single entry led by its repository, with a commit + actor line,
+  **how long it's been running** (`⏱`), and per-runner job chips.
 - **High-usage alerts**: a red badge on the gauge, a top banner, and a `⚠️`
   prefix in the browser tab title so you notice even from another tab. The
   **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,
@@ -61,11 +61,13 @@ the installer sets that up for you in an isolated virtualenv.
   an alert. Fully self-contained, no external service. See below.
 - **Self-update badge** — a header badge shows how many commits this checkout is
   behind `origin/main` (hourly background `git fetch`).
-- **Per-machine SSH shortcut** — a `>_` chip in each machine header opens
-  `ssh://<user>@<tailscale-ip>` (set **iTerm2 as your `ssh://` handler** to use it,
-  otherwise Terminal opens), with a copy button for the `ssh <user>@<tailscale-ip>`
-  command. The session starts from the machine viewing the dashboard and connects
-  over the tailnet (needs **Remote Login** enabled on the target).
+- **Per-machine SSH + screen-share shortcut** — each machine header has a `>_`
+  chip that opens `ssh://<user>@<tailscale-ip>` (set **iTerm2 as your `ssh://`
+  handler** to use it, otherwise Terminal opens), a 🖥 button that opens
+  `vnc://<user>@<tailscale-ip>` in **macOS Screen Sharing**, and a copy button for
+  the `ssh <user>@<tailscale-ip>` command. Sessions start from the machine viewing
+  the dashboard, over the tailnet (needs **Remote Login** / **Screen Sharing**
+  enabled on the target).
 - **Multiple machines side by side**, filling the width and wrapping down. One
   machine is the hub; peers are gathered by the hub (pull) or pushed by nodes that
   can't accept inbound — the browser only talks to the hub, so it works on a phone

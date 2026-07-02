@@ -117,6 +117,7 @@
   .ar-repo{font-weight:700;color:var(--txt)}
   .ar-ref{font-weight:500;color:var(--muted)}
   .ar-wf{color:var(--muted);font-weight:400;font-size:12.5px}
+  .ar-el{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
   .ar-sub{font-size:12px;color:var(--muted);margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ar-n{margin-left:auto;color:var(--green);font-variant-numeric:tabular-nums;font-size:12px;font-weight:700}
   .ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -175,7 +176,7 @@
   .batt{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;white-space:nowrap;color:var(--muted)}
   .sshchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden}
   .sshchip .ssh-open,.sshchip .ssh-copy{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);padding:3px 8px;cursor:pointer;text-decoration:none;background:transparent;border:0;line-height:1.4}
-  .sshchip .ssh-copy{border-left:1px solid var(--line)}
+  .sshchip>*+*{border-left:1px solid var(--line)}
   .sshchip .ssh-open:hover,.sshchip .ssh-copy:hover{background:var(--track);color:var(--txt)}
   .batt.low{color:var(--red)}
   .batt.warn{color:var(--amber)}
@@ -552,6 +553,7 @@ function sshChip(s){
   const tgt=(s.user?esc(s.user)+'@':'')+esc(s.tailscale_ip), cmd='ssh '+tgt;
   return `<span class="sshchip">`+
     `<a class="ssh-open" href="ssh://${tgt}" title="${L==='tr'?'terminalde aç':'open in terminal'}: ${cmd}">&gt;_</a>`+
+    `<a class="ssh-open" href="vnc://${tgt}" title="${L==='tr'?'ekranı paylaş (Screen Sharing)':'screen share (Screen Sharing)'}: vnc://${tgt}">🖥</a>`+
     `<button class="ssh-copy" onclick="copySsh(this,'${cmd}')" title="${L==='tr'?'komutu kopyala':'copy command'}: ${cmd}">⧉</button></span>`;
 }
 function copySsh(el,cmd){
@@ -940,8 +942,9 @@ function renderAll(){
       const j=r.job;
       // Key by repo first so two projects both building "main" stay separate.
       const key=(r.repo||'?')+'·'+(j.pr?'PR#'+j.pr:(j.branch||j.tag||''))+'·'+(j.workflow||'');
-      (runs[key]=runs[key]||{j,repo:r.repo,items:[]}).items.push(
-        {mn,runner:r.name,job:j.name||(L==='tr'?'iş':'job')});
+      const g0=(runs[key]=runs[key]||{j,repo:r.repo,elapsed:0,items:[]});
+      g0.elapsed=Math.max(g0.elapsed, j.elapsed||0);   // run age = longest of its jobs
+      g0.items.push({mn,runner:r.name,job:j.name||(L==='tr'?'iş':'job')});
     }
   }
   const runKeys=Object.keys(runs);
@@ -952,9 +955,10 @@ function renderAll(){
       const ref=j.pr?`🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}`
         :j.branch?`⎇ ${esc(j.branch)}`:j.tag?`🏷 ${esc(j.tag)}`:'';
       const wf=j.workflow?`<span class="ar-wf">⚙ ${esc(j.workflow)}</span>`:'';
+      const el=g.elapsed?`<span class="ar-el" title="${L==='tr'?'çalışma süresi':'running for'}">⏱ ${dur(g.elapsed)}</span>`:'';
       const sub=[j.commit?`“${esc(j.commit)}”`:'', j.actor?`👤 ${esc(j.actor)}`:''].filter(Boolean).join(' · ');
       const chips=g.items.map(it=>`<span class="ar-chip" title="${esc(it.mn)} · ${esc(it.runner)}">${esc(it.job)}<span class="ar-rn">${esc(it.mn)}</span></span>`).join('');
-      return `<div class="ar-run"><div class="ar-head">${repo}${ref?` <span class="ar-ref">${ref}</span>`:''} ${wf}<span class="ar-n">${g.items.length}×</span></div>${sub?`<div class="ar-sub">${sub}</div>`:''}<div class="ar-chips">${chips}</div></div>`;
+      return `<div class="ar-run"><div class="ar-head">${repo}${ref?` <span class="ar-ref">${ref}</span>`:''} ${wf}${el}<span class="ar-n">${g.items.length}×</span></div>${sub?`<div class="ar-sub">${sub}</div>`:''}<div class="ar-chips">${chips}</div></div>`;
     }).join('')+`</div>`:'';
 
   // Self-update badge (#32): show how many commits this checkout is behind.
