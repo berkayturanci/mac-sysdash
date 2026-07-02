@@ -221,6 +221,10 @@
   .runner.clickable{cursor:pointer}
   .runner.clickable:hover{transform:translateY(-2px);border-color:var(--accent)}
   .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .runner .row1 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .runner .row1 .rmute{flex:none;background:transparent;border:0;cursor:pointer;font-size:12px;line-height:1;padding:2px;opacity:.25;filter:grayscale(1);transition:opacity .15s}
+  .card.runner:hover .row1 .rmute{opacity:.65}
+  .runner .row1 .rmute:hover,.runner .row1 .rmute.on{opacity:1;filter:none}
   .runner  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
   .mhead .mname{font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px}
   .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
@@ -647,9 +651,11 @@ function machineHTML(host, entry){
     const rf=runFilter();
     const rows=s.runners.map((r,ri)=>{
       if(rf==='active' && r.status!=='busy') return '';
+      const mkey=host.base+'|'+r.name, muted=isRunnerMuted(mkey);
       return `<div class="card runner clickable ${r.status}" data-base="${esc(host.base)}" data-ri="${ri}" title="${L==='tr'?'detay için tıkla':'click for details'}">
         <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div>
-          <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span></div>
+          <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span>
+          <button class="rmute ${muted?'on':''}" onclick="toggleRunnerMute(event,'${esc(mkey)}')" title="${muted?(L==='tr'?'offline uyarısı susturuldu — açmak için tıkla':'offline alert muted — click to unmute'):(L==='tr'?'bu runner için offline uyarısını sustur':'mute offline alert for this runner')}">${muted?'🔕':'🔔'}</button></div>
         <div class="repo">${esc(r.repo||'—')}</div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
         ${r.job?jobHTML(r.job):''}
@@ -790,6 +796,10 @@ function machineHTML(host, entry){
 }
 
 let seenRunners={};
+// Per-runner offline-alert mute (persisted). Key = "<machine base>|<runner name>".
+function mutedRunners(){try{return new Set(JSON.parse(localStorage.getItem('sysdash-muted-runners')||'[]'))}catch(_){return new Set()}}
+function isRunnerMuted(k){return mutedRunners().has(k)}
+function toggleRunnerMute(ev,k){ev.stopPropagation();ev.preventDefault();const s=mutedRunners();s.has(k)?s.delete(k):s.add(k);localStorage.setItem('sysdash-muted-runners',JSON.stringify([...s]));renderAll();}
 let firedFails=new Set(), failsInit=false;   // CI failure-alert dedup (seeded on first pass)
 let STUCK_SECS=(+localStorage.getItem('sysdash-stuck')||30)*60;
 
@@ -829,7 +839,10 @@ function computeAlerts(){
     for(const r of (s.runners||[])){
       const k = nm+':'+r.name;
       const isOnline = r.status!=='offline';
-      if(seenRunners[k] && !isOnline) runAl.push(`${nm} runner ${r.name} offline`);
+      // A runner you stopped on purpose shouldn't nag: its offline alert can be
+      // muted per-runner (🔕). Other anomalies (stuck job, CI failure) still fire.
+      if(seenRunners[k] && !isOnline && !isRunnerMuted(h.base+'|'+r.name))
+        runAl.push(`${nm} runner ${r.name} offline`);
       if(isOnline) seenRunners[k] = true;
       if(r.status==='busy' && r.job && r.job.elapsed > STUCK_SECS) {
         runAl.push(`${nm} ${r.name}: ${r.job.name||'job'} ${dur(r.job.elapsed)}`);

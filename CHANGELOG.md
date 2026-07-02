@@ -1,3 +1,11 @@
+## [1.27.0] - 2026-07-02
+### Added
+- **Mute a runner's offline alert.** A 🔔 toggle on each runner card silences the
+  "runner offline" alert for that specific runner (persisted per browser) — for
+  runners you stopped on purpose, so a known-down CLI doesn't nag. Muted runners
+  show 🔕; other anomalies (stuck job, CI failure) still alert. Click again to
+  unmute. Key is `<machine base>|<runner name>` in `sysdash-muted-runners`.
+
 ## [1.26.0] - 2026-07-02
 ### Added
 - **Per-machine SSH shortcut.** Each machine header gets a `>_` chip: click it to
