@@ -1,3 +1,10 @@
+## [1.27.1] - 2026-07-02
+### Changed
+- **Pinned widgets show the machine's name, not "Local".** A widget pinned (★)
+  from the machine serving the page was tagged `Local`, which is confusing when
+  you open the dashboard from another Mac (e.g. viewing the hub from ekos). It now
+  shows the real computer name, matching how peers' pinned widgets are tagged.
+
 ## [1.27.0] - 2026-07-02
 ### Added
 - **Mute a runner's offline alert.** A 🔔 toggle on each runner card silences the
