@@ -770,7 +770,7 @@ function machineHTML(host, entry){
       if (isPinned(ck)) {
         let w = widgets[k];
         w = w.replace('<span class="grip" style="font-size:12px">⠿</span>', '');
-        w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${esc(host.name||host.base||'Local')}</span><div style="margin-left:auto;`);
+        w = w.replace('<div style="margin-left:auto;', `<span style="margin-left:8px;font-size:10px;color:var(--muted);font-weight:normal;background:var(--line);padding:2px 8px;border-radius:12px">${esc(name)}</span><div style="margin-left:auto;`);
         window.pinnedHtml.push(w);
       } else {
         bodyArr.push(widgets[k]);
