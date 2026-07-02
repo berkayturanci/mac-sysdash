@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.26.0-blue)
+![version](https://img.shields.io/badge/version-1.27.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -33,7 +33,8 @@ the installer sets that up for you in an isolated virtualenv.
   prefix in the browser tab title so you notice even from another tab. The
   **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,
   stuck-job minutes), plus **CI failure alerts** when a runner job finishes
-  `Failed`.
+  `Failed`. A 🔔 toggle on a runner card **mutes its offline alert** (for runners
+  you stop on purpose); stuck-job and failure alerts for it still fire.
 - **Thermal pressure badge** — a `🌡` chip appears on a machine's header when the
   SoC throttles (`pmset -g therm`), the build slowdown CPU% can't show.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
