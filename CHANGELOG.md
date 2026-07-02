@@ -1,3 +1,12 @@
+## [1.29.0] - 2026-07-02
+### Added
+- **Active runs show elapsed time.** Each active-run row now shows how long it has
+  been running (`⏱ 35m`) — the longest of its jobs — so a slow or stuck run is
+  obvious at a glance.
+- **Screen-sharing (VNC) shortcut.** The per-machine SSH chip gains a 🖥 button
+  that opens `vnc://<user>@<tailscale-ip>` in macOS Screen Sharing, next to the
+  `>_` ssh:// link and the `⧉` copy button — handy for a Mac fleet.
+
 ## [1.28.0] - 2026-07-02
 ### Changed
 - **Active runs now show which repo/project they belong to.** Each active-run row
