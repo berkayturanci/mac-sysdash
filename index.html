@@ -71,7 +71,7 @@
   .ddot{width:8px;height:8px;border-radius:50%;background:var(--gray);display:inline-block}
   .ddot.on{background:var(--green)}
   .ddot.off{background:var(--gray);opacity:.5}
-  .right{display:flex;align-items:center;gap:10px}
+  .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
   .iconbtn{cursor:pointer;height:42px;min-width:42px;padding:0 12px;border-radius:12px;border:1px solid var(--line);
     background:var(--panel);color:var(--txt);font-size:16px;display:grid;place-items:center;
     transition:transform .15s,background .3s,border-color .3s;box-shadow:var(--shadow);flex:0 0 auto}
@@ -175,7 +175,7 @@
 
 
   /* fit as many machines side by side as the width allows, then wrap down */
-  .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;align-items:start}
+  .machines{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:18px;align-items:start}
   /* cap a panel's content width so a lone machine doesn't stretch awkwardly */
   .machine{max-width:760px;width:100%;margin:0 auto;min-width:0}
   .machine{display:flex;flex-direction:column;gap:0}
@@ -350,6 +350,8 @@
     /* buttons left, clock pushed to the far right on the same row */
     .right{width:100%}
     .clock{margin-left:auto;text-align:right}
+    /* popovers span the width instead of overflowing off-screen */
+    .cfgpop{left:12px;right:12px;min-width:0;max-width:none}
   }
   @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
 </style>
@@ -1062,7 +1064,7 @@ function renderAll(){
   const mHtml = hs.map(h=>machineHTML(h, lastData[h.base])).join('');
   let finalHtml = '';
   if (window.pinnedHtml.length > 0) {
-    finalHtml += `<div id="pinned-area" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px;margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:24px">${window.pinnedHtml.join('')}</div>`;
+    finalHtml += `<div id="pinned-area" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:18px;margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:24px">${window.pinnedHtml.join('')}</div>`;
   }
   finalHtml += `<div class="machines">${mHtml}</div>`;
   document.getElementById('machines').innerHTML = finalHtml;

@@ -1,3 +1,11 @@
+## [1.30.1] - 2026-07-02
+### Fixed
+- **Mobile layout overflow.** On narrow screens the pinned-widget area and the
+  machine grid used a fixed `minmax(440px, …)` that overflowed the viewport, and
+  the header button row (now 7 icons) didn't wrap. Grids use
+  `minmax(min(440px,100%),1fr)` so a column never exceeds the screen, the header
+  cluster wraps, and popovers (⚙ / 📋) span the width instead of running off-screen.
+
 ## [1.30.0] - 2026-07-02
 ### Added
 - **Recent-events log** (📋). A header button opens a popover listing the last
