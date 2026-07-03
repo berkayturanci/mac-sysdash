@@ -155,8 +155,13 @@ Deploy = land on `main`, then on each Mac:
 
 ## Gotchas
 
-- Disk/mem report `total - free` / `total - available` (matches macOS
-  Storage / Activity Monitor), **not** psutil's `used`.
+- Mem reports `total - available` (matches Activity Monitor), **not** psutil's
+  `used`. Disk reports `total - availableForImportantUsage` — the macOS Storage
+  figure, which counts purgeable space (caches, local snapshots) as available;
+  `psutil`/`df`/statvfs only see real free blocks (often tens of GB lower, making
+  a healthy disk read ~99%). The purgeable-inclusive number comes from Foundation
+  via ctypes (`_disk_important_available`, cached by the thermal sampler); it
+  falls back to `total - free` when the API is unavailable.
 - `sw.js` is network-first, so a new `index.html` reaches users on reload without
   a cache-version bump.
 - Stats are cached ~0.8 s behind a lock so many concurrent viewers share one
