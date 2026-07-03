@@ -24,7 +24,8 @@ the installer sets that up for you in an isolated virtualenv.
     `total − free`, and **memory** as `total − available`, so the percentages
     match Finder's Storage and Activity Monitor instead of under-counting.
   - **Disk-fill ETA** — when the disk is trending up, the disk gauge shows the
-    estimated time-to-full (`⏳~6d`) from the least-squares slope of the last 24h.
+    estimated time-to-full (`⏳~6d`) from the least-squares slope of the last 24h,
+    and raises an alert once that ETA drops to ≤3 days.
 - **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
 - **Active runs** — currently-busy runners across every machine grouped by their
   run (**repo** + PR / branch + workflow), so one run split across runners/Macs

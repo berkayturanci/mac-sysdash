@@ -19,6 +19,13 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import server  # noqa: E402
 
+# The real CodexBar snapshot lives in a TCC-protected Group Container; reading it
+# from an interactive test run can pop a consent dialog and hang stats() (and thus
+# the HTTP-route tests). Point the module defaults at nonexistent paths so no test
+# ever touches it — the AI tests below set/restore their own fixtures.
+server._CODEXBAR_SNAPSHOT = "/nonexistent/widget-snapshot.json"
+server._CODEXBAR_HISTORY = "/nonexistent/codexbar-history"
+
 
 def write_runner(parent, name="runner1", agent="mbp-ci",
                  url="https://github.com/acme/web", bom=True):
