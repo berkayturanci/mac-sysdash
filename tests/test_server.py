@@ -264,6 +264,21 @@ class StatsTests(unittest.TestCase):
         self.assertEqual(s["mem"]["used"], 16 - 4)           # 12, not psutil's 2
         self.assertEqual(s["mem"]["pct"], round(12 / 16 * 100, 1))
 
+    def test_disk_prefers_purgeable_inclusive_available(self):
+        du = types.SimpleNamespace(total=460, used=300, free=6, percent=98.7)
+        server._DISK_AVAIL["important"] = 60          # macOS-style available (incl purgeable)
+        try:
+            with mock.patch("server.psutil.disk_usage", return_value=du):
+                s = server.stats()
+        finally:
+            server._DISK_AVAIL["important"] = None    # restore fallback for other tests
+        self.assertEqual(s["disk"]["used"], 460 - 60)         # 400 (total-avail), not 454 (total-free)
+        self.assertEqual(s["disk"]["pct"], round(400 / 460 * 100, 1))
+
+    def test_disk_important_available_never_crashes(self):
+        v = server._disk_important_available("/System/Volumes/Data")
+        self.assertTrue(v is None or (isinstance(v, int) and v > 0))
+
 
 class HistoryTests(unittest.TestCase):
     def setUp(self):

@@ -23,7 +23,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.30.1"
+VERSION = "1.31.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -244,6 +244,54 @@ def get_baseline(cpu, mem, disk):
     except Exception:
         return {}
     return out
+
+
+# macOS "available" capacity incl. purgeable space (caches, local snapshots) — the
+# number Storage settings shows. df/statvfs/psutil only report real free blocks,
+# which can be tens of GB lower, making the disk look ~full when it isn't. Read via
+# Foundation's volumeAvailableCapacityForImportantUsageKey (ctypes, same approach
+# as _NSGetExecutablePath). Cached; refreshed by the thermal sampler.
+_DISK_AVAIL = {"important": None}
+
+def _disk_important_available(path):
+    """Purgeable-inclusive available bytes for `path`, or None on any failure.
+    objc nil-messaging is safe and every objc_msgSend has explicit arg/restype, so
+    this can't segfault the way a mis-typed ctypes call would."""
+    try:
+        import ctypes
+        import ctypes.util
+        objc = ctypes.CDLL(ctypes.util.find_library("objc"))
+        found = ctypes.CDLL(ctypes.util.find_library("Foundation"))
+        objc.objc_getClass.restype = ctypes.c_void_p
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        msg = objc.objc_msgSend
+
+        def send(recv, sel, args=(), argtypes=(), restype=ctypes.c_void_p):
+            msg.restype = restype
+            msg.argtypes = [ctypes.c_void_p, ctypes.c_void_p] + list(argtypes)
+            return msg(recv, objc.sel_registerName(sel), *args)
+
+        NSString = objc.objc_getClass(b"NSString")
+        NSArray = objc.objc_getClass(b"NSArray")
+        NSURL = objc.objc_getClass(b"NSURL")
+        s = send(NSString, b"stringWithUTF8String:", (path.encode(),), (ctypes.c_char_p,))
+        url = send(NSURL, b"fileURLWithPath:", (s,), (ctypes.c_void_p,))
+        key = ctypes.c_void_p.in_dll(found, "NSURLVolumeAvailableCapacityForImportantUsageKey")
+        arr = send(NSArray, b"arrayWithObject:", (key,), (ctypes.c_void_p,))
+        err = ctypes.c_void_p(0)
+        d = send(url, b"resourceValuesForKeys:error:", (arr, ctypes.byref(err)),
+                 (ctypes.c_void_p, ctypes.c_void_p))
+        if not d:
+            return None
+        num = send(d, b"objectForKey:", (key,), (ctypes.c_void_p,))
+        if not num:
+            return None
+        val = send(num, b"longLongValue", (), (), ctypes.c_longlong)
+        return int(val) if val and val > 0 else None
+    except Exception:
+        return None
 
 
 def disk_eta_days(current_pct):
@@ -533,6 +581,11 @@ def _thermal_sampler():
             _THERM["cpu_limit"] = lim
             _THERM["state"] = ("nominal" if lim >= 100 else "fair" if lim >= 75
                                else "serious" if lim >= 50 else "critical")
+        except Exception:
+            pass
+        try:
+            dp = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
+            _DISK_AVAIL["important"] = _disk_important_available(dp)
         except Exception:
             pass
         time.sleep(30)
@@ -1179,11 +1232,15 @@ def stats():
     # usage lives on the APFS data volume.
     disk_path = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
     du = psutil.disk_usage(disk_path)
-    # On APFS the data volume's own `used` excludes system/VM/other volumes, so
-    # it disagrees with Finder's Storage figure. Treat everything that is not
-    # free in the shared container as used (total - free), which matches what
-    # macOS Storage shows and keeps the % consistent with the GB text.
-    disk_used = du.total - du.free
+    # macOS Storage counts purgeable space (caches, local snapshots) as available,
+    # so its "used" is total - availableForImportantUsage, not total - free (which
+    # can read tens of GB higher, making a healthy disk look ~full). Prefer the
+    # purgeable-inclusive figure (via Foundation, cached); fall back to total-free.
+    avail = _DISK_AVAIL["important"]
+    if avail and 0 < avail < du.total:
+        disk_used = du.total - avail
+    else:
+        disk_used = du.total - du.free
     disk_pct = round(disk_used / du.total * 100, 1) if du.total else 0.0
     try:
         load = psutil.getloadavg()

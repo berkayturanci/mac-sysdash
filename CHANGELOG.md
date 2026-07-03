@@ -1,3 +1,14 @@
+## [1.31.0] - 2026-07-02
+### Fixed
+- **Disk usage now matches macOS Storage.** The dashboard reported `total - free`,
+  but on APFS `free` excludes purgeable space (caches, local snapshots) that macOS
+  counts as available — so a disk macOS shows at ~92% (tens of GB available) read
+  ~99%, even tripping false "critical disk" alerts. It now uses the
+  purgeable-inclusive available capacity (Foundation's
+  `volumeAvailableCapacityForImportantUsageKey`, read via ctypes — the same
+  approach as the FDA-binary path — cached by the background sampler), and falls
+  back to `total - free` when the API is unavailable.
+
 ## [1.30.1] - 2026-07-02
 ### Fixed
 - **Mobile layout overflow.** On narrow screens the pinned-widget area and the
