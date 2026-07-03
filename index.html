@@ -127,7 +127,8 @@
   .ar-run{padding:7px 0;border-top:1px solid var(--line)}
   .ar-run:first-of-type{border-top:0}
   .ar-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;flex-wrap:wrap}
-  .ar-repo{font-weight:700;color:var(--txt)}
+  .ar-repo{font-weight:700;color:var(--txt);text-decoration:none}
+  .ar-repo:hover{text-decoration:underline}
   .ar-ref{font-weight:500;color:var(--muted)}
   .ar-wf{color:var(--muted);font-weight:400;font-size:12.5px}
   .ar-el{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -683,7 +684,7 @@ function machineHTML(host, entry){
           <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span>
           <button class="rmute ${muted?'on':''}" onclick="toggleRunnerMute(event,'${esc(mkey)}')" title="${muted?(L==='tr'?'offline uyarısı susturuldu — açmak için tıkla':'offline alert muted — click to unmute'):(L==='tr'?'bu runner için offline uyarısını sustur':'mute offline alert for this runner')}">${muted?'🔕':'🔔'}</button></div>
         <div class="repo">${esc(r.repo||'—')}</div>
-        <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}</div>
+        <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}${r.status==='idle'&&r.history&&r.history.length&&r.history[0].ago!=null?` · ${L==='tr'?'son iş':'last job'} ${dur(r.history[0].ago)} ${L==='tr'?'önce':'ago'}`:''}</div>
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
         
@@ -896,6 +897,7 @@ function computeAlerts(){
     if(s.cpu.pct>=CRIT)sysAl.push(`${nm} CPU %${s.cpu.pct.toFixed(0)}`);
     if(s.mem.pct>=CRIT)sysAl.push(`${nm} RAM %${s.mem.pct.toFixed(0)}`);
     if(s.disk.pct>=CRIT)sysAl.push(`${nm} Disk %${s.disk.pct.toFixed(0)}`);
+    if(s.disk_eta_days!=null && s.disk_eta_days<=3) sysAl.push(`${nm} ${L==='tr'?'disk ~'+Math.round(s.disk_eta_days)+'g sonra dolar':'disk full in ~'+Math.round(s.disk_eta_days)+'d'}`);
     
     for(const r of (s.runners||[])){
       const k = nm+':'+r.name;
@@ -1026,7 +1028,7 @@ function renderAll(){
   document.getElementById('activeRuns').innerHTML = runKeys.length?
     `<div class="aruns"><div class="aruns-h">${L==='tr'?'AKTİF ÇALIŞMALAR':'ACTIVE RUNS'}</div>`+
     runKeys.map(k=>{const g=runs[k],j=g.j;
-      const repo=g.repo?`<span class="ar-repo">${esc(g.repo)}</span>`:'';
+      const repo=g.repo?`<a class="ar-repo" href="https://github.com/${esc(g.repo)}/actions" target="_blank" rel="noopener" title="${L==='tr'?'GitHub Actions’ı aç':'open GitHub Actions'}">${esc(g.repo)} ↗</a>`:'';
       const ref=j.pr?`🔀 PR #${j.pr}${j.pr_title?' · '+esc(j.pr_title):''}`
         :j.branch?`⎇ ${esc(j.branch)}`:j.tag?`🏷 ${esc(j.tag)}`:'';
       const wf=j.workflow?`<span class="ar-wf">⚙ ${esc(j.workflow)}</span>`:'';

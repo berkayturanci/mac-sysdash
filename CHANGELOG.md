@@ -1,3 +1,18 @@
+## [1.32.0] - 2026-07-02
+### Added
+- **Disk-fill alert.** When the disk-fill ETA drops to ≤3 days, it raises an alert
+  (banner / notification / webhook) — e.g. "disk full in ~2d" — so you act before
+  it's critical.
+- **Active runs link to GitHub Actions.** Each active-run row's repo is now a link
+  (↗) to that repo's Actions page.
+- **Idle runners show when they last ran.** An idle runner card shows "last job
+  Nm ago" next to its uptime, so a runner that stopped picking up work stands out.
+### Changed
+- **Reliable test suite.** Tests point the AI/CodexBar paths at nonexistent files
+  by default, so the TCC-protected snapshot is never touched — `python -m unittest
+  discover -s tests` is now consistently green in ~3s (was slow/flaky when run
+  interactively). Dev-only.
+
 ## [1.31.0] - 2026-07-02
 ### Fixed
 - **Disk usage now matches macOS Storage.** The dashboard reported `total - free`,
