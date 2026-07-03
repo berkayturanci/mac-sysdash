@@ -3,7 +3,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![version](https://img.shields.io/badge/version-1.30.0-blue)
+![version](https://img.shields.io/badge/version-1.32.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -20,17 +20,20 @@ the installer sets that up for you in an isolated virtualenv.
 ## Features
 
 - **CPU / Memory / Disk** ring gauges (blue → amber → red), refreshing every second.
-  - On macOS, **disk** usage is read from the APFS data volume and reported as
-    `total − free`, and **memory** as `total − available`, so the percentages
-    match Finder's Storage and Activity Monitor instead of under-counting.
+  - On macOS, **disk** usage matches the **Storage** settings figure: it counts
+    purgeable space (caches, local snapshots) as available (via Foundation's
+    `volumeAvailableCapacityForImportantUsageKey`), not just real free blocks —
+    which otherwise makes a healthy disk read ~99%. **Memory** is `total −
+    available`, matching Activity Monitor instead of under-counting.
   - **Disk-fill ETA** — when the disk is trending up, the disk gauge shows the
     estimated time-to-full (`⏳~6d`) from the least-squares slope of the last 24h,
     and raises an alert once that ETA drops to ≤3 days.
 - **Fleet Overview Banner** — a sticky top bar aggregating the total online machines and the fleet-wide count of busy, idle, and offline runners.
 - **Active runs** — currently-busy runners across every machine grouped by their
   run (**repo** + PR / branch + workflow), so one run split across runners/Macs
-  shows as a single entry led by its repository, with a commit + actor line,
-  **how long it's been running** (`⏱`), and per-runner job chips.
+  shows as a single entry led by its repository (a link ↗ to that repo's GitHub
+  Actions), with a commit + actor line, **how long it's been running** (`⏱`), and
+  per-runner job chips. Idle runners show when they **last ran** a job.
 - **High-usage alerts**: a red badge on the gauge, a top banner, and a `⚠️`
   prefix in the browser tab title so you notice even from another tab. The
   **thresholds are configurable** in a ⚙ settings popover (critical %, warning %,
