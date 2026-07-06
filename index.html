@@ -246,6 +246,12 @@
   .runner .rmute{position:absolute;top:12px;right:12px;background:transparent;border:0;cursor:pointer;font-size:12px;line-height:1;padding:2px;opacity:.22;filter:grayscale(1);transition:opacity .15s;z-index:1}
   .card.runner:hover .rmute{opacity:.6}
   .runner .rmute:hover,.runner .rmute.on{opacity:1;filter:none}
+  /* per-project runner grouping (shown only when a machine serves >1 repo) */
+  .rgroup{margin-bottom:16px}
+  .rgroup:last-child{margin-bottom:0}
+  .rgroup-h{display:flex;align-items:baseline;gap:8px;margin:2px 2px 9px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .rgroup-repo{font-weight:700;font-size:12.5px;color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rgroup-n{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:auto}
   .runner  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
   .mhead .mname{font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px}
   .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
@@ -679,25 +685,37 @@ function machineHTML(host, entry){
   } else {
     const kv=(label,pct,txt)=>`<div class="kv"><span class="k">${label}</span><span class="v ${pct>=CRIT?'crit':''}">${txt}</span></div>`;
     const rf=runFilter();
-    const rows=s.runners.map((r,ri)=>{
-      if(rf==='active' && r.status!=='busy') return '';
+    const rcard=(r,ri,hideRepo)=>{
       const mkey=host.base+'|'+r.name, muted=isRunnerMuted(mkey);
       return `<div class="card runner clickable ${r.status}" data-base="${esc(host.base)}" data-ri="${ri}" title="${L==='tr'?'detay için tıkla':'click for details'}">
         <button class="rmute ${muted?'on':''}" onclick="toggleRunnerMute(event,'${esc(mkey)}')" title="${muted?(L==='tr'?'offline uyarısı susturuldu — açmak için tıkla':'offline alert muted — click to unmute'):(L==='tr'?'bu runner için offline uyarısını sustur':'mute offline alert for this runner')}">${muted?'🔕':'🔔'}</button>
         <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div></div>
-        <div class="rmeta"><span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span><span class="repo">${esc(r.repo||'—')}</span></div>
+        <div class="rmeta"><span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span>${hideRepo?'':`<span class="repo">${esc(r.repo||'—')}</span>`}</div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}${r.status==='idle'&&r.history&&r.history.length&&r.history[0].ago!=null?` · ${L==='tr'?'son iş':'last job'} ${dur(r.history[0].ago)} ${L==='tr'?'önce':'ago'}`:''}</div>
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
-        
       </div>`;
-    }).filter(Boolean);
-    const runners = rows.length ? rows.join('')
-      : `<div class="card" style="color:var(--muted);grid-column:1/-1">${rf==='active'?t.noActive:t.noRunners}</div>`;
+    };
+    // keep the original index (data-ri) so the detail modal still resolves the runner
+    const rlist=s.runners.map((r,ri)=>({r,ri})).filter(x=> rf!=='active' || x.r.status==='busy');
+    let runnersGrid;
+    if(!rlist.length){
+      runnersGrid=`<div class="grid runners"><div class="card" style="color:var(--muted);grid-column:1/-1">${rf==='active'?t.noActive:t.noRunners}</div></div>`;
+    } else {
+      const byRepo={}; for(const x of rlist){const rp=x.r.repo||'—'; (byRepo[rp]=byRepo[rp]||[]).push(x);}
+      const repos=Object.keys(byRepo).sort();
+      if(repos.length<=1){
+        runnersGrid=`<div class="grid runners">${rlist.map(x=>rcard(x.r,x.ri,false)).join('')}</div>`;
+      } else {   // group by project when a machine serves more than one repo
+        runnersGrid=repos.map(rp=>{const busy=byRepo[rp].filter(x=>x.r.status==='busy').length;
+          return `<div class="rgroup"><div class="rgroup-h"><span class="rgroup-repo">${esc(rp)}</span><span class="rgroup-n">${byRepo[rp].length}${busy?` · ${busy} ${L==='tr'?'çalışan':'busy'}`:''}</span></div>`+
+            `<div class="grid runners">${byRepo[rp].map(x=>rcard(x.r,x.ri,true)).join('')}</div></div>`;}).join('');
+      }
+    }
     const runnersInner = `<div class="runfilter">
         <button class="rf ${rf==='all'?'on':''}" data-rf="all">${t.fAll}</button>
         <button class="rf ${rf==='active'?'on':''}" data-rf="active">${t.fActive}</button>
-      </div><div class="grid runners">${runners}</div>`;
+      </div>${runnersGrid}`;
     const topMem = Array.isArray(s.top) ? s.top : [];
     const topCpu = Array.isArray(s.top_cpu) ? s.top_cpu : [];
     const maxr = Math.max(...topMem.map(p=>p.rss), 1);

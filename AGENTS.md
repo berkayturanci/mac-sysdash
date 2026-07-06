@@ -139,9 +139,10 @@ per-machine collapse + global widget pinning (★, labeled with the machine name
 a 🌡 thermal chip + self-update badge + a `>_`/🖥 SSH & screen-share (`ssh://` /
 `vnc://`) chip in each machine header; header controls include a 📋 recent-events
 log (client-side, localStorage) and a 😴 snooze/maintenance toggle (1h) alongside
-the ⚙ settings popover (alert thresholds + webhook). Runner cards carry a 🔔
-per-runner offline-alert mute + a detail modal (job-stats table, flaky jobs,
-queue pressure, 30-day health heatmap, Gantt timeline, recent runs). System card:
+the ⚙ settings popover (alert thresholds + webhook). Runner cards (grouped by
+repo when a machine serves more than one) carry a 🔔 per-runner offline-alert mute
++ a detail modal (job-stats table, flaky jobs, queue pressure, 30-day health
+heatmap, Gantt timeline, recent runs). System card:
 per-core, load, net + per-interface + daily total, disk I/O; top-processes widget
 has Memory/CPU/**Apps** (per-app rollup) views. Plus an AI-usage widget, TV/wall
 mode (📺 / `?tv`), light/dark/night themes, EN/TR.

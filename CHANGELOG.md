@@ -1,3 +1,11 @@
+## [1.33.0] - 2026-07-02
+### Added
+- **Runners grouped by project.** When a machine runs runners for more than one
+  repo, the Runner status widget groups them under a per-repo header (repo name +
+  runner count + how many are busy) instead of a flat mix, and drops the now-
+  redundant per-card repo line inside a group. A machine serving a single repo
+  stays flat. The detail modal still resolves (original runner index preserved).
+
 ## [1.32.1] - 2026-07-02
 ### Changed
 - **Runner card names are readable again.** The runner name shared one row with
