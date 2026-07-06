@@ -46,7 +46,9 @@ the installer sets that up for you in an isolated virtualenv.
 - **Thermal pressure badge** — a `🌡` chip appears on a machine's header when the
   SoC throttles (`pmset -g therm`), the build slowdown CPU% can't show.
 - **GitHub Actions self-hosted runners**, auto-discovered, with a live status pill
-  (`busy` / `idle` / `offline`):
+  (`busy` / `idle` / `offline`). When a machine runs runners for more than one
+  repo, they're **grouped by project** (per-repo header with the count + how many
+  are busy); a single-repo machine stays flat:
   - For a **busy** runner, the card shows what it is working on — the **job**
     (e.g. `Build Android APKs`), **branch**, **workflow**, **PR / issue**,
     **commit**, and the triggering **actor** — read locally (no GitHub token).
