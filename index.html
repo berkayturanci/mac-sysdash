@@ -238,11 +238,14 @@
   .runner{position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block}
   .runner.clickable{cursor:pointer}
   .runner.clickable:hover{transform:translateY(-2px);border-color:var(--accent)}
-  .runner .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .runner .row1 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .runner .row1 .rmute{flex:none;background:transparent;border:0;cursor:pointer;font-size:12px;line-height:1;padding:2px;opacity:.25;filter:grayscale(1);transition:opacity .15s}
-  .card.runner:hover .row1 .rmute{opacity:.65}
-  .runner .row1 .rmute:hover,.runner .row1 .rmute.on{opacity:1;filter:none}
+  .card.runner{position:relative}
+  .runner .row1{display:flex;align-items:center;gap:8px;padding-right:22px}
+  .runner .row1 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .runner .rmeta{display:flex;align-items:center;gap:8px;margin-top:5px;min-width:0}
+  .runner .rmeta .repo{margin-top:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal}
+  .runner .rmute{position:absolute;top:12px;right:12px;background:transparent;border:0;cursor:pointer;font-size:12px;line-height:1;padding:2px;opacity:.22;filter:grayscale(1);transition:opacity .15s;z-index:1}
+  .card.runner:hover .rmute{opacity:.6}
+  .runner .rmute:hover,.runner .rmute.on{opacity:1;filter:none}
   .runner  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
   .mhead .mname{font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px}
   .mhead[draggable]{cursor:grab} .mhead[draggable]:active{cursor:grabbing}
@@ -680,10 +683,9 @@ function machineHTML(host, entry){
       if(rf==='active' && r.status!=='busy') return '';
       const mkey=host.base+'|'+r.name, muted=isRunnerMuted(mkey);
       return `<div class="card runner clickable ${r.status}" data-base="${esc(host.base)}" data-ri="${ri}" title="${L==='tr'?'detay için tıkla':'click for details'}">
-        <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div>
-          <span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span>
-          <button class="rmute ${muted?'on':''}" onclick="toggleRunnerMute(event,'${esc(mkey)}')" title="${muted?(L==='tr'?'offline uyarısı susturuldu — açmak için tıkla':'offline alert muted — click to unmute'):(L==='tr'?'bu runner için offline uyarısını sustur':'mute offline alert for this runner')}">${muted?'🔕':'🔔'}</button></div>
-        <div class="repo">${esc(r.repo||'—')}</div>
+        <button class="rmute ${muted?'on':''}" onclick="toggleRunnerMute(event,'${esc(mkey)}')" title="${muted?(L==='tr'?'offline uyarısı susturuldu — açmak için tıkla':'offline alert muted — click to unmute'):(L==='tr'?'bu runner için offline uyarısını sustur':'mute offline alert for this runner')}">${muted?'🔕':'🔔'}</button>
+        <div class="row1"><div class="name">${esc(r.name)}<span class="ext">▸</span></div></div>
+        <div class="rmeta"><span class="pill ${r.status}"><span class="d"></span>${t.st[r.status]}</span><span class="repo">${esc(r.repo||'—')}</span></div>
         <div class="up">${r.status==='offline'?t.notRunning:t.up+dur(r.uptime)}${r.status==='idle'&&r.history&&r.history.length&&r.history[0].ago!=null?` · ${L==='tr'?'son iş':'last job'} ${dur(r.history[0].ago)} ${L==='tr'?'önce':'ago'}`:''}</div>
         ${r.job?jobHTML(r.job):''}
         ${historyHTML(r.history)}
