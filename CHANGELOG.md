@@ -1,3 +1,11 @@
+## [1.32.1] - 2026-07-02
+### Changed
+- **Runner card names are readable again.** The runner name shared one row with
+  the status pill and the 🔔 mute bell, so longer names (e.g. `si-mac2-android-ci`)
+  truncated. The name now gets its own full-width row; the status pill moved down
+  onto the repo line, and the mute toggle moved to the card's top-right corner
+  (hover-reveal, always shown when muted).
+
 ## [1.32.0] - 2026-07-02
 ### Added
 - **Disk-fill alert.** When the disk-fill ETA drops to ≤3 days, it raises an alert
