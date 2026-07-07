@@ -9,21 +9,39 @@ const description =
   'A tiny, dependency-light system + GitHub Actions self-hosted runner dashboard for macOS. ' +
   'One Python file, one HTML file. No cloud, no accounts, no token. Viewable over LAN or Tailscale.';
 
+const author = { '@type': 'Person', name: 'Berkay Turancı', url: 'https://github.com/berkayturanci' };
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'mac-sysdash',
-  description,
-  url: pageUrl,
-  image: ogImage,
-  applicationCategory: 'DeveloperApplication',
-  operatingSystem: 'macOS',
-  softwareVersion: '1.34.0',
-  license: 'https://commonsclause.com/',
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  author: { '@type': 'Person', name: 'Berkay Turancı', url: 'https://github.com/berkayturanci' },
-  codeRepository: 'https://github.com/berkayturanci/mac-sysdash',
-  keywords: 'macOS, dashboard, monitoring, GitHub Actions, self-hosted runner, Tailscale, psutil, launchd',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      '@id': pageUrl + '#app',
+      name: 'mac-sysdash',
+      description,
+      url: pageUrl,
+      image: ogImage,
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'macOS',
+      softwareVersion: '1.34.1',
+      softwareRequirements: 'Python 3.9+, psutil',
+      license: 'https://commonsclause.com/',
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      author,
+      publisher: author,
+      codeRepository: 'https://github.com/berkayturanci/mac-sysdash',
+      keywords: 'macOS, dashboard, monitoring, GitHub Actions, self-hosted runner, Tailscale, psutil, launchd',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': pageUrl + '#website',
+      name: 'mac-sysdash',
+      description,
+      url: pageUrl,
+      inLanguage: 'en',
+      publisher: author,
+    },
+  ],
 };
 
 const features = [
@@ -47,9 +65,13 @@ const features = [
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{title}</title>
   <meta name="description" content={description} />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <link rel="canonical" href={pageUrl} />
+  <link rel="sitemap" type="application/xml" href={asset('sitemap-index.xml')} />
   <link rel="icon" type="image/svg+xml" href={asset('favicon.svg')} />
   <meta name="theme-color" content="#0a0e14" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="application-name" content="mac-sysdash" />
   <meta name="author" content="Berkay Turancı" />
   <meta name="keywords" content="macOS, dashboard, monitoring, GitHub Actions, self-hosted runner, Tailscale, psutil, launchd, system monitor" />
 
@@ -58,14 +80,18 @@ const features = [
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={pageUrl} />
+  <meta property="og:locale" content="en_US" />
   <meta property="og:image" content={ogImage} />
+  <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="2960" />
   <meta property="og:image:height" content="1720" />
+  <meta property="og:image:alt" content="The mac-sysdash dashboard: CPU, memory and disk ring gauges, self-hosted GitHub Actions runner status, and a system detail panel." />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
   <meta name="twitter:image" content={ogImage} />
+  <meta name="twitter:image:alt" content="The mac-sysdash dashboard: ring gauges, self-hosted runner status, and a system detail panel." />
 
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 </head>

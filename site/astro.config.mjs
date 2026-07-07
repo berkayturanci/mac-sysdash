@@ -7,5 +7,7 @@ export default defineConfig({
   site: 'https://berkayturanci.github.io',
   base: '/mac-sysdash',
   trailingSlash: 'ignore',
-  integrations: [sitemap()],
+  // keep the canonical trailing-slash URL only — avoids the duplicate
+  // /mac-sysdash + /mac-sysdash/ pair the plugin emits under a base path
+  integrations: [sitemap({ filter: (page) => page.endsWith('/') })],
 });
