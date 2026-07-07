@@ -34,8 +34,10 @@ const features = [
   { ic: '📈', h: 'CI health & history', p: 'Per-runner 30-day health heatmap, flaky-job detection, queue-pressure, and a Gantt timeline — backed by a local SQLite DB.' },
   { ic: '🔔', h: 'Alerts & dead-man checks', p: 'Threshold alerts, offline-runner mutes, a snooze/maintenance mode, an optional webhook, and cron dead-man checks.' },
   { ic: '🎨', h: 'TV mode & themes', p: 'Light / dark / night themes, a wall-mounted TV mode, widget pinning, EN/TR — and a demo mode with no backend.' },
-  { ic: '🌡', h: 'The little things', p: 'Thermal throttle chip, self-update badge, per-app process rollup, AI-assistant usage, SSH/screen-share shortcuts, offline PWA.' },
-  { ic: '🪶', h: 'Featherweight', p: 'Runs as a launchd agent without Full Disk Access. Stdlib + psutil on the server, zero JS dependencies on the client.' },
+  { ic: '🤖', h: 'AI Copilot quota', p: 'Track your Claude and Codex usage — session and weekly quota bars with reset countdowns and a used/left toggle, read locally with no API keys.' },
+  { ic: '🔗', h: 'SSH & screen-share', p: 'Every machine header carries >_ ssh:// and 🖥 vnc:// shortcuts with a copy button — jump onto any Mac in the fleet in a click.' },
+  { ic: '🌡', h: 'Thermal & self-update', p: 'A 🌡 chip shows only when the CPU is throttled, and a badge flags when you are commits behind origin/main. Per-app process rollup, too.' },
+  { ic: '🪶', h: 'Featherweight', p: 'Runs as a launchd agent without Full Disk Access. Stdlib + psutil on the server, zero JS dependencies on the client — and an installable offline PWA.' },
 ];
 ---
 <!DOCTYPE html>
@@ -258,6 +260,14 @@ SYSDASH_PORT=8799 ./venv/bin/python server.py</code></pre>
     </div>
     <div class="made">Built by <a href="https://github.com/berkayturanci">Berkay Turancı</a> · <a href="https://github.com/berkayturanci/mac-sysdash/blob/main/LICENSE">MIT + Commons Clause</a></div>
   </div>
+  <div class="wrap tm">
+    macOS is a trademark of Apple Inc. · GitHub and GitHub Actions are trademarks
+    of GitHub, Inc. · Tailscale is a trademark of Tailscale Inc. · Python is a
+    trademark of the Python Software Foundation · Claude is a trademark of
+    Anthropic · Codex is a trademark of OpenAI. All other product names are
+    trademarks of their respective owners. <b>mac-sysdash is an independent
+    project</b> and is not affiliated with, endorsed by, or sponsored by any of them.
+  </div>
 </footer>
 
 <script>
@@ -407,6 +417,9 @@ SYSDASH_PORT=8799 ./venv/bin/python server.py</code></pre>
   .foot a:hover{color:var(--txt);text-decoration:none}
   .foot .made{color:var(--muted);font-size:13px}
   .foot .made a{color:var(--accent)}
+  .tm{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:11.5px;line-height:1.7;opacity:.85}
+  .tm b{color:var(--txt);font-weight:600}
 </style>
 </body>
 </html>

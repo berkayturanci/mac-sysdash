@@ -355,3 +355,20 @@ software itself** (offer mac-sysdash, or something substantially just
 mac-sysdash, as a paid product or hosted/SaaS service). Build on top of it,
 embed it, and sell your own value-adding product freely. Want to sell the
 software itself? Ask for a separate license.
+
+## Trademarks
+
+mac-sysdash is an **independent, community project** and is **not affiliated
+with, endorsed by, or sponsored by** any of the companies whose products it
+works alongside.
+
+- **macOS** and **Apple** are trademarks of Apple Inc.
+- **GitHub** and **GitHub Actions** are trademarks of GitHub, Inc.
+- **Tailscale** is a trademark of Tailscale Inc.
+- **Python** is a trademark of the Python Software Foundation.
+- **Claude** is a trademark of Anthropic.
+- **Codex** is a trademark of OpenAI.
+
+All other product names, logos, and brands are the property of their respective
+owners and are used **only for identification and descriptive purposes**. Use of
+them does not imply any affiliation with or endorsement by their owners.
