@@ -1,0 +1,30 @@
+# mac-sysdash
+
+> A tiny, dependency-light system + GitHub Actions self-hosted runner dashboard for macOS. One Python file (stdlib + psutil) serves a JSON API and a single static HTML page; several Macs show each other's stats over your LAN or Tailscale. No cloud, no accounts, no token, no build step.
+
+mac-sysdash is source-available under the MIT License + Commons Clause: free to use for any purpose, including inside a company / for commercial operations — you just may not *sell* the software itself. It is an independent project, not affiliated with, endorsed by, or sponsored by Apple, GitHub, Tailscale, Anthropic, or OpenAI.
+
+## Key features
+
+- Live CPU / memory / disk ring gauges and sparklines, refreshing every second, with a per-core view and a disk-fill ETA
+- Self-hosted GitHub Actions runner status (busy / idle / offline) with the live job's PR, branch, commit, and actor — read from the runner's local files, never the GitHub API (no token)
+- Multi-machine "fleet" view over a LAN or Tailscale tailnet; a hub pulls each peer's stats server-side, or peers push to it
+- CI health: per-runner 30-day heatmap, flaky-job detection, queue-pressure, and a Gantt timeline, backed by a local SQLite database
+- Alerts: thresholds, offline-runner mutes, a snooze/maintenance mode, an optional webhook, and cron dead-man checks
+- AI Copilot quota tracking: Claude and Codex session + weekly usage, read locally with no API keys
+- Light / dark / night themes, a wall-mounted TV mode, widget pinning, an installable offline PWA, and EN/TR
+
+## Links
+
+- [Website](https://berkayturanci.github.io/mac-sysdash/): overview and features
+- [Live demo](https://berkayturanci.github.io/mac-sysdash/demo/): the real dashboard running in your browser on sample data — no install, no backend
+- [README](https://github.com/berkayturanci/mac-sysdash#readme): full documentation
+- [Changelog](https://github.com/berkayturanci/mac-sysdash/blob/main/CHANGELOG.md): release history
+- [Source code](https://github.com/berkayturanci/mac-sysdash): GitHub repository
+- [License](https://github.com/berkayturanci/mac-sysdash/blob/main/LICENSE): MIT + Commons Clause
+
+## Install
+
+- Requirements: macOS, Python 3.9+, one dependency (`psutil`)
+- One command (launchd agent): `git clone https://github.com/berkayturanci/mac-sysdash.git && cd mac-sysdash && ./install.sh`
+- Or run it yourself: `python3 -m venv venv && ./venv/bin/pip install psutil && ./venv/bin/python server.py` (serves on port 8765)
