@@ -9,6 +9,13 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/deploy-site.yml'
+      # the site bundles the live app into /demo/ at build time (copy-app.mjs),
+      # so a change to these should redeploy the site too
+      - 'index.html'
+      - 'sw.js'
+      - 'manifest.webmanifest'
+      - 'icon.svg'
+      - 'icon-*.png'
   workflow_dispatch:
 
 permissions:
