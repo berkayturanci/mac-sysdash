@@ -100,5 +100,5 @@ Use the issue templates. For security issues, **don't** open a public issue —
 follow [`SECURITY.md`](SECURITY.md).
 
 By contributing, you agree that your contributions are licensed under the
-project's [PolyForm Noncommercial License 1.0.0](LICENSE) — free for any
-noncommercial use, no commercial use or resale.
+project's [MIT License + Commons Clause](LICENSE) — free to use for any purpose
+(including internally at a company), just not to sell the software itself.

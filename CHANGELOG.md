@@ -6,11 +6,12 @@
   site is a separate project with its own build; the app stays build-free.
   Replaces the earlier static `docs/index.html` landing page.
 ### Changed
-- **License is now PolyForm Noncommercial 1.0.0** (was MIT). The project is
-  source-available and free for **any noncommercial use** — personal, hobby,
-  education, research, non-profits — but **commercial use, including selling it
-  or bundling it into a paid product, is not permitted** without a separate
-  license. This is not OSI "open source"; docs and badges reflect that.
+- **License is now MIT + Commons Clause** (was MIT). Source-available: all the
+  usual MIT freedoms — use for **any purpose including commercial/internal
+  company use**, modify, redistribute, and build & sell products on top — with
+  the single restriction that you may not **_Sell_ the software itself** (offer
+  mac-sysdash, or something substantially just mac-sysdash, as a paid or hosted
+  product). Not OSI "open source"; docs and badges reflect that.
 - **Alert webhook field is readable.** In the ⚙ settings popover the webhook URL
   shared the cramped numeric-input width, so the address was truncated to
   `https://nt…`. It now sits on its own full-width row below a divider, so the
