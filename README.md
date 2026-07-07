@@ -3,10 +3,12 @@
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
-![version](https://img.shields.io/badge/version-1.32.0-blue)
+![version](https://img.shields.io/badge/version-1.34.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
+
+**🌐 [berkayturanci.github.io/mac-sysdash](https://berkayturanci.github.io/mac-sysdash/)** — website &amp; overview.
 
 <p align="center">
   <img src="docs/hero.png" width="880"

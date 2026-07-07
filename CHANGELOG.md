@@ -1,4 +1,10 @@
 ## [1.34.0] - 2026-07-07
+### Added
+- **Marketing website** at <https://berkayturanci.github.io/mac-sysdash/> — an
+  Astro site under `site/` (with SEO: canonical, Open Graph, JSON-LD, sitemap,
+  robots) deployed to GitHub Pages by `.github/workflows/deploy-site.yml`. The
+  site is a separate project with its own build; the app stays build-free.
+  Replaces the earlier static `docs/index.html` landing page.
 ### Changed
 - **License is now PolyForm Noncommercial 1.0.0** (was MIT). The project is
   source-available and free for **any noncommercial use** — personal, hobby,

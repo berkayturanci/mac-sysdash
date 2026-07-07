@@ -24,6 +24,12 @@ database server, no cloud.
 - `sw.js` — service worker (network-first; caches the app shell for offline).
 - `install.sh` / `serve.sh` / `uninstall.sh` — launchd-agent setup + venv
   bootstrap.
+- `site/` — the **marketing website** (Astro), deployed to GitHub Pages by
+  `.github/workflows/deploy-site.yml`. This is a separate project with its own
+  `package.json`/build. **The no-build-step / no-dependency rules below apply to
+  the app (`server.py` + `index.html`), NOT to `site/`.** Don't add the site's
+  toolchain to the app. `docs/hero.png` / `docs/dark.png` are the screenshots
+  used by both the README and the site.
 
 ## Hard constraints (do not violate)
 
