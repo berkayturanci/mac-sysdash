@@ -74,10 +74,10 @@ def write_worker_log(runner_dir, name, workflow_ref=None, result="Succeeded",
 class RunnerConfigTests(unittest.TestCase):
     def test_reads_name_and_repo_despite_bom(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = write_runner(tmp, agent="mbp-ingreview",
+            d = write_runner(tmp, agent="mbp-webapp",
                              url="https://github.com/acme/web/")
             name, repo = server._read_runner_cfg(d)
-            self.assertEqual(name, "mbp-ingreview")
+            self.assertEqual(name, "mbp-webapp")
             self.assertEqual(repo, "acme/web")
 
     def test_non_runner_dir_returns_none(self):

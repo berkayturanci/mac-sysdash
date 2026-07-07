@@ -216,7 +216,7 @@ The dashboard reads each runner's registered name, so a consistent scheme makes
 a multi-machine fleet readable at a glance:
 
 - **Name = `<machine>-<role>`** — a stable per-machine token plus its purpose
-  (e.g. `mbp-ingreview`, `ekos-web-ci`). Names are unique per repo and exist for
+  (e.g. `mbp-webapp`, `studio-web-ci`). Names are unique per repo and exist for
   humans to tell machines apart, so avoid generic tokens like `mac` when you run
   more than one Mac.
 - **Labels do the routing, not the name.** Workflows target
