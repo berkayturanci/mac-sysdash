@@ -1,7 +1,7 @@
 ---
 const base = import.meta.env.BASE_URL;              // "/mac-sysdash" (no trailing slash)
 const asset = (p: string) => `${base.replace(/\/$/, '')}/${p.replace(/^\//, '')}`;
-const demoUrl = asset('demo/') + '?demo';           // interactive, no-backend build of the app
+const demoUrl = asset('demo/');                     // interactive build; the copy is demo-forced, no ?demo needed
 const pageUrl = 'https://berkayturanci.github.io/mac-sysdash/';
 const ogImage = pageUrl + 'hero.png';
 const title = 'mac-sysdash — a tiny Mac + GitHub runner dashboard';

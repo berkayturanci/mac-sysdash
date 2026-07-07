@@ -513,7 +513,7 @@ mq.addEventListener('change',()=>{if(themePref()==='auto')applyTheme();});
 const lastData={};  // base -> {data, online}
 
 // Demo mode (?demo) renders brandless sample data — used for screenshots/docs.
-const DEMO_MODE=new URLSearchParams(location.search).has('demo');
+const DEMO_MODE=window.SYSDASH_DEMO===true||new URLSearchParams(location.search).has('demo');
 const GiB=1073741824;
 function demoHist(base,amp,seed){return Array.from({length:60},(_,i)=>Math.max(4,Math.min(97,base+amp*Math.sin((i+seed)/6.5)+(i%4)*1.2)));}
 const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',tailscale_ip:'100.x.y.z',user:'dev',

@@ -4,7 +4,8 @@
   the AI Copilot widget shows in the demo) and every metric gently animates each
   tick — gauges, per-core bars, sparklines, network/IO, and the AI bars drift
   with a bounded, mean-reverting jitter instead of sitting frozen. Demo-only; the
-  real dashboard is untouched.
+  real dashboard is untouched. The hosted demo now opens straight from `/demo/`
+  (the site build injects a demo flag), so no `?demo` query is needed.
 
 ## [1.34.0] - 2026-07-07
 ### Added
