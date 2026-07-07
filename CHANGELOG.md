@@ -1,3 +1,8 @@
+## [1.33.1] - 2026-07-07
+### Changed
+- **Neutral example address.** The "＋ machine" input's placeholder now shows a
+  generic example address (`100.64.0.1`) instead of a specific machine's IP.
+
 ## [1.33.0] - 2026-07-02
 ### Added
 - **Runners grouped by project.** When a machine runs runners for more than one

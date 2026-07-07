@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an idea for mac-sysdash
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before suggesting, please skim the **Non-goals** and **Hard constraints**
+        in [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md). This project stays
+        tiny on purpose: stdlib + `psutil` only, no build step, no external
+        services, everything shown natively in the dashboard.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the need, not just the solution.
+      placeholder: When a runner has been idle for hours I can't tell at a glance whether…
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed solution
+      placeholder: A small badge on the runner card showing time-since-last-job…
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Fits the constraints?
+      description: Please confirm your idea can be built within the project's limits.
+      options:
+        - label: No new backend dependencies (stdlib + `psutil` only)
+          required: false
+        - label: No new frontend dependencies and no build step
+          required: false
+        - label: No external services; shown natively in the dashboard
+          required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      required: false
