@@ -83,6 +83,10 @@
   .cfgpop .cfgttl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:2px}
   .cfgpop label{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:var(--txt)}
   .cfgpop input{width:68px;background:var(--track);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:5px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+  /* a URL needs the full width to be readable — stack it on its own row,
+     separated from the numeric thresholds */
+  .cfgpop label.wide{flex-direction:column;align-items:stretch;gap:6px;margin-top:5px;padding-top:11px;border-top:1px solid var(--line)}
+  .cfgpop label.wide input{width:100%;font-variant-numeric:normal}
   .clock{text-align:right}
   .clock .t{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
   .clock .live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:2px}
@@ -395,7 +399,7 @@
     <label>Critical %<input type="number" min="1" max="100" id="cfgCrit" oninput="setCfg('crit',this.value)"></label>
     <label>Warning %<input type="number" min="1" max="100" id="cfgWarn" oninput="setCfg('warn',this.value)"></label>
     <label>Stuck job (min)<input type="number" min="1" id="cfgStuck" oninput="setCfg('stuck',this.value)"></label>
-    <label title="ntfy.sh / Slack / Discord webhook — alerts POST here">Alert webhook<input type="url" id="cfgHook" placeholder="https://ntfy.sh/your-topic" oninput="setHook(this.value)"></label>
+    <label class="wide" title="ntfy.sh / Slack / Discord webhook — alerts POST here">Alert webhook<input type="url" id="cfgHook" placeholder="https://ntfy.sh/your-topic" oninput="setHook(this.value)"></label>
   </div>
   <div id="evtPop" class="cfgpop" hidden style="min-width:300px;max-width:390px">
     <div class="cfgttl" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><span id="evtTitle">Recent events</span><button class="evt-clear" onclick="clearEvents()">clear</button></div>

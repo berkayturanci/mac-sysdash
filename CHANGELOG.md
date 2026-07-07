@@ -1,3 +1,15 @@
+## [1.34.0] - 2026-07-07
+### Changed
+- **License is now PolyForm Noncommercial 1.0.0** (was MIT). The project is
+  source-available and free for **any noncommercial use** — personal, hobby,
+  education, research, non-profits — but **commercial use, including selling it
+  or bundling it into a paid product, is not permitted** without a separate
+  license. This is not OSI "open source"; docs and badges reflect that.
+- **Alert webhook field is readable.** In the ⚙ settings popover the webhook URL
+  shared the cramped numeric-input width, so the address was truncated to
+  `https://nt…`. It now sits on its own full-width row below a divider, so the
+  whole URL is visible while typing.
+
 ## [1.33.1] - 2026-07-07
 ### Changed
 - **Neutral example address.** The "＋ machine" input's placeholder now shows a

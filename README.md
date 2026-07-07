@@ -2,7 +2,7 @@
 
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
-![license](https://img.shields.io/badge/license-MIT-green)
+![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 ![version](https://img.shields.io/badge/version-1.32.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
@@ -345,4 +345,8 @@ thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook UR
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[**PolyForm Noncommercial License 1.0.0**](LICENSE) — source-available, **not**
+OSI "open source". You may use, copy, modify, and share it freely for **any
+noncommercial purpose** (personal, hobby, education, research, non-profits).
+**Commercial use — including selling it or bundling it into a paid product or
+service — is not permitted** without a separate license. Ask if you want one.
