@@ -1,3 +1,11 @@
+## [1.34.1] - 2026-07-07
+### Changed
+- **Livelier demo (`?demo`).** The sample data now includes AI-quota usage (so
+  the AI Copilot widget shows in the demo) and every metric gently animates each
+  tick — gauges, per-core bars, sparklines, network/IO, and the AI bars drift
+  with a bounded, mean-reverting jitter instead of sitting frozen. Demo-only; the
+  real dashboard is untouched.
+
 ## [1.34.0] - 2026-07-07
 ### Added
 - **Marketing website** at <https://berkayturanci.github.io/mac-sysdash/> — an

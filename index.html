@@ -520,6 +520,7 @@ const DEMO_A={version:'1.0.0',host:'MacBook Pro',localtime:'09:41:07',tz:'+03',t
   uptime:25*86400+16*3600,cpu:{pct:42,cores:[68,55,40,33,28,22,18,14,11,9],count:10,load:[4.8,5.7,7.5]},
   mem:{pct:66,used:10.6*GiB,total:16*GiB},swap:{pct:31,used:6.2*GiB,total:20*GiB},
   disk:{pct:74,used:341*GiB,total:460*GiB},battery:{pct:84,plugged:true,secsleft:null},
+  ai:{claude:{session:47,weekly:63},codex:{session:21,weekly:38}},
   net:{up:120*1024,down:840*1024},net_ifaces:{en0:{down:790*1024,up:60*1024},utun3:{down:50*1024,up:60*1024}},net_today:{rx:4.2*1073741824,tx:680*1048576},io:{read:18*1024*1024,write:6*1024*1024},thermal:{state:'nominal',cpu_limit:100},checks:[{name:'nightly-backup',ago:3600,period:86400,grace:3600,state:'up'},{name:'db-snapshot',ago:5400,period:3600,grace:600,state:'late'}],queue:{'':{jobs:48,overlaps:2,back_to_back:15,wait_secs:1320,pressure:35}},hist:{cpu:demoHist(42,22,0),mem:demoHist(64,8,3),disk:demoHist(74,2,5),net_down:demoHist(840*1024, 200*1024, 2),net_up:demoHist(120*1024, 50*1024, 7),disk_read:demoHist(18*1024*1024,8*1024*1024,1),disk_write:demoHist(6*1024*1024,3*1024*1024,5),load:demoHist(3.2,1.4,2)},
   runners:[{name:'ci-runner-1',repo:'acme/web-app',status:'busy',uptime:3600,url:'',dir:'',
       job:{name:'Build & Deploy',branch:'feature/new-checkout',workflow:'build.yml',pr:128,pr_title:'Add new checkout flow',actor:'octocat',elapsed:2100}},
@@ -533,6 +534,7 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   uptime:11*86400+12*3600,cpu:{pct:58,cores:[82,71,63,55,47,39,31,24,18,12],count:10,load:[5.7,8.8,9.2]},
   mem:{pct:82,used:13.1*GiB,total:16*GiB},swap:{pct:55,used:8.2*GiB,total:15*GiB},
   disk:{pct:91,used:419*GiB,total:460*GiB},battery:null,
+  ai:{claude:{session:71,weekly:86},codex:{session:9,weekly:22}},
   net:{up:2.1*1024*1024,down:480*1024},net_ifaces:{en0:{down:300*1024,up:1.6*1024*1024},utun3:{down:180*1024,up:520*1024}},net_today:{rx:12*1073741824,tx:38*1073741824},io:{read:42*1024*1024,write:55*1024*1024},thermal:{state:'serious',cpu_limit:70},checks:[{name:'weekly-cleanup',ago:180000,period:604800,grace:3600,state:'up'},{name:'cache-warm',ago:9000,period:3600,grace:600,state:'down'}],hist:{cpu:demoHist(58,18,4),mem:demoHist(80,7,1),disk:demoHist(91,1,9),net_down:demoHist(480*1024, 150*1024, 4),net_up:demoHist(2.1*1024*1024, 500*1024, 8),disk_read:demoHist(42*1024*1024,15*1024*1024,3),disk_write:demoHist(55*1024*1024,20*1024*1024,7),load:demoHist(9.5,3,1)},
   runners:[{name:'gpu-runner-1',repo:'acme/ml-pipeline',status:'busy',uptime:7200,url:'',dir:'',
       job:{name:'train (gpu)',branch:'train/v2-model',workflow:'train.yml',commit:'tune learning rate schedule',actor:'octocat',elapsed:5340}},
@@ -542,6 +544,34 @@ const DEMO_B={version:'1.0.0',host:'Studio Mac',localtime:'23:41:07',tz:'-07',ta
   top_cpu:[{name:'python',rss:4.2*GiB,cpu:85.0},{name:'Xcode',rss:0.6*GiB,cpu:15.2},{name:'java',rss:0.2*GiB,cpu:8.4},{name:'node',rss:0.8*GiB,cpu:5.0},{name:'Chrome',rss:0.4*GiB,cpu:2.1},{name:'Docker',rss:0.3*GiB,cpu:1.0},{name:'Finder',rss:0.1*GiB,cpu:0.1},{name:'Notes',rss:0.08*GiB,cpu:0.1}],
   top_groups:[{name:'python',rss:4.2*GiB,cpu:85.0,procs:1},{name:'Google Chrome',rss:1.1*GiB,cpu:3.4,procs:18},{name:'node',rss:0.8*GiB,cpu:5.0,procs:2},{name:'Xcode',rss:0.6*GiB,cpu:15.2,procs:5},{name:'Docker',rss:0.3*GiB,cpu:1.0,procs:2},{name:'java',rss:0.2*GiB,cpu:8.4,procs:1}]};
 const DEMO_HOSTS=[{name:'',base:'',self:true,_d:DEMO_A},{name:'',base:'demo-b',self:false,_d:DEMO_B}];
+
+// ?demo: gently animate the sample data each tick so the demo feels alive.
+// Mean-reverting jitter around the static centers — lively but always bounded.
+const _demoLive=new Map();
+const _jit=(v,c,amp,lo,hi)=>{v+=(Math.random()*2-1)*amp-(v-c)*0.12;return v<lo?lo:v>hi?hi:v;};
+const _roll=(a,c,amp,lo,hi)=>{a.shift();a.push(_jit(a[a.length-1],c,amp,lo,hi));};
+function demoAnimate(d,key){
+  let s=_demoLive.get(key);
+  if(!s){                                        // first tick: deep-clone + dated AI resets
+    s=JSON.parse(JSON.stringify(d));
+    if(s.ai){const n=Date.now();let i=0;for(const p in s.ai){s.ai[p].session_reset=new Date(n+(3.5+i)*3600e3).toISOString();s.ai[p].weekly_reset=new Date(n+(2.4+i)*86400e3).toISOString();i++;}}
+    _demoLive.set(key,s);
+  }
+  s.cpu.pct=Math.round(_jit(s.cpu.pct,d.cpu.pct,5,3,99));
+  s.cpu.cores=s.cpu.cores.map((c,i)=>Math.round(_jit(c,d.cpu.cores[i],8,2,99)));
+  s.cpu.load=s.cpu.load.map((l,i)=>+_jit(l,d.cpu.load[i],0.4,0,24).toFixed(1));
+  s.mem.pct=Math.round(_jit(s.mem.pct,d.mem.pct,1.6,5,98)); s.mem.used=s.mem.total*s.mem.pct/100;
+  s.swap.pct=Math.round(_jit(s.swap.pct,d.swap.pct,1.4,0,99)); s.swap.used=s.swap.total*s.swap.pct/100;
+  s.net={up:Math.round(_jit(s.net.up,d.net.up,d.net.up*0.5,1024,d.net.up*4)),down:Math.round(_jit(s.net.down,d.net.down,d.net.down*0.5,1024,d.net.down*4))};
+  s.io={read:Math.round(_jit(s.io.read,d.io.read,d.io.read*0.5,0,d.io.read*4)),write:Math.round(_jit(s.io.write,d.io.write,d.io.write*0.5,0,d.io.write*4))};
+  for(const nic in s.net_ifaces){const b=d.net_ifaces[nic];s.net_ifaces[nic]={down:Math.round(_jit(s.net_ifaces[nic].down,b.down,b.down*0.5,0,b.down*4)),up:Math.round(_jit(s.net_ifaces[nic].up,b.up,b.up*0.5,0,b.up*4))};}
+  _roll(s.hist.cpu,d.cpu.pct,6,2,99); _roll(s.hist.mem,d.mem.pct,2.5,5,99);
+  _roll(s.hist.net_down,d.net.down,d.net.down*0.4,0,d.net.down*4); _roll(s.hist.net_up,d.net.up,d.net.up*0.4,0,d.net.up*4);
+  _roll(s.hist.disk_read,d.io.read,d.io.read*0.4,0,d.io.read*4); _roll(s.hist.disk_write,d.io.write,d.io.write*0.4,0,d.io.write*4);
+  _roll(s.hist.load,d.cpu.load[0],0.5,0,24);
+  if(d.ai&&s.ai){for(const p in s.ai){s.ai[p].session=Math.round(_jit(s.ai[p].session,d.ai[p].session,1.4,0,100));s.ai[p].weekly=Math.round(_jit(s.ai[p].weekly,d.ai[p].weekly,0.5,0,100));}}
+  return s;
+}
 
 let autoPeers=[];  // tailnet peers discovered to be running sysdash
 function hosts(){
@@ -1105,7 +1135,7 @@ async function pollHost(h){
   }catch(e){ lastData[h.base]={online:false}; }
 }
 async function tick(){
-  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:h._d,online:true}}); if(!isDragging)renderAll(); if(chartKey)drawChart(); if(runnerKey)drawRunner(); document.getElementById('updated').textContent=t.live; return; }
+  if(DEMO_MODE){ DEMO_HOSTS.forEach(h=>{lastData[h.base]={data:demoAnimate(h._d,h.base),online:true}}); if(!isDragging)renderAll(); if(chartKey)drawChart(); if(runnerKey)drawRunner(); document.getElementById('updated').textContent=t.live; return; }
   await Promise.all(hosts().map(pollHost));
   if(!isDragging)renderAll();
   if(chartKey)drawChart();
