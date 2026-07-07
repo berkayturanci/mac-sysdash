@@ -2,7 +2,11 @@
 ### Added
 - **Marketing website** at <https://berkayturanci.github.io/mac-sysdash/> — an
   Astro site under `site/` (with SEO: canonical, Open Graph, JSON-LD, sitemap,
-  robots) deployed to GitHub Pages by `.github/workflows/deploy-site.yml`. The
+  robots) deployed to GitHub Pages by `.github/workflows/deploy-site.yml`. It
+  includes an **interactive in-browser demo** (`/demo/?demo`, the real app with
+  sample data — the site build copies it in via `site/scripts/copy-app.mjs`, so
+  it never drifts) and a Quick start covering both install paths — the
+  `install.sh` launchd agent and running `server.py` from a venv yourself. The
   site is a separate project with its own build; the app stays build-free.
   Replaces the earlier static `docs/index.html` landing page.
 ### Changed

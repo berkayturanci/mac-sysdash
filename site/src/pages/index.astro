@@ -1,6 +1,7 @@
 ---
 const base = import.meta.env.BASE_URL;              // "/mac-sysdash" (no trailing slash)
 const asset = (p: string) => `${base.replace(/\/$/, '')}/${p.replace(/^\//, '')}`;
+const demoUrl = asset('demo/') + '?demo';           // interactive, no-backend build of the app
 const pageUrl = 'https://berkayturanci.github.io/mac-sysdash/';
 const ogImage = pageUrl + 'hero.png';
 const title = 'mac-sysdash — a tiny Mac + GitHub runner dashboard';
@@ -106,9 +107,11 @@ const features = [
     no cloud.</b> Several Macs show each other's stats over your LAN or Tailscale.
   </p>
   <div class="cta">
-    <a class="btn primary" href="#start">Get started</a>
-    <a class="btn ghost" href="https://github.com/berkayturanci/mac-sysdash">View on GitHub</a>
+    <a class="btn primary" href={demoUrl}>▶ Try the live demo</a>
+    <a class="btn ghost" href="#start">Quick start</a>
+    <a class="btn ghost" href="https://github.com/berkayturanci/mac-sysdash">GitHub ↗</a>
   </div>
+  <div class="demonote">Runs entirely in your browser with sample data — no install, no backend.</div>
 
   <svg class="pulse" viewBox="0 0 520 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="0">
@@ -120,9 +123,11 @@ const features = [
 
 <div class="wrap">
   <div class="shot">
-    <img src={asset('hero.png')} width="2960" height="1720"
-      alt="mac-sysdash dashboard: CPU / memory / disk ring gauges, self-hosted runner status with branch and PR, and a system detail panel" loading="eager" />
-    <div class="cap">The whole thing — ring gauges, live runner status, and system detail in a single page.</div>
+    <a href={demoUrl} title="Open the interactive demo">
+      <img src={asset('hero.png')} width="2960" height="1720"
+        alt="mac-sysdash dashboard: CPU / memory / disk ring gauges, self-hosted runner status with branch and PR, and a system detail panel" loading="eager" />
+    </a>
+    <div class="cap">The whole thing — ring gauges, live runner status, and system detail in a single page. <a href={demoUrl}>Try it live →</a></div>
   </div>
 </div>
 
@@ -184,30 +189,37 @@ const features = [
     <div class="sec-head">
       <div class="kicker">Quick start</div>
       <h2>Up in about a minute</h2>
-      <p>Clone, install one dependency, and run. The installer sets up an isolated venv and a launchd agent for you.</p>
+      <p>Two ways to run it — a one-command launchd agent, or a manual venv you drive yourself. Both need only Python 3 and <code>psutil</code>.</p>
     </div>
-    <div class="steps">
-      <div class="step"><div class="n">1</div><div class="body">
-        <h3>Clone &amp; install</h3>
-        <p>Sets up a virtualenv with <code>psutil</code> and a per-user launchd agent that runs in place from the clone.</p>
-        <pre><button class="copy" data-copy={`git clone https://github.com/berkayturanci/mac-sysdash.git\ncd mac-sysdash\n./install.sh`}>Copy</button><code><span class="tok-c"># clone and install (venv + launchd agent)</span>
+    <div class="methods">
+      <div class="method">
+        <div class="mhead"><h3>One command</h3><span class="mtag">recommended</span></div>
+        <p><code>install.sh</code> sets up an isolated venv and a per-user <b>launchd agent</b> that runs in place from the clone and restarts on login.</p>
+        <pre><button class="copy" data-copy={`git clone https://github.com/berkayturanci/mac-sysdash.git\ncd mac-sysdash\n./install.sh`}>Copy</button><code><span class="tok-c"># clone + install (venv + launchd agent)</span>
 git clone https://github.com/berkayturanci/mac-sysdash.git
 <span class="tok-k">cd</span> mac-sysdash
 ./install.sh</code></pre>
-      </div></div>
-      <div class="step"><div class="n">2</div><div class="body">
-        <h3>Open it</h3>
-        <p>The dashboard is now serving on port <code>8765</code>. Open it locally, or over Tailscale from any device.</p>
-        <pre><button class="copy" data-copy="open http://localhost:8765">Copy</button><code>open http://localhost:8765</code></pre>
-      </div></div>
-      <div class="step"><div class="n">3</div><div class="body">
-        <h3>Add more Macs (optional)</h3>
-        <p>Run the same install on each Mac, then use <b>＋ machine</b> in the header to point one at the others. Or just kick the tires with no backend:</p>
-        <pre><button class="copy" data-copy="open index.html?demo">Copy</button><code><span class="tok-c"># UI only, sample data, no server</span>
-open index.html?demo</code></pre>
-      </div></div>
+      </div>
+      <div class="method">
+        <div class="mhead"><h3>Run it yourself</h3><span class="mtag alt">no agent</span></div>
+        <p>Prefer to drive it from your shell? Make a venv and run <code>server.py</code> directly. <kbd>Ctrl-C</kbd> to stop; pick any free port with <code>SYSDASH_PORT</code>.</p>
+        <pre><button class="copy" data-copy={`git clone https://github.com/berkayturanci/mac-sysdash.git\ncd mac-sysdash\npython3 -m venv venv && ./venv/bin/pip install psutil\n./venv/bin/python server.py`}>Copy</button><code><span class="tok-c"># clone + run the server directly</span>
+git clone https://github.com/berkayturanci/mac-sysdash.git
+<span class="tok-k">cd</span> mac-sysdash
+python3 -m venv venv &amp;&amp; ./venv/bin/pip install psutil
+./venv/bin/python server.py            <span class="tok-c"># serves on :8765</span>
+<span class="tok-c"># …or a custom port:</span>
+SYSDASH_PORT=8799 ./venv/bin/python server.py</code></pre>
+      </div>
     </div>
-    <p style="text-align:center;margin-top:30px">
+    <p class="startnote">
+      Then open <code>http://localhost:8765</code>. Want a clean HTTPS URL on your
+      tailnet (and browser notifications)? Run <code>./serve.sh</code> — it exposes
+      it via <a href="https://tailscale.com/">Tailscale</a> Serve. Run the same on
+      each Mac and use <b>＋ machine</b> in the header to watch the whole fleet.
+    </p>
+    <p style="text-align:center;margin-top:26px">
+      <a class="btn primary" href={demoUrl}>▶ Try the live demo</a>
       <a class="btn ghost" href="https://github.com/berkayturanci/mac-sysdash#readme">Read the full README →</a>
     </p>
   </div>
@@ -352,13 +364,22 @@ open index.html?demo</code></pre>
   .how li::before{content:"";position:absolute;left:0;top:9px;width:9px;height:9px;border-radius:50%;
     background:var(--accent);box-shadow:0 0 0 4px rgba(79,140,255,.16)}
 
-  .steps{max-width:760px;margin:0 auto}
-  .step{display:flex;gap:16px;margin-bottom:14px;align-items:flex-start}
-  .step .n{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
-    font-weight:700;font-size:14px;color:#fff;background:linear-gradient(120deg,var(--accent),var(--accent2))}
-  .step .body{flex:1;min-width:0;padding-top:2px}
-  .step .body h3{font-size:16px;font-weight:700}
-  .step .body p{color:var(--muted);font-size:14px;margin:4px 0 0}
+  .methods{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;margin:0 auto}
+  @media(max-width:760px){.methods{grid-template-columns:1fr}}
+  .method{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .method .mhead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .method h3{font-size:17px;font-weight:700}
+  .mtag{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;
+    color:#aee9c8;background:rgba(46,204,113,.14);border:1px solid rgba(46,204,113,.4);
+    border-radius:999px;padding:2px 8px}
+  .mtag.alt{color:#bcd3ff;background:rgba(79,140,255,.14);border-color:rgba(79,140,255,.4)}
+  .method p{color:var(--muted);font-size:13.5px;margin:0}
+  .method kbd{font-family:var(--mono);font-size:12px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--txt)}
+  .startnote{max-width:820px;margin:24px auto 0;text-align:center;color:var(--muted);font-size:14px}
+  .demonote{color:var(--muted);font-size:12.5px;margin-top:12px}
+  .shot a{display:block;border-radius:14px;transition:transform .18s ease,box-shadow .18s ease}
+  .shot a:hover{transform:translateY(-2px)}
   pre{background:#070a10;border:1px solid var(--line);border-radius:12px;padding:16px 18px;
     overflow-x:auto;margin:12px 0 0;position:relative}
   code{font-family:var(--mono);font-size:13.5px}

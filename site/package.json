@@ -5,7 +5,10 @@
   "private": true,
   "description": "Marketing site for mac-sysdash (Astro).",
   "scripts": {
+    "copy-app": "node scripts/copy-app.mjs",
+    "predev": "node scripts/copy-app.mjs",
     "dev": "astro dev",
+    "prebuild": "node scripts/copy-app.mjs",
     "build": "astro build",
     "preview": "astro preview"
   },

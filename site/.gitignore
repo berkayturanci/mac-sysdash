@@ -1,6 +1,8 @@
 # build output
 dist/
 .output/
+# generated at build time by scripts/copy-app.mjs (the interactive demo)
+public/demo/
 # deps
 node_modules/
 # astro
