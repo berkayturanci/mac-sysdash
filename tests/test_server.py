@@ -718,6 +718,40 @@ class AiStatsTests(unittest.TestCase):
             res = server._get_ai_stats()
             self.assertEqual(res.get("claude"), {"session": 42, "weekly": 7})
 
+    def test_parse_codexbar_usage(self):
+        item = {"provider": "cursor", "usage": {
+            "primary": {"usedPercent": 12, "resetsAt": "2026-08-01T00:00:00Z"},
+            "secondary": {"usedPercent": 25, "resetsAt": "2026-08-08T00:00:00Z"},
+        }}
+        self.assertEqual(server._parse_codexbar_usage(item), {
+            "session": 12, "weekly": 25,
+            "session_reset": "2026-08-01T00:00:00Z",
+            "weekly_reset": "2026-08-08T00:00:00Z",
+        })
+
+    def test_cli_fills_missing_providers_when_snapshot_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 20}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing-snapshot.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with unittest.mock.patch.object(server, "_codexbar_enabled_providers",
+                                            return_value=["claude", "cursor"]):
+                with unittest.mock.patch.object(server, "_codexbar_fetch_providers",
+                                                return_value={"cursor": {"session": 7, "weekly": 15}}):
+                    res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {"session": 10, "weekly": 20})
+            self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
+            self.assertEqual(list(res.keys()), ["claude", "cursor"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

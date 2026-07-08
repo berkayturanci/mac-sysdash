@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import socket
 import sqlite3
 import subprocess
@@ -23,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.34.1"
+VERSION = "1.34.2"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -772,6 +773,73 @@ def _read_tcc_file(path, timeout=1.5):
     return (out.get("status", "error"), None)
 
 
+def _codexbar_bin():
+    return shutil.which("codexbar")
+
+
+def _codexbar_enabled_providers():
+    """Provider IDs enabled in CodexBar (fast; no usage fetch)."""
+    bin = _codexbar_bin()
+    if not bin:
+        return []
+    try:
+        out = subprocess.run([bin, "config", "providers", "--format", "json"],
+                             capture_output=True, text=True, timeout=5)
+        if out.returncode != 0:
+            return []
+        return [p["provider"] for p in json.loads(out.stdout) if p.get("enabled")]
+    except Exception:
+        return []
+
+
+def _parse_codexbar_usage(item):
+    """CodexBar CLI `usage` JSON entry → {session, weekly, *_reset}."""
+    u = (item or {}).get("usage") or {}
+    res = {}
+    prim, sec = u.get("primary") or {}, u.get("secondary") or {}
+    if "usedPercent" in prim:
+        res["session"] = prim["usedPercent"]
+    if prim.get("resetsAt"):
+        res["session_reset"] = prim["resetsAt"]
+    if "usedPercent" in sec:
+        res["weekly"] = sec["usedPercent"]
+    if sec.get("resetsAt"):
+        res["weekly_reset"] = sec["resetsAt"]
+    return res or None
+
+
+def _codexbar_fetch_providers(providers, timeout=15):
+    """Parallel `codexbar usage` for each provider. Returns {id: stats}."""
+    bin = _codexbar_bin()
+    if not bin or not providers:
+        return {}
+    out, lock = {}, threading.Lock()
+
+    def one(p):
+        try:
+            r = subprocess.run([bin, "usage", "--format", "json", "--provider", p],
+                                 capture_output=True, text=True, timeout=timeout)
+            if r.returncode != 0:
+                return
+            data = json.loads(r.stdout)
+            if not data:
+                return
+            parsed = _parse_codexbar_usage(data[0])
+            if parsed:
+                with lock:
+                    out[p] = parsed
+        except Exception:
+            pass
+
+    threads = [threading.Thread(target=one, args=(p,), daemon=True) for p in providers]
+    for t in threads:
+        t.start()
+    deadline = time.monotonic() + timeout + 1
+    for t in threads:
+        t.join(max(0.05, deadline - time.monotonic()))
+    return out
+
+
 def _ai_fda_status():
     """If the richer CodexBar snapshot exists but the agent can't read it (TCC
     blocks Group Containers under launchd), tell the UI which binary to grant
@@ -817,10 +885,12 @@ def _get_ai_stats():
         # lives in a TCC-protected Group Container and open() raises PermissionError.
         # That must NOT discard the history fallback already collected in `res`
         # (the old code let it bubble to the outer except, returning an empty cache).
+        snap_ok = False
         try:
             status, raw = _read_tcc_file(_CODEXBAR_SNAPSHOT)
             if status != "ok":
                 raise OSError(status)  # timeout/denied/missing — keep fallback
+            snap_ok = True
             snap = json.loads(raw)
             providers = snap.get("enabledProviders", [])
             for entry in snap.get("entries", []):
@@ -854,6 +924,21 @@ def _get_ai_stats():
             res = ordered_res
         except Exception:
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
+
+        # 3. CodexBar CLI: when the snapshot is unreadable (launchd TCC), history
+        # only covers Claude/Codex — Cursor, Antigravity, etc. need a live fetch.
+        if not snap_ok:
+            enabled = _codexbar_enabled_providers()
+            missing = [p for p in enabled if p not in res]
+            if missing:
+                cli = _codexbar_fetch_providers(missing)
+                res.update(cli)
+            if enabled:
+                ordered = {p: res[p] for p in enabled if p in res}
+                for p, v in res.items():
+                    if p not in ordered:
+                        ordered[p] = v
+                res = ordered
 
         _AI_STATS_CACHE.update(ts=now, data=res)
         return res
