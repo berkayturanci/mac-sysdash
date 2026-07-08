@@ -729,7 +729,27 @@ class AiStatsTests(unittest.TestCase):
             "weekly_reset": "2026-08-08T00:00:00Z",
         })
 
-    def test_cli_fills_missing_providers_when_snapshot_blocked(self):
+    def test_cli_merge_adds_cached_providers(self):
+        self.addCleanup(lambda: server._AI_CLI.update(
+            ts=0, data={}, order=[], busy=False))
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(
+                ts=time.time(),
+                data={"cursor": {"session": 7, "weekly": 15}},
+                order=["claude", "cursor"],
+            )
+        res = server._ai_cli_merge(
+            {"claude": {"session": 10, "weekly": 20}}, snap_ok=False)
+        self.assertEqual(res.get("claude"), {"session": 10, "weekly": 20})
+        self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
+        self.assertEqual(list(res.keys()), ["claude", "cursor"])
+
+    def test_cli_merge_skipped_when_snapshot_ok(self):
+        res = server._ai_cli_merge(
+            {"claude": {"session": 1}}, snap_ok=True)
+        self.assertEqual(res, {"claude": {"session": 1}})
+
+    def test_corrupt_snapshot_uses_cli_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
             hist = os.path.join(tmp, "history")
             os.makedirs(hist)
@@ -737,20 +757,26 @@ class AiStatsTests(unittest.TestCase):
                 json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
                     {"name": "session", "entries": [{"usedPercent": 10}]},
                     {"name": "weekly", "entries": [{"usedPercent": 20}]}]}}, f)
+            snap = os.path.join(tmp, "bad-snapshot.json")
+            with open(snap, "w", encoding="utf-8") as f:
+                f.write("{not json")
             self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
             self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
             self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(
+                ts=0, data={}, order=[], busy=False))
             server._CODEXBAR_HISTORY = hist + os.sep
-            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing-snapshot.json")
+            server._CODEXBAR_SNAPSHOT = snap
             server._AI_STATS_CACHE["ts"] = 0
-            with unittest.mock.patch.object(server, "_codexbar_enabled_providers",
-                                            return_value=["claude", "cursor"]):
-                with unittest.mock.patch.object(server, "_codexbar_fetch_providers",
-                                                return_value={"cursor": {"session": 7, "weekly": 15}}):
-                    res = server._get_ai_stats()
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"cursor": {"session": 7, "weekly": 15}},
+                    order=["claude", "cursor"],
+                )
+            res = server._get_ai_stats()
             self.assertEqual(res.get("claude"), {"session": 10, "weekly": 20})
             self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
-            self.assertEqual(list(res.keys()), ["claude", "cursor"])
 
 
 if __name__ == "__main__":

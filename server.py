@@ -714,6 +714,8 @@ def discover_runners(ttl=30):
 
 _PEERS = {"ts": 0, "data": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
+_AI_CLI = {"ts": 0, "data": {}, "order": [], "busy": False}
+_AI_CLI_LOCK = threading.Lock()
 # CodexBar data sources (module-level so tests can point them at fixtures).
 _CODEXBAR_HISTORY = os.path.expanduser(
     "~/Library/Application Support/com.steipete.codexbar/history/")
@@ -840,6 +842,57 @@ def _codexbar_fetch_providers(providers, timeout=15):
     return out
 
 
+def _refresh_ai_cli():
+    """Slow CodexBar CLI fetch — only when snapshot is unreadable (launchd TCC)."""
+    status, _ = _read_tcc_file(_CODEXBAR_SNAPSHOT)
+    if status == "ok":
+        with _AI_CLI_LOCK:
+            _AI_CLI.update(ts=time.time(), data={}, order=[])
+        return
+    enabled = _codexbar_enabled_providers()
+    if not enabled:
+        return
+    cli = _codexbar_fetch_providers([p for p in enabled])
+    with _AI_CLI_LOCK:
+        _AI_CLI.update(ts=time.time(), data=cli, order=enabled)
+
+
+def _ai_cli_merge(res, snap_ok):
+    """Merge background CLI cache into `res` when the snapshot path failed."""
+    if snap_ok:
+        return res
+    with _AI_CLI_LOCK:
+        cli, order = _AI_CLI["data"], _AI_CLI["order"]
+    for p, v in cli.items():
+        if p not in res:
+            res[p] = v
+    if order:
+        ordered = {p: res[p] for p in order if p in res}
+        for p, v in res.items():
+            if p not in ordered:
+                ordered[p] = v
+        res = ordered
+    return res
+
+
+def _ai_cli_loop():
+    while True:
+        try:
+            with _AI_CLI_LOCK:
+                if _AI_CLI["busy"]:
+                    time.sleep(5)
+                    continue
+                _AI_CLI["busy"] = True
+            try:
+                _refresh_ai_cli()
+            finally:
+                with _AI_CLI_LOCK:
+                    _AI_CLI["busy"] = False
+        except Exception:
+            pass
+        time.sleep(30)
+
+
 def _ai_fda_status():
     """If the richer CodexBar snapshot exists but the agent can't read it (TCC
     blocks Group Containers under launchd), tell the UI which binary to grant
@@ -890,7 +943,6 @@ def _get_ai_stats():
             status, raw = _read_tcc_file(_CODEXBAR_SNAPSHOT)
             if status != "ok":
                 raise OSError(status)  # timeout/denied/missing — keep fallback
-            snap_ok = True
             snap = json.loads(raw)
             providers = snap.get("enabledProviders", [])
             for entry in snap.get("entries", []):
@@ -922,23 +974,11 @@ def _get_ai_stats():
                 if p not in ordered_res:
                     ordered_res[p] = v
             res = ordered_res
+            snap_ok = True
         except Exception:
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
 
-        # 3. CodexBar CLI: when the snapshot is unreadable (launchd TCC), history
-        # only covers Claude/Codex — Cursor, Antigravity, etc. need a live fetch.
-        if not snap_ok:
-            enabled = _codexbar_enabled_providers()
-            missing = [p for p in enabled if p not in res]
-            if missing:
-                cli = _codexbar_fetch_providers(missing)
-                res.update(cli)
-            if enabled:
-                ordered = {p: res[p] for p in enabled if p in res}
-                for p, v in res.items():
-                    if p not in ordered:
-                        ordered[p] = v
-                res = ordered
+        res = _ai_cli_merge(res, snap_ok)
 
         _AI_STATS_CACHE.update(ts=now, data=res)
         return res
@@ -1634,6 +1674,7 @@ if __name__ == "__main__":
     threading.Thread(target=_jobs_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
     threading.Thread(target=_update_checker, daemon=True).start()
+    threading.Thread(target=_ai_cli_loop, daemon=True).start()
     threading.Thread(target=_thermal_sampler, daemon=True).start()
     threading.Thread(target=_check_alert_sampler, daemon=True).start()
     if PUSH_TO:

@@ -3,8 +3,8 @@
 - **AI widget: CodexBar CLI fallback.** When the launchd agent cannot read
   CodexBar's `widget-snapshot.json` (macOS TCC), providers beyond Claude/Codex
   (e.g. Cursor, Antigravity) are now fetched via the `codexbar` CLI for any
-  provider enabled in CodexBar. No Full Disk Access needed for those extras if
-  the CLI is installed.
+  provider enabled in CodexBar. Refreshed in a background thread so `/api/stats`
+  stays fast; no Full Disk Access needed for those extras if the CLI is installed.
 
 ## [1.34.1] - 2026-07-07
 ### Changed
