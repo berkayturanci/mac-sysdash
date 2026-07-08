@@ -20,7 +20,9 @@ it runs on:
   no token are used.**
 - **AI-assistant usage** (optional) — if [CodexBar](https://github.com/steipete)
   is installed, per-provider session/weekly counts are read from its local
-  history files. This is best-effort and silently skipped if absent.
+  history files and (when readable) `widget-snapshot.json`. If the background
+  `launchd` agent cannot read the snapshot, the optional **`codexbar` CLI** may
+  fetch enabled providers instead. All best-effort and silently skipped if absent.
 
 It deliberately **avoids TCC-protected folders** (`~/Documents`, `~/Desktop`,
 `~/Downloads`, iCloud) on any hot path.
