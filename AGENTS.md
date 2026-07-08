@@ -91,8 +91,11 @@ update_behind, queue, top[], top_cpu[], top_groups, baseline, ai, uptime, ...}`
 - `ai` is AI-assistant usage per provider, read locally from CodexBar:
   `~/Library/Application Support/com.steipete.codexbar/history/{claude,codex}.json`
   (the launchd-safe fallback) plus the richer `…/Group Containers/…/widget-snapshot.json`
-  (TCC-blocked under launchd). The snapshot read MUST stay best-effort so a
-  PermissionError doesn't discard the fallback. Shape: `{provider: {session, weekly}}`.
+  (TCC-blocked under launchd). When the snapshot is unreadable, enabled providers
+  missing from history are refreshed via the **`codexbar` CLI** in a background
+  thread (`_AI_CLI` cache merged on each `/api/stats` read). Snapshot/history reads
+  MUST stay best-effort so a `PermissionError` doesn't discard the fallback. Shape:
+  `{provider: {session, weekly}}`.
 - `jobs_summary` is `{runner_dir: {"YYYY-MM-DD": {succeeded, failed, other}}}`
   (UTC dates) — feeds the per-runner 30-day CI health heatmap in the modal.
 - `flaky` is `{runner_dir: [{job, runs, fails, fail_rate}]}` — jobs that both

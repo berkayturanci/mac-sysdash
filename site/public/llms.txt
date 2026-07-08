@@ -11,7 +11,7 @@ mac-sysdash is source-available under the MIT License + Commons Clause: free to 
 - Multi-machine "fleet" view over a LAN or Tailscale tailnet; a hub pulls each peer's stats server-side, or peers push to it
 - CI health: per-runner 30-day heatmap, flaky-job detection, queue-pressure, and a Gantt timeline, backed by a local SQLite database
 - Alerts: thresholds, offline-runner mutes, a snooze/maintenance mode, an optional webhook, and cron dead-man checks
-- AI Copilot quota tracking: Claude and Codex session + weekly usage, read locally with no API keys
+- AI Copilot quota tracking: every provider enabled in CodexBar (Claude, Codex, Cursor, Antigravity, …) — session + weekly usage, read locally; the optional codexbar CLI fills gaps when the launchd agent cannot read the snapshot
 - Light / dark / night themes, a wall-mounted TV mode, widget pinning, an installable offline PWA, and EN/TR
 
 ## Links

@@ -81,7 +81,8 @@ on a hot path can **block indefinitely** on the consent gate. Rules:
   subprocess calls a `timeout=`.
 - A best-effort read that *fails* must not discard a working fallback — e.g. the
   CodexBar snapshot read is wrapped so a `PermissionError` keeps the history-based
-  AI fallback.
+  AI fallback, and the optional `codexbar` CLI backfills other enabled providers
+  off the hot path.
 
 **The subtle trap (learned this session):** under `launchd` (no GUI session) the
 TCC gate *denies fast* → `PermissionError` → fallback. But running
