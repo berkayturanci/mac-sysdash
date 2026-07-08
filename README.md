@@ -2,6 +2,7 @@
 
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
 ![version](https://img.shields.io/badge/version-1.34.0-blue)
 
@@ -335,13 +336,15 @@ thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook UR
   includes a reachable host. If it answers locally but not over Tailscale, the
   macOS firewall is likely dropping incoming connections — allow the interpreter
   in System Settings → Network → Firewall, or turn the firewall off.
-- **AI widget missing a provider (e.g. Antigravity).** Claude/Codex are read
-  from CodexBar's history files and need no extra permission. Antigravity lives
-  only in CodexBar's Group Container, which macOS hides from the `launchd` agent
-  (TCC). The AI widget shows the **exact binary path** to authorize — add it
-  under System Settings → Privacy & Security → **Full Disk Access** (click "+",
-  then ⇧⌘G to paste the path). It appears as a generic **"Python"** entry; the
-  path shown in the widget is the one to pick.
+- **AI widget missing a provider (e.g. Cursor, Antigravity).** Claude/Codex are
+  read from CodexBar's history files and need no extra permission. Other
+  providers live in CodexBar's Group Container snapshot, which macOS hides from
+  the `launchd` agent (TCC). If the **`codexbar` CLI** is installed, sysdash
+  fetches any other enabled providers through it automatically (no Full Disk
+  Access needed). Otherwise the AI widget shows the **exact binary path** to
+  authorize — add it under System Settings → Privacy & Security → **Full Disk
+  Access** (click "+", then ⇧⌘G to paste the path). It appears as a generic
+  **"Python"** entry; the path shown in the widget is the one to pick.
 - **Port already in use.** Reinstall on another port: `SYSDASH_PORT=8770 ./install.sh`.
 - **Logs.** `~/.local/log/sysdash.log`.
 
@@ -350,11 +353,12 @@ thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook UR
 [**MIT License + Commons Clause**](LICENSE) — source-available (not OSI "open
 source" because of the Commons Clause). You get all the usual MIT freedoms: use
 it for **any purpose, including inside a company / for commercial operations**,
-modify it, and redistribute it — **the one thing you may not do is _Sell_ the
-software itself** (offer mac-sysdash, or something substantially just
-mac-sysdash, as a paid product or hosted/SaaS service). Build on top of it,
-embed it, and sell your own value-adding product freely. Want to sell the
-software itself? Ask for a separate license.
+modify it, and redistribute copies under the same license — **the one thing you
+may not do is _Sell_ the software itself** (offer mac-sysdash, or something
+substantially just mac-sysdash, as a paid product, paid package, paid hosted
+dashboard, or SaaS service). Build on top of it, embed it, and sell your own
+value-adding product freely. Want to sell the software itself? Ask for a
+separate license.
 
 ## Trademarks
 

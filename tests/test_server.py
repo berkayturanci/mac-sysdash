@@ -718,6 +718,82 @@ class AiStatsTests(unittest.TestCase):
             res = server._get_ai_stats()
             self.assertEqual(res.get("claude"), {"session": 42, "weekly": 7})
 
+    def test_parse_codexbar_usage(self):
+        item = {"provider": "cursor", "usage": {
+            "primary": {"usedPercent": 12, "resetsAt": "2026-08-01T00:00:00Z"},
+            "secondary": {"usedPercent": 25, "resetsAt": "2026-08-08T00:00:00Z"},
+        }}
+        self.assertEqual(server._parse_codexbar_usage(item), {
+            "session": 12, "weekly": 25,
+            "session_reset": "2026-08-01T00:00:00Z",
+            "weekly_reset": "2026-08-08T00:00:00Z",
+        })
+
+    def test_cli_merge_adds_cached_providers(self):
+        self.addCleanup(lambda: server._AI_CLI.update(
+            ts=0, data={}, order=[], busy=False))
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(
+                ts=time.time(),
+                data={"cursor": {"session": 7, "weekly": 15}},
+                order=["claude", "cursor"],
+            )
+        res = server._ai_cli_merge(
+            {"claude": {"session": 10, "weekly": 20}}, snap_ok=False)
+        self.assertEqual(res.get("claude"), {"session": 10, "weekly": 20})
+        self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
+        self.assertEqual(list(res.keys()), ["claude", "cursor"])
+
+    def test_cli_merge_skipped_when_snapshot_ok(self):
+        res = server._ai_cli_merge(
+            {"claude": {"session": 1}}, snap_ok=True)
+        self.assertEqual(res, {"claude": {"session": 1}})
+
+    def test_corrupt_snapshot_uses_cli_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 20}]}]}}, f)
+            snap = os.path.join(tmp, "bad-snapshot.json")
+            with open(snap, "w", encoding="utf-8") as f:
+                f.write("{not json")
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(
+                ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = snap
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"cursor": {"session": 7, "weekly": 15}},
+                    order=["claude", "cursor"],
+                )
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {"session": 10, "weekly": 20})
+            self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
+
+
+    def test_cli_merge_on_cache_hit_when_snapshot_blocked(self):
+        self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={}, snap_ok=True)
+        self.addCleanup(lambda: server._AI_CLI.update(
+            ts=0, data={}, order=[], busy=False))
+        server._AI_STATS_CACHE.update(
+            ts=time.time(), data={"claude": {"session": 1}}, snap_ok=False)
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(
+                ts=time.time(),
+                data={"cursor": {"session": 7}},
+                order=["claude", "cursor"],
+            )
+        res = server._get_ai_stats()
+        self.assertEqual(res.get("cursor"), {"session": 7})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

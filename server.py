@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import socket
 import sqlite3
 import subprocess
@@ -23,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.34.1"
+VERSION = "1.34.2"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -713,6 +714,8 @@ def discover_runners(ttl=30):
 
 _PEERS = {"ts": 0, "data": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
+_AI_CLI = {"ts": 0, "data": {}, "order": [], "busy": False}
+_AI_CLI_LOCK = threading.Lock()
 # CodexBar data sources (module-level so tests can point them at fixtures).
 _CODEXBAR_HISTORY = os.path.expanduser(
     "~/Library/Application Support/com.steipete.codexbar/history/")
@@ -772,6 +775,149 @@ def _read_tcc_file(path, timeout=1.5):
     return (out.get("status", "error"), None)
 
 
+def _codexbar_bin():
+    p = shutil.which("codexbar")
+    if p:
+        return p
+    for p in ("/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"):
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def _codexbar_enabled_providers():
+    """Provider IDs enabled in CodexBar (fast; no usage fetch)."""
+    bin = _codexbar_bin()
+    if not bin:
+        return []
+    try:
+        out = subprocess.run([bin, "config", "providers", "--format", "json"],
+                             capture_output=True, text=True, timeout=5)
+        if out.returncode != 0:
+            return []
+        return [p["provider"] for p in json.loads(out.stdout) if p.get("enabled")]
+    except Exception:
+        return []
+
+
+def _parse_codexbar_usage(item):
+    """CodexBar CLI `usage` JSON entry → {session, weekly, *_reset}."""
+    u = (item or {}).get("usage") or {}
+    res = {}
+    prim, sec = u.get("primary") or {}, u.get("secondary") or {}
+    if "usedPercent" in prim:
+        res["session"] = prim["usedPercent"]
+    if prim.get("resetsAt"):
+        res["session_reset"] = prim["resetsAt"]
+    if "usedPercent" in sec:
+        res["weekly"] = sec["usedPercent"]
+    if sec.get("resetsAt"):
+        res["weekly_reset"] = sec["resetsAt"]
+    return res or None
+
+
+def _codexbar_fetch_providers(providers, timeout=15):
+    """Parallel `codexbar usage` for each provider. Returns {id: stats}."""
+    bin = _codexbar_bin()
+    if not bin or not providers:
+        return {}
+    out, lock = {}, threading.Lock()
+
+    def one(p):
+        try:
+            r = subprocess.run([bin, "usage", "--format", "json", "--provider", p],
+                                 capture_output=True, text=True, timeout=timeout)
+            if r.returncode != 0:
+                return
+            data = json.loads(r.stdout)
+            if not data:
+                return
+            parsed = _parse_codexbar_usage(data[0])
+            if parsed:
+                with lock:
+                    out[p] = parsed
+        except Exception:
+            pass
+
+    threads = [threading.Thread(target=one, args=(p,), daemon=True) for p in providers]
+    for t in threads:
+        t.start()
+    deadline = time.monotonic() + timeout + 1
+    for t in threads:
+        t.join(max(0.05, deadline - time.monotonic()))
+    return out
+
+
+def _refresh_ai_cli():
+    """Slow CodexBar CLI fetch — only when snapshot is unreadable (launchd TCC)."""
+    status, _ = _read_tcc_file(_CODEXBAR_SNAPSHOT)
+    if status == "ok":
+        with _AI_CLI_LOCK:
+            _AI_CLI.update(ts=time.time(), data={}, order=[])
+        return
+    enabled = _codexbar_enabled_providers()
+    if not enabled:
+        return
+    cli = _codexbar_fetch_providers(enabled)
+    with _AI_CLI_LOCK:
+        _AI_CLI.update(ts=time.time(), data=cli, order=enabled)
+
+
+def _ai_cli_kick():
+    """Non-blocking one-shot refresh when cache is empty (first dashboard load)."""
+    with _AI_CLI_LOCK:
+        if _AI_CLI["busy"] or _AI_CLI["data"]:
+            return
+        _AI_CLI["busy"] = True
+
+    def work():
+        try:
+            _refresh_ai_cli()
+        finally:
+            with _AI_CLI_LOCK:
+                _AI_CLI["busy"] = False
+
+    threading.Thread(target=work, daemon=True).start()
+
+
+def _ai_cli_merge(res, snap_ok):
+    """Merge background CLI cache into `res` when the snapshot path failed."""
+    if snap_ok:
+        return res
+    with _AI_CLI_LOCK:
+        cli, order = _AI_CLI["data"], _AI_CLI["order"]
+    for p, v in cli.items():
+        if p not in res:
+            res[p] = v
+    if order:
+        ordered = {p: res[p] for p in order if p in res}
+        for p, v in res.items():
+            if p not in ordered:
+                ordered[p] = v
+        res = ordered
+    return res
+
+
+def _ai_cli_loop():
+    while True:
+        try:
+            with _AI_CLI_LOCK:
+                busy = _AI_CLI["busy"]
+                if not busy:
+                    _AI_CLI["busy"] = True
+            if busy:
+                time.sleep(5)
+                continue
+            try:
+                _refresh_ai_cli()
+            finally:
+                with _AI_CLI_LOCK:
+                    _AI_CLI["busy"] = False
+        except Exception:
+            pass
+        time.sleep(30)
+
+
 def _ai_fda_status():
     """If the richer CodexBar snapshot exists but the agent can't read it (TCC
     blocks Group Containers under launchd), tell the UI which binary to grant
@@ -788,7 +934,10 @@ def _ai_fda_status():
 def _get_ai_stats():
     now = time.time()
     if now - _AI_STATS_CACHE["ts"] < 30:
-        return _AI_STATS_CACHE["data"]
+        res = _AI_STATS_CACHE["data"]
+        if not _AI_STATS_CACHE.get("snap_ok", True):
+            return _ai_cli_merge(dict(res), snap_ok=False)
+        return res
     try:
         res = {}
         
@@ -817,6 +966,7 @@ def _get_ai_stats():
         # lives in a TCC-protected Group Container and open() raises PermissionError.
         # That must NOT discard the history fallback already collected in `res`
         # (the old code let it bubble to the outer except, returning an empty cache).
+        snap_ok = False
         try:
             status, raw = _read_tcc_file(_CODEXBAR_SNAPSHOT)
             if status != "ok":
@@ -852,10 +1002,15 @@ def _get_ai_stats():
                 if p not in ordered_res:
                     ordered_res[p] = v
             res = ordered_res
+            snap_ok = True
         except Exception:
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
 
-        _AI_STATS_CACHE.update(ts=now, data=res)
+        res = _ai_cli_merge(res, snap_ok)
+        if not snap_ok and not _AI_CLI["data"]:
+            _ai_cli_kick()
+
+        _AI_STATS_CACHE.update(ts=now, data=res, snap_ok=snap_ok)
         return res
     except Exception as e:
         import traceback
@@ -1549,6 +1704,7 @@ if __name__ == "__main__":
     threading.Thread(target=_jobs_sampler, daemon=True).start()
     threading.Thread(target=_peer_sampler, daemon=True).start()
     threading.Thread(target=_update_checker, daemon=True).start()
+    threading.Thread(target=_ai_cli_loop, daemon=True).start()
     threading.Thread(target=_thermal_sampler, daemon=True).start()
     threading.Thread(target=_check_alert_sampler, daemon=True).start()
     if PUSH_TO:
