@@ -779,5 +779,21 @@ class AiStatsTests(unittest.TestCase):
             self.assertEqual(res.get("cursor"), {"session": 7, "weekly": 15})
 
 
+    def test_cli_merge_on_cache_hit_when_snapshot_blocked(self):
+        self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={}, snap_ok=True)
+        self.addCleanup(lambda: server._AI_CLI.update(
+            ts=0, data={}, order=[], busy=False))
+        server._AI_STATS_CACHE.update(
+            ts=time.time(), data={"claude": {"session": 1}}, snap_ok=False)
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(
+                ts=time.time(),
+                data={"cursor": {"session": 7}},
+                order=["claude", "cursor"],
+            )
+        res = server._get_ai_stats()
+        self.assertEqual(res.get("cursor"), {"session": 7})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

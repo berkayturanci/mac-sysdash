@@ -776,7 +776,13 @@ def _read_tcc_file(path, timeout=1.5):
 
 
 def _codexbar_bin():
-    return shutil.which("codexbar")
+    p = shutil.which("codexbar")
+    if p:
+        return p
+    for p in ("/opt/homebrew/bin/codexbar", "/usr/local/bin/codexbar"):
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
 
 
 def _codexbar_enabled_providers():
@@ -852,9 +858,26 @@ def _refresh_ai_cli():
     enabled = _codexbar_enabled_providers()
     if not enabled:
         return
-    cli = _codexbar_fetch_providers([p for p in enabled])
+    cli = _codexbar_fetch_providers(enabled)
     with _AI_CLI_LOCK:
         _AI_CLI.update(ts=time.time(), data=cli, order=enabled)
+
+
+def _ai_cli_kick():
+    """Non-blocking one-shot refresh when cache is empty (first dashboard load)."""
+    with _AI_CLI_LOCK:
+        if _AI_CLI["busy"] or _AI_CLI["data"]:
+            return
+        _AI_CLI["busy"] = True
+
+    def work():
+        try:
+            _refresh_ai_cli()
+        finally:
+            with _AI_CLI_LOCK:
+                _AI_CLI["busy"] = False
+
+    threading.Thread(target=work, daemon=True).start()
 
 
 def _ai_cli_merge(res, snap_ok):
@@ -879,10 +902,12 @@ def _ai_cli_loop():
     while True:
         try:
             with _AI_CLI_LOCK:
-                if _AI_CLI["busy"]:
-                    time.sleep(5)
-                    continue
-                _AI_CLI["busy"] = True
+                busy = _AI_CLI["busy"]
+                if not busy:
+                    _AI_CLI["busy"] = True
+            if busy:
+                time.sleep(5)
+                continue
             try:
                 _refresh_ai_cli()
             finally:
@@ -909,7 +934,10 @@ def _ai_fda_status():
 def _get_ai_stats():
     now = time.time()
     if now - _AI_STATS_CACHE["ts"] < 30:
-        return _AI_STATS_CACHE["data"]
+        res = _AI_STATS_CACHE["data"]
+        if not _AI_STATS_CACHE.get("snap_ok", True):
+            return _ai_cli_merge(dict(res), snap_ok=False)
+        return res
     try:
         res = {}
         
@@ -979,8 +1007,10 @@ def _get_ai_stats():
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
 
         res = _ai_cli_merge(res, snap_ok)
+        if not snap_ok and not _AI_CLI["data"]:
+            _ai_cli_kick()
 
-        _AI_STATS_CACHE.update(ts=now, data=res)
+        _AI_STATS_CACHE.update(ts=now, data=res, snap_ok=snap_ok)
         return res
     except Exception as e:
         import traceback
