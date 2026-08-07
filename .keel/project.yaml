@@ -10,8 +10,8 @@ timezone: "Europe/Istanbul"
 merge_window: "07:00-01:30"
 
 knobs:
-  # Prefer the repo venv when present (has psutil); fall back to system python3.
-  build_gate_cmd: "sh -c 'if [ -x ./venv/bin/python ]; then ./venv/bin/python -m unittest discover -s tests -v; else python3 -m unittest discover -s tests -v; fi'"
+  # Prefer a local/repo venv with psutil (CI installs it system-wide).
+  build_gate_cmd: "sh -c 'for py in ./venv/bin/python ../venv/bin/python ../../venv/bin/python python3; do command -v \"$py\" >/dev/null 2>&1 || [ -x \"$py\" ] || continue; \"$py\" -c \"import psutil\" >/dev/null 2>&1 || continue; exec \"$py\" -m unittest discover -s tests -v; done; echo \"no python with psutil found\" >&2; exit 1'"
   ci_workflows:
     "CI": "**"
   docs_gate_paths:
