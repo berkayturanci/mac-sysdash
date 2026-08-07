@@ -6,7 +6,6 @@
 #
 # After each GitHub release: bump `url`/`sha256` (and re-run
 # `brew update-python-resources Formula/mac-sysdash.rb` if psutil changes).
-# Do not call ./install.sh for brew installs — that creates a second launchd agent.
 
 class MacSysdash < Formula
   include Language::Python::Virtualenv
@@ -18,6 +17,7 @@ class MacSysdash < Formula
   license :cannot_represent # MIT + Commons Clause — see LICENSE in the repo
 
   depends_on "python@3.14"
+  depends_on :macos
 
   resource "psutil" do
     url "https://files.pythonhosted.org/packages/aa/c6/d1ddf4abb55e93cebc4f2ed8b5d6dbad109ecb8d63748dd2b20ab5e57ebe/psutil-7.2.2.tar.gz"
@@ -36,6 +36,7 @@ class MacSysdash < Formula
       #!/bin/bash
       exec "#{libexec}/bin/python" "#{libexec}/server.py" "$@"
     EOS
+    chmod 0555, bin/"mac-sysdash"
   end
 
   service do
@@ -57,7 +58,7 @@ class MacSysdash < Formula
       Do not run ./install.sh for a brew install — that writes a separate
       launchd label (com.berkay.sysdash) and can fight brew services.
 
-      Optional env (edit the service or export before start):
+      Optional env (edit the Homebrew service plist, not a shell export):
         SYSDASH_PORT=8770
         SYSDASH_PUSH_TO=https://<hub>/api/push
     EOS
@@ -65,6 +66,7 @@ class MacSysdash < Formula
 
   test do
     assert_match version.to_s, (libexec/"server.py").read
+    assert_predicate bin/"mac-sysdash", :executable?
     system libexec/"bin/python", "-c", "import psutil"
   end
 end
