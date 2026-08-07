@@ -5,9 +5,8 @@
   `brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash`
   then `brew install mac-sysdash` and `brew services start mac-sysdash`. Uses a
   Cellar venv with pinned `psutil` and Homebrew's `service` DSL (separate from
-  the git-clone `./install.sh` launchd agent — don't run both). The formula in
-  this release still points at the previous published tag (**v1.34.3**) until
-  `v1.35.0` is tagged and `url`/`sha256` are bumped.
+  the git-clone `./install.sh` launchd agent — don't run both). Bump
+  `url`/`sha256` in the formula when cutting a release.
 
 ## [1.34.3] - 2026-08-07
 ### Fixed
