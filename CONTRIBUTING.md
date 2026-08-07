@@ -86,7 +86,10 @@ Use the repo venv — it has `psutil`; the system `python3` may not.
    behavior where it makes sense.
 2. For any **user-visible change**, bump `VERSION` in `server.py` **and** add a
    [`CHANGELOG.md`](CHANGELOG.md) entry ([SemVer](https://semver.org/)). Pure
-   docs/meta changes don't need a bump.
+   docs/meta changes don't need a bump. When cutting a **GitHub release**, also
+   bump `url` / `sha256` in [`Formula/mac-sysdash.rb`](Formula/mac-sysdash.rb)
+   so Homebrew installs the new tag (`brew update-python-resources` if `psutil`
+   changed).
 3. Keep the diff focused — one logical change per PR.
 4. If you changed the data model, confirm `/api/stats` stays
    backward-compatible.
