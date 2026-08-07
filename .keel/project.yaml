@@ -1,6 +1,7 @@
 # keel consumer config for mac-sysdash
 extends: keel
 core_version: "^1.0"
+owner: berkayturanci
 repo: "mac-sysdash"
 base_branch: "main"
 platform: "python"
