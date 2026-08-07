@@ -23,7 +23,10 @@ database server, no cloud.
   invariants, HTTP routes, peer discovery).
 - `sw.js` — service worker (network-first; caches the app shell for offline).
 - `install.sh` / `serve.sh` / `uninstall.sh` — launchd-agent setup + venv
-  bootstrap.
+  bootstrap (git-clone path).
+- `Formula/mac-sysdash.rb` — Homebrew formula (same repo). Tap with
+  `brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash`.
+  Bump `url`/`sha256` when cutting a GitHub release.
 - `site/` — the **marketing website** (Astro), deployed to GitHub Pages by
   `.github/workflows/deploy-site.yml`. This is a separate project with its own
   `package.json`/build. **The no-build-step / no-dependency rules below apply to
@@ -160,9 +163,14 @@ mode (📺 / `?tv`), light/dark/night themes, EN/TR.
 
 ## Deploy (FYI — usually not the agent's job)
 
-Runs as launchd agent `com.berkay.sysdash` from this checkout on `main`.
-Deploy = land on `main`, then on each Mac:
-`git pull --ff-only` + `launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`.
+Runs as launchd agent `com.berkay.sysdash` (git clone) or
+`homebrew.mxcl.mac-sysdash` (brew services) from this checkout / Cellar on
+`main`. Deploy = land on `main`, then on each Mac either:
+
+- **git:** `git pull --ff-only` + `launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
+- **brew:** bump `Formula/mac-sysdash.rb` `url`/`sha256` for the new tag, then
+  `brew update && brew upgrade mac-sysdash`
+
 `index.html` changes need no restart (served fresh); `server.py` changes do.
 
 ## Gotchas

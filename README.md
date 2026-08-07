@@ -4,7 +4,7 @@
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
-![version](https://img.shields.io/badge/version-1.34.3-blue)
+![version](https://img.shields.io/badge/version-1.35.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -137,6 +137,22 @@ else is required.
 
 ## Install
 
+### Homebrew (recommended on macOS)
+
+```sh
+brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash
+brew install mac-sysdash
+brew services start mac-sysdash
+```
+
+On Homebrew 6+, if install is refused as untrusted, run
+`brew trust --formula berkayturanci/mac-sysdash/mac-sysdash` once, then retry.
+
+Opens at `http://localhost:8765`. Upgrade with `brew update && brew upgrade mac-sysdash`.
+Do **not** also run `./install.sh` — that would install a second launchd agent.
+
+### From source (git clone)
+
 ```sh
 git clone https://github.com/berkayturanci/mac-sysdash.git
 cd mac-sysdash
@@ -157,6 +173,10 @@ Change the port with `SYSDASH_PORT=8770 ./install.sh`.
 
 ## Updating
 
+**Homebrew:** `brew update && brew upgrade mac-sysdash`
+
+**Git clone:**
+
 ```sh
 git pull && ./install.sh
 ```
@@ -166,6 +186,10 @@ UI immediately; re-running `install.sh` restarts the agent to pick up `server.py
 changes.
 
 ## Uninstall
+
+**Homebrew:** `brew services stop mac-sysdash && brew uninstall mac-sysdash`
+
+**Git clone:**
 
 ```sh
 ./uninstall.sh

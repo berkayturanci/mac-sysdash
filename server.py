@@ -24,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.34.3"
+VERSION = "1.35.0"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")

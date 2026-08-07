@@ -22,7 +22,7 @@ const jsonLd = {
       image: ogImage,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS',
-      softwareVersion: '1.34.3',
+      softwareVersion: '1.35.0',
       softwareRequirements: 'Python 3.9+, psutil',
       license: 'https://commonsclause.com/',
       isAccessibleForFree: true,
@@ -219,12 +219,20 @@ const features = [
     <div class="sec-head">
       <div class="kicker">Quick start</div>
       <h2>Up in about a minute</h2>
-      <p>Two ways to run it — a one-command launchd agent, or a manual venv you drive yourself. Both need only Python 3 and <code>psutil</code>.</p>
+      <p>Three ways to run it — Homebrew, a one-command launchd agent from a git clone, or a manual venv. All need only Python 3 and <code>psutil</code>.</p>
     </div>
     <div class="methods">
       <div class="method">
-        <div class="mhead"><h3>One command</h3><span class="mtag">recommended</span></div>
-        <p><code>install.sh</code> sets up an isolated venv and a per-user <b>launchd agent</b> that runs in place from the clone and restarts on login.</p>
+        <div class="mhead"><h3>Homebrew</h3><span class="mtag">recommended</span></div>
+        <p>Tap this repo and install. <code>brew services</code> runs the launchd agent; upgrades are <code>brew upgrade mac-sysdash</code>.</p>
+        <pre><button class="copy" data-copy={`brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash\nbrew install mac-sysdash\nbrew services start mac-sysdash`}>Copy</button><code><span class="tok-c"># Homebrew (formula lives in this repo)</span>
+brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash
+brew install mac-sysdash
+brew services start mac-sysdash</code></pre>
+      </div>
+      <div class="method">
+        <div class="mhead"><h3>Git clone</h3><span class="mtag alt">in-place</span></div>
+        <p><code>install.sh</code> sets up an isolated venv and a per-user <b>launchd agent</b> that runs in place from the clone and restarts on login. Don't combine with the Homebrew service.</p>
         <pre><button class="copy" data-copy={`git clone https://github.com/berkayturanci/mac-sysdash.git\ncd mac-sysdash\n./install.sh`}>Copy</button><code><span class="tok-c"># clone + install (venv + launchd agent)</span>
 git clone https://github.com/berkayturanci/mac-sysdash.git
 <span class="tok-k">cd</span> mac-sysdash
