@@ -22,9 +22,14 @@ mac-sysdash is source-available under the MIT License + Commons Clause: free to 
 - [Changelog](https://github.com/berkayturanci/mac-sysdash/blob/main/CHANGELOG.md): release history
 - [Source code](https://github.com/berkayturanci/mac-sysdash): GitHub repository
 - [License](https://github.com/berkayturanci/mac-sysdash/blob/main/LICENSE): MIT + Commons Clause
+- [Homebrew formula](https://github.com/berkayturanci/mac-sysdash/blob/main/Formula/mac-sysdash.rb): Formula/mac-sysdash.rb in this repo
 
 ## Install
 
-- Requirements: macOS, Python 3.9+, one dependency (`psutil`)
-- One command (launchd agent): `git clone https://github.com/berkayturanci/mac-sysdash.git && cd mac-sysdash && ./install.sh`
+- Requirements: macOS; Homebrew *or* Python 3.9+ (one dependency: `psutil`)
+- **Homebrew (recommended):**
+  `brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash && brew install mac-sysdash && brew services start mac-sysdash`
+  (Homebrew 6+: `brew trust berkayturanci/mac-sysdash` once if refused as untrusted)
+- Git clone + launchd: `git clone https://github.com/berkayturanci/mac-sysdash.git && cd mac-sysdash && ./install.sh`
 - Or run it yourself: `python3 -m venv venv && ./venv/bin/pip install psutil && ./venv/bin/python server.py` (serves on port 8765)
+- Do not run both Homebrew `brew services` and `./install.sh` — they install separate launchd agents on the same default port

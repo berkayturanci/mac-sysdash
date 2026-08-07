@@ -2,12 +2,16 @@
 
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
+![homebrew](https://img.shields.io/badge/homebrew-tap-orange)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
 ![version](https://img.shields.io/badge/version-1.35.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
+
+**Install:** `brew install berkayturanci/mac-sysdash/mac-sysdash` after tapping this
+repo — or clone and run `./install.sh`. See [Install](#install).
 
 **🌐 [berkayturanci.github.io/mac-sysdash](https://berkayturanci.github.io/mac-sysdash/)** — website &amp; overview.
 
@@ -18,7 +22,7 @@ reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
 
 It is a single Python file (stdlib HTTP server) plus one HTML file. The only
 third-party dependency is [`psutil`](https://github.com/giampaolo/psutil) — and
-the installer sets that up for you in an isolated virtualenv.
+Homebrew / `install.sh` set that up for you in an isolated virtualenv.
 
 ## Features
 
@@ -130,10 +134,9 @@ Light (above) and dark themes, two machines side by side:
 ## Requirements
 
 - macOS (tested on Apple Silicon)
-- `python3` (the Xcode Command Line Tools provide one: `xcode-select --install`)
-
-`psutil` is installed automatically into a virtualenv by `install.sh`; nothing
-else is required.
+- For **Homebrew**: [Homebrew](https://brew.sh/) (pulls Python + `psutil` for you)
+- For **git clone / manual**: `python3` (Xcode CLT: `xcode-select --install`);
+  `psutil` is installed automatically into a virtualenv by `install.sh`
 
 ## Install
 
@@ -146,7 +149,7 @@ brew services start mac-sysdash
 ```
 
 On Homebrew 6+, if install is refused as untrusted, run
-`brew trust --formula berkayturanci/mac-sysdash/mac-sysdash` once, then retry.
+`brew trust berkayturanci/mac-sysdash` once, then retry.
 
 Opens at `http://localhost:8765`. Upgrade with `brew update && brew upgrade mac-sysdash`.
 Do **not** also run `./install.sh` — that would install a second launchd agent.
@@ -323,8 +326,12 @@ python3 -m unittest discover -s tests -v
 
 ## Configuration
 
-Environment variables (set them before `./install.sh`; they are written into the
-launchd agent):
+Environment variables:
+
+- **Homebrew:** edit the Homebrew service plist (or reinstall after exporting);
+  shell `export` alone is not seen by `brew services`.
+- **git clone:** set them before `./install.sh`; they are written into the
+  launchd agent.
 
 - `SYSDASH_PORT` — listening port (default `8765`)
 - `SYSDASH_PUSH_TO` — a hub's `/api/push` URL; when set, this node streams its
