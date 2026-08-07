@@ -115,6 +115,8 @@ update_behind, queue, top[], top_cpu[], top_groups, baseline, ai, uptime, ...}`
 - `user` is the server's login user (`getpass.getuser()`) — the client builds a
   per-machine `ssh <user>@<tailscale_ip>` shortcut (a `>_` ssh:// link + a copy
   button in the machine header). Pure client-side; no backend/exec.
+  `tailscale_ip` is refreshed every 5 minutes in a background sampler (so a
+  launchd start before Tailscale is ready still recovers SSH chips).
 
 Each `runners[]` item: `{name, repo, dir, status: 'busy'|'idle'|'offline',
 uptime, url, history[], job?}`.

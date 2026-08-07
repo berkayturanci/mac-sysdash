@@ -24,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.34.2"
+VERSION = "1.34.3"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -48,12 +48,37 @@ def tailscale_ip():
     try:
         out = subprocess.run(["/usr/local/bin/tailscale", "ip", "-4"],
                              capture_output=True, text=True, timeout=3)
-        return out.stdout.strip().splitlines()[0]
+        lines = out.stdout.strip().splitlines()
+        return lines[0] if lines else ""
     except Exception:
         return ""
 
 
-TAILSCALE_IP = tailscale_ip()
+# Cached so a late-starting Tailscale (post-reboot) can fill SSH chips without
+# a launchd restart. Refreshed by _tailscale_sampler every 5 min.
+_TS = {"ip": "", "lock": threading.Lock()}
+
+
+def _current_tailscale_ip():
+    with _TS["lock"]:
+        return _TS["ip"]
+
+
+def _set_tailscale_ip(ip):
+    with _TS["lock"]:
+        _TS["ip"] = ip or ""
+
+
+def _tailscale_sampler():
+    while True:
+        try:
+            _set_tailscale_ip(tailscale_ip())
+        except Exception:
+            pass
+        time.sleep(300)
+
+
+_set_tailscale_ip(tailscale_ip())
 
 
 def computer_name():
@@ -1082,7 +1107,7 @@ _PEER_CACHE = {}                       # ip -> (ts, stats, working_url)
 def _refresh_sysdash_peers():
     out = []
     for p in tailnet_peers(ttl=60):
-        if p["ip"] == TAILSCALE_IP:
+        if p["ip"] == _current_tailscale_ip():
             continue
         for u in _peer_urls(p, "/api/stats"):
             d = _fetch_stats(u)
@@ -1407,7 +1432,7 @@ def stats():
         "host": HOSTNAME,
         "localtime": time.strftime("%H:%M:%S"),
         "tz": time.strftime("%Z"),
-        "tailscale_ip": TAILSCALE_IP,
+        "tailscale_ip": _current_tailscale_ip(),
         "user": SSH_USER,
         "ts": time.time(),
         "uptime": int(time.time() - psutil.boot_time()),
@@ -1707,9 +1732,10 @@ if __name__ == "__main__":
     threading.Thread(target=_ai_cli_loop, daemon=True).start()
     threading.Thread(target=_thermal_sampler, daemon=True).start()
     threading.Thread(target=_check_alert_sampler, daemon=True).start()
+    threading.Thread(target=_tailscale_sampler, daemon=True).start()
     if PUSH_TO:
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {TAILSCALE_IP})")
+    print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {_current_tailscale_ip()})")
     srv.serve_forever()

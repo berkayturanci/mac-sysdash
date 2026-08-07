@@ -1,0 +1,34 @@
+# keel consumer config for mac-sysdash
+extends: keel
+core_version: "^1.0"
+owner: berkayturanci
+repo: "mac-sysdash"
+base_branch: "main"
+platform: "python"
+consent_mode: "explicit"
+timezone: "Europe/Istanbul"
+merge_window: "07:00-01:30"
+
+knobs:
+  # Prefer a local/repo venv with psutil (CI installs it system-wide).
+  build_gate_cmd: "sh -c 'for py in ./venv/bin/python ../venv/bin/python ../../venv/bin/python python3; do command -v \"$py\" >/dev/null 2>&1 || [ -x \"$py\" ] || continue; \"$py\" -c \"import psutil\" >/dev/null 2>&1 || continue; exec \"$py\" -m unittest discover -s tests -v; done; echo \"no python with psutil found\" >&2; exit 1'"
+  ci_workflows:
+    "CI": "**"
+  docs_gate_paths:
+    - "README.md"
+    - "CHANGELOG.md"
+    - "AGENTS.md"
+    - "CLAUDE.md"
+    - "docs/**"
+    - ".agents/**"
+    - ".keel/**"
+  sot_doc: AGENTS.md
+  tier3_globs:
+    - "server.py"
+    - "install.sh"
+    - "serve.sh"
+    - ".github/workflows/**"
+
+gates: [build]
+extensions: {}
+extensions_dir: .keel/extensions

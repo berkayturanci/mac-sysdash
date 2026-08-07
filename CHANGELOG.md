@@ -1,3 +1,11 @@
+## [1.34.3] - 2026-08-07
+### Fixed
+- **Tailscale IP refreshes every 5 minutes.** SSH / VNC / copy chips only appear
+  when `tailscale_ip` is set; previously it was read once at process start, so a
+  launchd agent that started before Tailscale was ready kept an empty IP forever
+  (chips missing until restart). A background sampler now re-reads
+  `tailscale ip -4` every 5 minutes so the chips recover on their own.
+
 ## [1.34.2] - 2026-07-09
 ### Added
 - **AI widget: CodexBar CLI fallback.** When the launchd agent cannot read

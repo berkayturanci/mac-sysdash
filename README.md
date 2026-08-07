@@ -4,7 +4,7 @@
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
-![version](https://img.shields.io/badge/version-1.34.2-blue)
+![version](https://img.shields.io/badge/version-1.34.3-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
