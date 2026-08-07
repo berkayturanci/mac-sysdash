@@ -1,0 +1,33 @@
+# keel consumer config for mac-sysdash
+extends: keel
+core_version: "^1.0"
+repo: "mac-sysdash"
+base_branch: "main"
+platform: "python"
+consent_mode: "explicit"
+timezone: "Europe/Istanbul"
+merge_window: "07:00-01:30"
+
+knobs:
+  # Prefer the repo venv when present (has psutil); fall back to system python3.
+  build_gate_cmd: "sh -c 'if [ -x ./venv/bin/python ]; then ./venv/bin/python -m unittest discover -s tests -v; else python3 -m unittest discover -s tests -v; fi'"
+  ci_workflows:
+    "CI": "**"
+  docs_gate_paths:
+    - "README.md"
+    - "CHANGELOG.md"
+    - "AGENTS.md"
+    - "CLAUDE.md"
+    - "docs/**"
+    - ".agents/**"
+    - ".keel/**"
+  sot_doc: AGENTS.md
+  tier3_globs:
+    - "server.py"
+    - "install.sh"
+    - "serve.sh"
+    - ".github/workflows/**"
+
+gates: [build]
+extensions: {}
+extensions_dir: .keel/extensions

@@ -246,6 +246,27 @@ class TailnetPeerTests(unittest.TestCase):
             self.assertEqual(server.tailnet_peers(ttl=0), [])
 
 
+class TailscaleIpCacheTests(unittest.TestCase):
+    def tearDown(self):
+        # Restore whatever the process started with so later tests aren't sticky.
+        server._set_tailscale_ip(server.tailscale_ip())
+
+    def test_empty_cli_output_is_empty_string(self):
+        with mock.patch("server.subprocess.run",
+                        return_value=types.SimpleNamespace(stdout="\n", stderr="")):
+            self.assertEqual(server.tailscale_ip(), "")
+
+    def test_stats_reflects_refreshed_cache(self):
+        server._set_tailscale_ip("")
+        self.assertEqual(server.stats()["tailscale_ip"], "")
+        server._set_tailscale_ip("100.64.0.1")
+        self.assertEqual(server.stats()["tailscale_ip"], "100.64.0.1")
+
+    def test_set_normalizes_none_to_empty(self):
+        server._set_tailscale_ip(None)
+        self.assertEqual(server._current_tailscale_ip(), "")
+
+
 class StatsTests(unittest.TestCase):
     def test_stats_has_expected_shape(self):
         s = server.stats()
