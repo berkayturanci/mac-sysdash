@@ -24,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.35.0"
+VERSION = "1.35.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -44,9 +44,32 @@ RUNNER_ROOTS = [
 ]
 
 
+# /usr/local/bin/tailscale only exists when the user ran Tailscale's optional
+# "install CLI" step; the App Store / standalone app ships the CLI inside its
+# bundle. Checked per call so a Tailscale installed later is picked up without
+# a restart. Symlinks are resolved because the bundle binary aborts
+# ("bundleIdentifier is unknown to the registry") unless invoked by its real
+# path — a `ln -s` into the bundle would otherwise crash every call.
+_TAILSCALE_CANDIDATES = (
+    "/usr/local/bin/tailscale",
+    "/opt/homebrew/bin/tailscale",
+    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+)
+
+
+def tailscale_bin():
+    """Tailscale CLI path, or the bare name when nothing is installed so the
+    callers' try/except degrades to local-only (no peers, no SSH chips)."""
+    for cand in _TAILSCALE_CANDIDATES:
+        if os.access(cand, os.X_OK):
+            return os.path.realpath(cand)
+    found = shutil.which("tailscale")
+    return os.path.realpath(found) if found else "tailscale"
+
+
 def tailscale_ip():
     try:
-        out = subprocess.run(["/usr/local/bin/tailscale", "ip", "-4"],
+        out = subprocess.run([tailscale_bin(), "ip", "-4"],
                              capture_output=True, text=True, timeout=3)
         lines = out.stdout.strip().splitlines()
         return lines[0] if lines else ""
@@ -1053,7 +1076,7 @@ def tailnet_peers(ttl=30):
         return _PEERS["data"]
     peers = []
     try:
-        out = subprocess.run(["/usr/local/bin/tailscale", "status", "--json"],
+        out = subprocess.run([tailscale_bin(), "status", "--json"],
                              capture_output=True, text=True, timeout=4)
         data = json.loads(out.stdout)
         for p in (data.get("Peer") or {}).values():

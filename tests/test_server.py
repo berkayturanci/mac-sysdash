@@ -246,6 +246,48 @@ class TailnetPeerTests(unittest.TestCase):
             self.assertEqual(server.tailnet_peers(ttl=0), [])
 
 
+class TailscaleBinTests(unittest.TestCase):
+    def test_prefers_first_existing_candidate(self):
+        app = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+        with mock.patch("server.os.access", side_effect=lambda p, m: p == app):
+            self.assertEqual(server.tailscale_bin(), app)
+
+    def test_resolves_symlink_to_real_binary(self):
+        # The bundle CLI aborts when run through a symlink; run the target.
+        with tempfile.TemporaryDirectory() as tmp:
+            real = os.path.join(tmp, "Tailscale")
+            open(real, "w").close()
+            os.chmod(real, 0o755)
+            link = os.path.join(tmp, "ts-link")  # not "tailscale": APFS is case-insensitive
+            os.symlink(real, link)
+            with mock.patch("server._TAILSCALE_CANDIDATES", (link,)):
+                self.assertEqual(server.tailscale_bin(), os.path.realpath(real))
+
+    def test_falls_back_to_path_then_bare_name(self):
+        with mock.patch("server.os.access", return_value=False), \
+                mock.patch("server.shutil.which", return_value="/x/tailscale"):
+            self.assertEqual(server.tailscale_bin(), "/x/tailscale")
+        with mock.patch("server.os.access", return_value=False), \
+                mock.patch("server.shutil.which", return_value=None):
+            self.assertEqual(server.tailscale_bin(), "tailscale")
+
+    def test_callers_use_resolved_binary(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.tailscale_bin", return_value="/x/tailscale"), \
+                mock.patch("server.subprocess.run",
+                           return_value=types.SimpleNamespace(stdout="{}")) as run:
+            server.tailscale_ip()
+            server.tailnet_peers(ttl=0)
+        self.assertEqual([c.args[0][0] for c in run.call_args_list],
+                         ["/x/tailscale", "/x/tailscale"])
+
+    def test_missing_binary_degrades_to_local_only(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.tailscale_bin", return_value="/nonexistent/tailscale"):
+            self.assertEqual(server.tailscale_ip(), "")
+            self.assertEqual(server.tailnet_peers(ttl=0), [])
+
+
 class TailscaleIpCacheTests(unittest.TestCase):
     def tearDown(self):
         # Restore whatever the process started with so later tests aren't sticky.

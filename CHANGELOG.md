@@ -1,3 +1,15 @@
+## [1.35.1] - 2026-09-03
+### Fixed
+- **Tailscale CLI found without a manual symlink** (#72). The server called
+  `/usr/local/bin/tailscale`, which only exists after Tailscale's optional
+  "install CLI" step, so a fresh Mac running the App Store / standalone app got
+  an empty `tailscale_ip` (no SSH / VNC chips) and never discovered peers, with
+  no error. `tailscale_bin()` now tries `/usr/local/bin`, `/opt/homebrew/bin`,
+  the app bundle (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`) and
+  `PATH`, resolving symlinks — the bundle binary aborts when invoked through a
+  `ln -s`, so a hand-made symlink used to crash every call too. Without
+  Tailscale at all the dashboard keeps serving the local machine, as before.
+
 ## [1.35.0] - 2026-08-07
 ### Added
 - **Homebrew install.** `Formula/mac-sysdash.rb` lives in this repo. Tap and
