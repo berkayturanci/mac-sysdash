@@ -1,4 +1,4 @@
-## [1.35.1] - 2026-09-03
+## [1.35.1] - 2026-09-04
 ### Fixed
 - **Tailscale CLI found without a manual symlink** (#72). The server called
   `/usr/local/bin/tailscale`, which only exists after Tailscale's optional
