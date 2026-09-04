@@ -1118,10 +1118,14 @@ def tailnet_peers(ttl=30):
 _PEER_PORTS = (8765, 8770)
 
 
-def _fetch_stats(url, timeout=6.0):
+def _fetch_stats(url, timeout=6.0, endpoint="/api/stats"):
+    """GET a peer endpoint. /api/stats must look like a sysdash stats dict (so a
+    random web server on :8765 isn't mistaken for a peer); /api/jobs is a list."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             d = json.loads(r.read().decode("utf-8", "ignore"))
+        if endpoint == "/api/jobs":
+            return d if isinstance(d, list) else None
         if isinstance(d, dict) and "cpu" in d and "version" in d:
             return d
     except Exception:
@@ -1249,8 +1253,8 @@ def peer_stats(ip, ttl=10.0, endpoint="/api/stats"):
         return c[1]
     urls = ([c[2]] if c else []) + _peer_urls(peers[ip], endpoint)
     for u in urls:
-        d = _fetch_stats(u)
-        if d:
+        d = _fetch_stats(u, endpoint=endpoint)
+        if d is not None:   # an empty jobs list is a valid answer
             _PEER_CACHE[cache_key] = (now, d, u)
             return d
     return c[1] if c else None   # serve stale rather than nothing

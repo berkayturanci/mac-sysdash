@@ -10,7 +10,8 @@
   `ln -s`, so a hand-made symlink used to crash every call too. Without
   Tailscale at all the dashboard keeps serving the local machine, as before.
 - **Peer runner timeline never rendered.** `/api/peer_jobs` was matched by the
-  `/api/peer` prefix test first and answered with the peer's stats dict, so the
+  `/api/peer` prefix test first and answered with the peer's stats dict, and
+  the peer fetcher rejected the jobs *list* as "not a stats dict" anyway, so the
   Gantt timeline in a remote runner's modal silently stayed empty.
 - **Disk history on the same basis as the gauge.** The per-second sparkline and
   the SQLite history recorded `total − free` while the gauge shows the

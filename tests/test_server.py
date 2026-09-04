@@ -658,6 +658,29 @@ class PushTests(unittest.TestCase):
     def test_unknown_key_returns_none(self):
         self.assertIsNone(server.peer_by_key("bogus"))
 
+    def test_fetch_accepts_jobs_list_only_for_jobs_endpoint(self):
+        class Resp:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def read(self): return self.body
+        jobs = json.dumps([{"runner": "/r", "ts": 1, "dur": 2}]).encode()
+        with mock.patch("server.urllib.request.urlopen", return_value=Resp(jobs)):
+            self.assertEqual(len(server._fetch_stats("http://x/api/jobs", endpoint="/api/jobs")), 1)
+            self.assertIsNone(server._fetch_stats("http://x/api/stats"))   # a list is not a stats dict
+        with mock.patch("server.urllib.request.urlopen", return_value=Resp(b"[]")):
+            self.assertEqual(server._fetch_stats("http://x/api/jobs", endpoint="/api/jobs"), [])
+
+    def test_peer_jobs_proxy_returns_list(self):
+        peer = {"ip": "100.1.2.3", "name": "studio", "dns": ""}
+        server._PEER_CACHE.clear()
+        with mock.patch("server.tailnet_peers", return_value=[peer]), \
+                mock.patch("server._fetch_stats",
+                           side_effect=lambda u, timeout=6.0, endpoint="/api/stats":
+                           [] if endpoint == "/api/jobs" else {"cpu": {}, "version": "1"}):
+            self.assertEqual(server.peer_by_key("ip:100.1.2.3", endpoint="/api/jobs"), [])
+            self.assertIn("cpu", server.peer_by_key("ip:100.1.2.3"))
+
     def test_push_targets_accept_list(self):
         self.assertEqual(server._push_targets(""), [])
         self.assertEqual(server._push_targets("http://a/api/push"), ["http://a/api/push"])
