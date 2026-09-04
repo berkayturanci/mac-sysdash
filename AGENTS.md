@@ -143,7 +143,8 @@ Gantt timeline via `/api/jobs`). `sqlite3` is stdlib, so this is allowed.
 Endpoints: `/api/peers` lists reachable machines; `/api/peer?key=…` proxies one
 peer's stats and `/api/peer_jobs` its jobs (the hub fetches peers server-side so
 the browser makes no cross-origin calls). Machines that can't accept inbound
-connections POST to `/api/push`. CLI: `python server.py --status [URL]` prints a
+connections POST to `/api/push` (`SYSDASH_PUSH_TO` may list several hubs,
+comma-separated). CLI: `python server.py --status [URL]` prints a
 text table (`--json` for raw).
 
 UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA, a

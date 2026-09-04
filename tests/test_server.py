@@ -345,6 +345,17 @@ class StatsTests(unittest.TestCase):
         self.assertEqual(s["disk"]["used"], 460 - 60)         # 400 (total-avail), not 454 (total-free)
         self.assertEqual(s["disk"]["pct"], round(400 / 460 * 100, 1))
 
+    def test_history_disk_uses_same_basis_as_gauge(self):
+        du = types.SimpleNamespace(total=460, used=300, free=6, percent=98.7)
+        server._DISK_AVAIL["important"] = 60
+        try:
+            with mock.patch("server.psutil.disk_usage", return_value=du):
+                self.assertEqual(server._disk_usage(), (400, 460))   # not (454, 460)
+                s = server.stats()
+        finally:
+            server._DISK_AVAIL["important"] = None
+        self.assertEqual(s["disk"]["used"], 400)
+
     def test_disk_important_available_never_crashes(self):
         v = server._disk_important_available("/System/Volumes/Data")
         self.assertTrue(v is None or (isinstance(v, int) and v > 0))
@@ -596,6 +607,26 @@ class HttpRouteTests(unittest.TestCase):
             self.get("/../server.py")
         self.assertEqual(cm.exception.code, 404)
 
+    def test_peer_jobs_route_not_shadowed_by_peer(self):
+        # /api/peer_jobs must answer with the jobs *list*; a prefix match on
+        # /api/peer used to return the stats dict and break the peer timeline.
+        server._PUSHED["Jobs"] = (server.time.time(), {"host": "Jobs", "cpu": {}})
+        d = json.load(self.get("/api/peer_jobs?key=push:Jobs"))
+        self.assertIsInstance(d, list)
+        d = json.load(self.get("/api/peer?key=push:Jobs"))
+        self.assertEqual(d["host"], "Jobs")
+
+    def test_dotfiles_not_served(self):
+        for path in ("/.github/workflows/ci.yml", "/.gitignore"):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                self.get(path)
+            self.assertEqual(cm.exception.code, 404)
+
+    def test_static_path_rejects_sibling_prefix_dir(self):
+        with mock.patch("server.HERE", "/srv/app"):
+            self.assertIsNone(server._static_path("/../app2/secret.txt"))
+            self.assertIsNone(server._static_path("/../app"))
+
     def test_push_then_serve_over_http(self):
         server._PUSHED.clear()
         payload = {"version": "9.9.9", "host": "HttpPush", "cpu": {"pct": 1}}
@@ -626,6 +657,21 @@ class PushTests(unittest.TestCase):
 
     def test_unknown_key_returns_none(self):
         self.assertIsNone(server.peer_by_key("bogus"))
+
+    def test_push_targets_accept_list(self):
+        self.assertEqual(server._push_targets(""), [])
+        self.assertEqual(server._push_targets("http://a/api/push"), ["http://a/api/push"])
+        self.assertEqual(server._push_targets("http://a/api/push, http://b/api/push\nhttp://c/"),
+                         ["http://a/api/push", "http://b/api/push", "http://c/"])
+
+    def test_pusher_posts_to_every_target(self):
+        with mock.patch("server.PUSH_TARGETS", ["http://a/", "http://b/"]), \
+                mock.patch("server.cached_stats", return_value={"host": "x"}), \
+                mock.patch("server._push_once") as once, \
+                mock.patch("server.time.sleep", side_effect=StopIteration):
+            with self.assertRaises(StopIteration):
+                server._pusher()
+        self.assertEqual([c.args[0] for c in once.call_args_list], ["http://a/", "http://b/"])
 
 
 class CliModeTests(unittest.TestCase):

@@ -335,7 +335,9 @@ Environment variables:
 
 - `SYSDASH_PORT` — listening port (default `8765`)
 - `SYSDASH_PUSH_TO` — a hub's `/api/push` URL; when set, this node streams its
-  stats to that hub (for machines that can't accept inbound). Off by default.
+  stats to that hub (for machines that can't accept inbound). Several hubs can
+  be listed, comma-separated, so the node appears on every dashboard. Off by
+  default.
 
 At the top of `server.py`:
 
