@@ -32,8 +32,16 @@ class MacSysdash < Formula
     libexec.install "server.py", "index.html", "sw.js", "manifest.webmanifest",
                     "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"
 
+    # Menu bar companion (SwiftUI, macOS 14+). Optional: the dashboard works without it.
+    if MacOS.version >= :sonoma && File.exist?("menubar/build.sh")
+      system "./menubar/build.sh", prefix
+    end
+
     (bin/"mac-sysdash").write <<~EOS
       #!/bin/bash
+      if [ "$1" = "menubar" ]; then
+        exec open "#{opt_prefix}/SysdashBar.app"
+      fi
       exec "#{libexec}/bin/python" "#{libexec}/server.py" "$@"
     EOS
     chmod 0555, bin/"mac-sysdash"
@@ -56,6 +64,9 @@ class MacSysdash < Formula
         brew services start mac-sysdash
 
       Dashboard: http://localhost:8765
+
+      Menu bar app (macOS 14+):  mac-sysdash menubar
+      then tick "Open at login" in its window.
 
       Do not run ./install.sh for a brew install — that writes a separate
       launchd label (com.berkay.sysdash) and can fight brew services.

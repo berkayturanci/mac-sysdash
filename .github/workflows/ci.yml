@@ -23,6 +23,13 @@ jobs:
       - name: Run tests
         run: python3 -m unittest discover -s tests -v
 
+  menubar:
+    name: Build menu bar app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - run: ./menubar/build.sh
+
   site:
     name: Build site
     runs-on: ubuntu-latest
