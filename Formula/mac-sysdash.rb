@@ -12,8 +12,8 @@ class MacSysdash < Formula
 
   desc "Tiny macOS system + GitHub Actions self-hosted runner dashboard"
   homepage "https://berkayturanci.github.io/mac-sysdash/"
-  url "https://github.com/berkayturanci/mac-sysdash/archive/refs/tags/v1.35.0.tar.gz"
-  sha256 "9f7e649abd132d43dd8c285dfe245c2606fdaa985459a2b457a07e960f6a047d"
+  url "https://github.com/berkayturanci/mac-sysdash/archive/refs/tags/v1.36.0.tar.gz"
+  sha256 "9f546dcb28bcedf21d2bf58ca5e0a5cb2bd6c75f9a0126dda01b57d825d66d5a"
   license :cannot_represent # MIT + Commons Clause — see LICENSE in the repo
 
   depends_on "python@3.14"
