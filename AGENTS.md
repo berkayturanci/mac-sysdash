@@ -143,7 +143,8 @@ Gantt timeline via `/api/jobs`). `sqlite3` is stdlib, so this is allowed.
 Endpoints: `/api/peers` lists reachable machines; `/api/peer?key=…` proxies one
 peer's stats and `/api/peer_jobs` its jobs (the hub fetches peers server-side so
 the browser makes no cross-origin calls). Machines that can't accept inbound
-connections POST to `/api/push`. CLI: `python server.py --status [URL]` prints a
+connections POST to `/api/push` (`SYSDASH_PUSH_TO` may list several hubs,
+comma-separated). CLI: `python server.py --status [URL]` prints a
 text table (`--json` for raw).
 
 UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA, a
@@ -182,6 +183,9 @@ Runs as launchd agent `com.berkay.sysdash` (git clone) or
   a healthy disk read ~99%). The purgeable-inclusive number comes from Foundation
   via ctypes (`_disk_important_available`, cached by the thermal sampler); it
   falls back to `total - free` when the API is unavailable.
+- The Tailscale CLI is resolved by `tailscale_bin()` (`/usr/local/bin`,
+  `/opt/homebrew/bin`, the app bundle, then `PATH`), with symlinks resolved: the
+  bundle binary aborts when run through a `ln -s`. Never hardcode the path.
 - `sw.js` is network-first, so a new `index.html` reaches users on reload without
   a cache-version bump.
 - Stats are cached ~0.8 s behind a lock so many concurrent viewers share one

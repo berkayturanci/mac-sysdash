@@ -24,7 +24,7 @@ import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.35.0"
+VERSION = "1.35.1"
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -44,9 +44,32 @@ RUNNER_ROOTS = [
 ]
 
 
+# /usr/local/bin/tailscale only exists when the user ran Tailscale's optional
+# "install CLI" step; the App Store / standalone app ships the CLI inside its
+# bundle. Checked per call so a Tailscale installed later is picked up without
+# a restart. Symlinks are resolved because the bundle binary aborts
+# ("bundleIdentifier is unknown to the registry") unless invoked by its real
+# path — a `ln -s` into the bundle would otherwise crash every call.
+_TAILSCALE_CANDIDATES = (
+    "/usr/local/bin/tailscale",
+    "/opt/homebrew/bin/tailscale",
+    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+)
+
+
+def tailscale_bin():
+    """Tailscale CLI path, or the bare name when nothing is installed so the
+    callers' try/except degrades to local-only (no peers, no SSH chips)."""
+    for cand in _TAILSCALE_CANDIDATES:
+        if os.access(cand, os.X_OK):
+            return os.path.realpath(cand)
+    found = shutil.which("tailscale")
+    return os.path.realpath(found) if found else "tailscale"
+
+
 def tailscale_ip():
     try:
-        out = subprocess.run(["/usr/local/bin/tailscale", "ip", "-4"],
+        out = subprocess.run([tailscale_bin(), "ip", "-4"],
                              capture_output=True, text=True, timeout=3)
         lines = out.stdout.strip().splitlines()
         return lines[0] if lines else ""
@@ -320,6 +343,20 @@ def _disk_important_available(path):
         return None
 
 
+def _disk_usage():
+    """(used, total) bytes for the data volume, on ONE basis for the gauge, the
+    sparkline history and the SQLite baseline alike: total minus the
+    purgeable-inclusive available (what macOS Storage shows), else total minus
+    free. Mixing the two made the history sit a few points above the gauge and
+    skewed the baseline z-score."""
+    dpath = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
+    du = psutil.disk_usage(dpath)
+    avail = _DISK_AVAIL["important"]
+    if avail and 0 < avail < du.total:
+        return du.total - avail, du.total
+    return du.total - du.free, du.total
+
+
 def disk_eta_days(current_pct):
     """Days until the disk fills, from the least-squares slope of disk% over the
     last 24h of history. None when flat/shrinking or history is too thin."""
@@ -470,6 +507,10 @@ def get_flaky_jobs(days=14):
 _UPDATE = {"behind": 0}
 
 def _update_checker():
+    # A brew Cellar install isn't a checkout (updates come via `brew upgrade`),
+    # so don't shell out to git every hour for nothing.
+    if not os.path.exists(os.path.join(HERE, ".git")):
+        return
     while True:
         try:
             subprocess.run(["/usr/bin/git", "-C", HERE, "fetch", "-q", "origin", "main"],
@@ -527,9 +568,8 @@ def _cpu_sampler():
         try:
             vm = psutil.virtual_memory()
             mp = round((vm.total - vm.available) / vm.total * 100, 1) if vm.total else 0.0
-            dpath = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
-            du = psutil.disk_usage(dpath)
-            dp = round((du.total - du.free) / du.total * 100, 1) if du.total else 0.0
+            disk_used, disk_total = _disk_usage()
+            dp = round(disk_used / disk_total * 100, 1) if disk_total else 0.0
             try:
                 load1 = psutil.getloadavg()[0]
             except Exception:
@@ -1053,7 +1093,7 @@ def tailnet_peers(ttl=30):
         return _PEERS["data"]
     peers = []
     try:
-        out = subprocess.run(["/usr/local/bin/tailscale", "status", "--json"],
+        out = subprocess.run([tailscale_bin(), "status", "--json"],
                              capture_output=True, text=True, timeout=4)
         data = json.loads(out.stdout)
         for p in (data.get("Peer") or {}).values():
@@ -1078,10 +1118,14 @@ def tailnet_peers(ttl=30):
 _PEER_PORTS = (8765, 8770)
 
 
-def _fetch_stats(url, timeout=6.0):
+def _fetch_stats(url, timeout=6.0, endpoint="/api/stats"):
+    """GET a peer endpoint. /api/stats must look like a sysdash stats dict (so a
+    random web server on :8765 isn't mistaken for a peer); /api/jobs is a list."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             d = json.loads(r.read().decode("utf-8", "ignore"))
+        if endpoint == "/api/jobs":
+            return d if isinstance(d, list) else None
         if isinstance(d, dict) and "cpu" in d and "version" in d:
             return d
     except Exception:
@@ -1129,17 +1173,34 @@ def _peer_sampler():
 
 # When this machine can't accept inbound connections, set SYSDASH_PUSH_TO to a
 # hub's /api/push URL and it will POST its own stats there every few seconds.
+# Several hubs (comma/space separated) each get a copy, so every dashboard in
+# the fleet can show this node, not just one.
 PUSH_TO = os.environ.get("SYSDASH_PUSH_TO", "")
+
+
+def _push_targets(spec):
+    return [u for u in re.split(r"[,\s]+", spec or "") if u]
+
+
+PUSH_TARGETS = _push_targets(PUSH_TO)
+
+
+def _push_once(url, data):
+    try:
+        req = urllib.request.Request(
+            url, data=data, method="POST",
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=6).read()
+    except Exception:
+        pass
 
 
 def _pusher():
     while True:
         try:
             data = json.dumps(cached_stats()).encode()
-            req = urllib.request.Request(
-                PUSH_TO, data=data, method="POST",
-                headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=6).read()
+            for url in PUSH_TARGETS:
+                _push_once(url, data)
         except Exception:
             pass
         time.sleep(0.5)
@@ -1192,8 +1253,8 @@ def peer_stats(ip, ttl=10.0, endpoint="/api/stats"):
         return c[1]
     urls = ([c[2]] if c else []) + _peer_urls(peers[ip], endpoint)
     for u in urls:
-        d = _fetch_stats(u)
-        if d:
+        d = _fetch_stats(u, endpoint=endpoint)
+        if d is not None:   # an empty jobs list is a valid answer
             _PEER_CACHE[cache_key] = (now, d, u)
             return d
     return c[1] if c else None   # serve stale rather than nothing
@@ -1408,20 +1469,11 @@ def stats():
     mem_used = vm.total - vm.available
     mem_pct = round(mem_used / vm.total * 100, 1) if vm.total else 0.0
     sw = psutil.swap_memory()
-    # On macOS, "/" is the read-only system snapshot (looks ~empty). The real
-    # usage lives on the APFS data volume.
-    disk_path = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
-    du = psutil.disk_usage(disk_path)
-    # macOS Storage counts purgeable space (caches, local snapshots) as available,
-    # so its "used" is total - availableForImportantUsage, not total - free (which
-    # can read tens of GB higher, making a healthy disk look ~full). Prefer the
-    # purgeable-inclusive figure (via Foundation, cached); fall back to total-free.
-    avail = _DISK_AVAIL["important"]
-    if avail and 0 < avail < du.total:
-        disk_used = du.total - avail
-    else:
-        disk_used = du.total - du.free
-    disk_pct = round(disk_used / du.total * 100, 1) if du.total else 0.0
+    # On macOS, "/" is the read-only system snapshot (looks ~empty); the real
+    # usage lives on the APFS data volume, purgeable space counted as available
+    # (see _disk_usage).
+    disk_used, disk_total = _disk_usage()
+    disk_pct = round(disk_used / disk_total * 100, 1) if disk_total else 0.0
     try:
         load = psutil.getloadavg()
     except Exception:
@@ -1440,7 +1492,7 @@ def stats():
                 "count": _CPU["count"], "load": [round(x, 2) for x in load]},
         "mem": {"pct": mem_pct, "used": mem_used, "total": vm.total},
         "swap": {"pct": sw.percent, "used": sw.used, "total": sw.total},
-        "disk": {"pct": disk_pct, "used": disk_used, "total": du.total},
+        "disk": {"pct": disk_pct, "used": disk_used, "total": disk_total},
         "disk_eta_days": disk_eta_days(disk_pct),
         "net": dict(_NET),
         "net_ifaces": dict(_NET_IF),
@@ -1542,6 +1594,21 @@ def get_jobs(days=30):
     return res
 
 
+def _static_path(req):
+    """Absolute file for a request path, or None. Only regular files strictly
+    inside HERE (`HERE/` — a bare prefix test would let `/../app2/x` through when
+    a sibling dir shares the name prefix) and never dot-files/dirs (`.git`,
+    `.github`, `.env`), which a git-clone install would otherwise serve."""
+    path = "/index.html" if req in ("/", "") else req
+    fp = os.path.normpath(os.path.join(HERE, path.lstrip("/")))
+    if not fp.startswith(HERE + os.sep):
+        return None
+    rel = os.path.relpath(fp, HERE)
+    if any(seg.startswith(".") for seg in rel.split(os.sep)):
+        return None
+    return fp if os.path.isfile(fp) else None
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -1607,19 +1674,8 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
-        if self.path.startswith("/api/peer"):
-            try:
-                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                key = (q.get("key") or [""])[0]
-                ip = (q.get("ip") or [""])[0]
-                d = peer_by_key(key) if key else (peer_stats(ip) if ip else None)
-                if d is None:
-                    self._send(404, b'{"error":"peer unreachable"}', "application/json")
-                else:
-                    self._send(200, json.dumps(d).encode(), "application/json")
-            except Exception as e:
-                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
-            return
+        # Must precede /api/peer: that prefix test would swallow this route and
+        # answer with the peer's stats dict instead of its jobs list.
         if self.path.startswith("/api/peer_jobs"):
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -1633,10 +1689,21 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
-        req = self.path.split("?", 1)[0]
-        path = "/index.html" if req in ("/", "") else req
-        fp = os.path.normpath(os.path.join(HERE, path.lstrip("/")))
-        if fp.startswith(HERE) and os.path.isfile(fp):
+        if self.path.startswith("/api/peer"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                key = (q.get("key") or [""])[0]
+                ip = (q.get("ip") or [""])[0]
+                d = peer_by_key(key) if key else (peer_stats(ip) if ip else None)
+                if d is None:
+                    self._send(404, b'{"error":"peer unreachable"}', "application/json")
+                else:
+                    self._send(200, json.dumps(d).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
+        fp = _static_path(self.path.split("?", 1)[0])
+        if fp:
             with open(fp, "rb") as f:
                 body = f.read()
             self._send(200, body, _CTYPES.get(os.path.splitext(fp)[1], "text/plain"))
@@ -1733,7 +1800,7 @@ if __name__ == "__main__":
     threading.Thread(target=_thermal_sampler, daemon=True).start()
     threading.Thread(target=_check_alert_sampler, daemon=True).start()
     threading.Thread(target=_tailscale_sampler, daemon=True).start()
-    if PUSH_TO:
+    if PUSH_TARGETS:
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)

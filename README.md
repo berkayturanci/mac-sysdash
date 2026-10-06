@@ -335,7 +335,9 @@ Environment variables:
 
 - `SYSDASH_PORT` — listening port (default `8765`)
 - `SYSDASH_PUSH_TO` — a hub's `/api/push` URL; when set, this node streams its
-  stats to that hub (for machines that can't accept inbound). Off by default.
+  stats to that hub (for machines that can't accept inbound). Several hubs can
+  be listed, comma-separated, so the node appears on every dashboard. Off by
+  default.
 
 At the top of `server.py`:
 
@@ -371,6 +373,14 @@ thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook UR
   includes a reachable host. If it answers locally but not over Tailscale, the
   macOS firewall is likely dropping incoming connections — allow the interpreter
   in System Settings → Network → Firewall, or turn the firewall off.
+- **No peers and no SSH chip on this machine, but others see it.** sysdash
+  needs the Tailscale CLI. It looks in `/usr/local/bin`, `/opt/homebrew/bin`,
+  the app bundle (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`) and
+  `PATH`, resolving symlinks. Check with
+  `/Applications/Tailscale.app/Contents/MacOS/Tailscale ip -4` (note: a
+  `ln -s` to that binary aborts with "bundleIdentifier is unknown" — use a
+  shell alias instead). Without Tailscale the dashboard still shows the local
+  machine.
 - **AI widget missing a provider (e.g. Cursor, Antigravity).** Claude/Codex are
   read from CodexBar's history files and need no extra permission. Other
   providers live in CodexBar's Group Container snapshot, which macOS hides from

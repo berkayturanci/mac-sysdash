@@ -246,6 +246,48 @@ class TailnetPeerTests(unittest.TestCase):
             self.assertEqual(server.tailnet_peers(ttl=0), [])
 
 
+class TailscaleBinTests(unittest.TestCase):
+    def test_prefers_first_existing_candidate(self):
+        app = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+        with mock.patch("server.os.access", side_effect=lambda p, m: p == app):
+            self.assertEqual(server.tailscale_bin(), app)
+
+    def test_resolves_symlink_to_real_binary(self):
+        # The bundle CLI aborts when run through a symlink; run the target.
+        with tempfile.TemporaryDirectory() as tmp:
+            real = os.path.join(tmp, "Tailscale")
+            open(real, "w").close()
+            os.chmod(real, 0o755)
+            link = os.path.join(tmp, "ts-link")  # not "tailscale": APFS is case-insensitive
+            os.symlink(real, link)
+            with mock.patch("server._TAILSCALE_CANDIDATES", (link,)):
+                self.assertEqual(server.tailscale_bin(), os.path.realpath(real))
+
+    def test_falls_back_to_path_then_bare_name(self):
+        with mock.patch("server.os.access", return_value=False), \
+                mock.patch("server.shutil.which", return_value="/x/tailscale"):
+            self.assertEqual(server.tailscale_bin(), "/x/tailscale")
+        with mock.patch("server.os.access", return_value=False), \
+                mock.patch("server.shutil.which", return_value=None):
+            self.assertEqual(server.tailscale_bin(), "tailscale")
+
+    def test_callers_use_resolved_binary(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.tailscale_bin", return_value="/x/tailscale"), \
+                mock.patch("server.subprocess.run",
+                           return_value=types.SimpleNamespace(stdout="{}")) as run:
+            server.tailscale_ip()
+            server.tailnet_peers(ttl=0)
+        self.assertEqual([c.args[0][0] for c in run.call_args_list],
+                         ["/x/tailscale", "/x/tailscale"])
+
+    def test_missing_binary_degrades_to_local_only(self):
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.tailscale_bin", return_value="/nonexistent/tailscale"):
+            self.assertEqual(server.tailscale_ip(), "")
+            self.assertEqual(server.tailnet_peers(ttl=0), [])
+
+
 class TailscaleIpCacheTests(unittest.TestCase):
     def tearDown(self):
         # Restore whatever the process started with so later tests aren't sticky.
@@ -302,6 +344,17 @@ class StatsTests(unittest.TestCase):
             server._DISK_AVAIL["important"] = None    # restore fallback for other tests
         self.assertEqual(s["disk"]["used"], 460 - 60)         # 400 (total-avail), not 454 (total-free)
         self.assertEqual(s["disk"]["pct"], round(400 / 460 * 100, 1))
+
+    def test_history_disk_uses_same_basis_as_gauge(self):
+        du = types.SimpleNamespace(total=460, used=300, free=6, percent=98.7)
+        server._DISK_AVAIL["important"] = 60
+        try:
+            with mock.patch("server.psutil.disk_usage", return_value=du):
+                self.assertEqual(server._disk_usage(), (400, 460))   # not (454, 460)
+                s = server.stats()
+        finally:
+            server._DISK_AVAIL["important"] = None
+        self.assertEqual(s["disk"]["used"], 400)
 
     def test_disk_important_available_never_crashes(self):
         v = server._disk_important_available("/System/Volumes/Data")
@@ -554,6 +607,26 @@ class HttpRouteTests(unittest.TestCase):
             self.get("/../server.py")
         self.assertEqual(cm.exception.code, 404)
 
+    def test_peer_jobs_route_not_shadowed_by_peer(self):
+        # /api/peer_jobs must answer with the jobs *list*; a prefix match on
+        # /api/peer used to return the stats dict and break the peer timeline.
+        server._PUSHED["Jobs"] = (server.time.time(), {"host": "Jobs", "cpu": {}})
+        d = json.load(self.get("/api/peer_jobs?key=push:Jobs"))
+        self.assertIsInstance(d, list)
+        d = json.load(self.get("/api/peer?key=push:Jobs"))
+        self.assertEqual(d["host"], "Jobs")
+
+    def test_dotfiles_not_served(self):
+        for path in ("/.github/workflows/ci.yml", "/.gitignore"):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                self.get(path)
+            self.assertEqual(cm.exception.code, 404)
+
+    def test_static_path_rejects_sibling_prefix_dir(self):
+        with mock.patch("server.HERE", "/srv/app"):
+            self.assertIsNone(server._static_path("/../app2/secret.txt"))
+            self.assertIsNone(server._static_path("/../app"))
+
     def test_push_then_serve_over_http(self):
         server._PUSHED.clear()
         payload = {"version": "9.9.9", "host": "HttpPush", "cpu": {"pct": 1}}
@@ -584,6 +657,44 @@ class PushTests(unittest.TestCase):
 
     def test_unknown_key_returns_none(self):
         self.assertIsNone(server.peer_by_key("bogus"))
+
+    def test_fetch_accepts_jobs_list_only_for_jobs_endpoint(self):
+        class Resp:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def read(self): return self.body
+        jobs = json.dumps([{"runner": "/r", "ts": 1, "dur": 2}]).encode()
+        with mock.patch("server.urllib.request.urlopen", return_value=Resp(jobs)):
+            self.assertEqual(len(server._fetch_stats("http://x/api/jobs", endpoint="/api/jobs")), 1)
+            self.assertIsNone(server._fetch_stats("http://x/api/stats"))   # a list is not a stats dict
+        with mock.patch("server.urllib.request.urlopen", return_value=Resp(b"[]")):
+            self.assertEqual(server._fetch_stats("http://x/api/jobs", endpoint="/api/jobs"), [])
+
+    def test_peer_jobs_proxy_returns_list(self):
+        peer = {"ip": "100.1.2.3", "name": "studio", "dns": ""}
+        server._PEER_CACHE.clear()
+        with mock.patch("server.tailnet_peers", return_value=[peer]), \
+                mock.patch("server._fetch_stats",
+                           side_effect=lambda u, timeout=6.0, endpoint="/api/stats":
+                           [] if endpoint == "/api/jobs" else {"cpu": {}, "version": "1"}):
+            self.assertEqual(server.peer_by_key("ip:100.1.2.3", endpoint="/api/jobs"), [])
+            self.assertIn("cpu", server.peer_by_key("ip:100.1.2.3"))
+
+    def test_push_targets_accept_list(self):
+        self.assertEqual(server._push_targets(""), [])
+        self.assertEqual(server._push_targets("http://a/api/push"), ["http://a/api/push"])
+        self.assertEqual(server._push_targets("http://a/api/push, http://b/api/push\nhttp://c/"),
+                         ["http://a/api/push", "http://b/api/push", "http://c/"])
+
+    def test_pusher_posts_to_every_target(self):
+        with mock.patch("server.PUSH_TARGETS", ["http://a/", "http://b/"]), \
+                mock.patch("server.cached_stats", return_value={"host": "x"}), \
+                mock.patch("server._push_once") as once, \
+                mock.patch("server.time.sleep", side_effect=StopIteration):
+            with self.assertRaises(StopIteration):
+                server._pusher()
+        self.assertEqual([c.args[0] for c in once.call_args_list], ["http://a/", "http://b/"])
 
 
 class CliModeTests(unittest.TestCase):
