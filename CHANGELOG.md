@@ -5,6 +5,9 @@
   instance now keeps `~/Applications/Mac System Dashboard.app` in step with its
   version. Only one instance runs: launching a second copy shows the running
   one's panel and quits.
+- **The menu bar app had no icon** (a blank tile in the Dock with "Show in
+  Dock", and in Finder/Spotlight). `build.sh` now turns the dashboard's
+  `icon-512.png` into `AppIcon.icns` with the built-in `sips`/`iconutil`.
 
 ## [1.38.0] - 2026-10-06
 ### Changed
