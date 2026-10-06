@@ -10,7 +10,7 @@
 class MacSysdash < Formula
   include Language::Python::Virtualenv
 
-  desc "Tiny macOS system + GitHub Actions self-hosted runner dashboard"
+  desc "Mac System Dashboard: tiny macOS system + self-hosted runner dashboard"
   homepage "https://berkayturanci.github.io/mac-sysdash/"
   url "https://github.com/berkayturanci/mac-sysdash/archive/refs/tags/v1.37.1.tar.gz"
   sha256 "cf3e2eaeccf0ac9167a16c41cb61c7feac08d2247cac640b57f81f8838884212"
@@ -42,7 +42,7 @@ class MacSysdash < Formula
     (bin/"mac-sysdash").write <<~EOS
       #!/bin/bash
       if [ "$1" = "menubar" ]; then
-        exec open "#{opt_prefix}/SysdashBar.app"
+        exec open "#{opt_prefix}/Mac System Dashboard.app"
       fi
       exec "#{libexec}/bin/python" "#{libexec}/server.py" "$@"
     EOS

@@ -1,4 +1,4 @@
-# mac-sysdash
+# Mac System Dashboard (mac-sysdash)
 
 > A tiny, dependency-light system + GitHub Actions self-hosted runner dashboard for macOS. One Python file (stdlib + psutil) serves a JSON API and a single static HTML page; several Macs show each other's stats over Tailscale, in the browser or an optional menu bar app. No cloud, no accounts, no token, no build step for the dashboard.
 

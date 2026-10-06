@@ -1,3 +1,24 @@
+## [1.38.0] - 2026-10-06
+### Changed
+- **New display name: Mac System Dashboard.** The page title, PWA name, menu bar
+  app (now `Mac System Dashboard.app`), its windows, README and website use it.
+  The repo, Homebrew formula, `mac-sysdash` command, config paths and bundle id
+  are unchanged, so existing installs upgrade normally; an existing "Open at
+  login" item is re-pointed at the renamed app on its first launch.
+
+### Added
+- **macOS version, chip and connection** per machine: `/api/stats` gains
+  `macos`, `chip` and `link` (`wifi` | `ethernet` | `hotspot` | `vpn` | `other`,
+  from the default route's interface; an iPhone hotspot is recognised by its
+  172.20.10.0/28 gateway). `/api/peers` gains `path` — `direct` or `relay <region>`
+  from the hub's Tailscale status. Shown under each machine's name on the web and
+  in the menu bar app. The Wi-Fi network name is not collected: macOS 14+ redacts
+  it without Location Services, and it would reveal each laptop's whereabouts to
+  the tailnet.
+- **AI quota in the menu bar app**: each machine tab shows the CodexBar session
+  and weekly usage per provider with reset countdowns (flagged as stale when the
+  reset time has passed), matching the web dashboard's AI widget.
+
 ## [1.37.1] - 2026-10-06
 ### Fixed
 - **Menu bar Settings window opened as just a title bar.** The AppKit window

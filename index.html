@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mac Dashboard</title>
+<title>Mac System Dashboard</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mac Dashboard">
+<meta name="apple-mobile-web-app-title" content="Mac System Dashboard">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -375,7 +375,7 @@
   <header>
     <div class="hl">
       <div>
-        <h1 id="title"><span id="titleText">Mac Dashboard</span> <a id="updBadge" class="updbadge" hidden></a></h1>
+        <h1 id="title"><span id="titleText">Mac System Dashboard</span> <a id="updBadge" class="updbadge" hidden></a></h1>
         <div class="sub" id="subtitle"></div>
       </div>
     </div>
@@ -585,7 +585,7 @@ function peerKey(h){return (h.base||'').replace(/^peer:/,'')}
 function hosts(){
   if(DEMO_MODE) return DEMO_HOSTS;
   const list=[{name:'',base:'',self:true},
-    ...autoPeers.map(a=>({name:a.name||'',base:a.base,auto:true,statsUrl:a.statsUrl}))];
+    ...autoPeers.map(a=>({name:a.name||'',base:a.base,auto:true,statsUrl:a.statsUrl,path:a.path}))];
   return orderHosts(list);
 }
 function getOrder(){try{return JSON.parse(localStorage.getItem('sysdash-order'))||[]}catch(e){return []}}
@@ -621,6 +621,14 @@ function tsFmt(ts) {
 }
 // Per-machine SSH shortcut: >_ opens ssh://user@ip (the OS ssh handler — iTerm2
 // if set as the ssh:// handler, else Terminal); ⧉ copies `ssh user@ip`.
+// "macOS 27.0 · Apple M1 Pro · Wi-Fi · relay fra" — the link kind and the
+// hub→peer Tailscale path say where a laptop is (home LAN vs. phone hotspot).
+const LINKS={wifi:'Wi-Fi',ethernet:'Ethernet',hotspot:'Hotspot',vpn:'VPN'};
+function machineInfo(s,host){
+  const parts=[s.macos?'macOS '+s.macos:'',s.chip||'',
+    s.link&&LINKS[s.link.type]?LINKS[s.link.type]:'',host&&host.path?host.path:''].filter(Boolean);
+  return parts.length?`<span class="m-net">${esc(parts.join(' · '))}</span>`:'';
+}
 function sshChip(s){
   if(!s||!s.tailscale_ip)return '';
   const tgt=(s.user?esc(s.user)+'@':'')+esc(s.tailscale_ip), cmd='ssh '+tgt;
@@ -869,7 +877,7 @@ function machineHTML(host, entry){
   }
   return `<div class="machine ${(!online||stale)?'moff':''}" data-base="${esc(host.base)}">
     <div class="mhead" draggable="true" title="${L==='tr'?'sürükleyip sırala':'drag to reorder'}">
-      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span><span class="mntext"><span class="mn">${esc(name)}</span>${online&&s&&s.tailscale_ip?`<span class="m-net">Tailscale ${esc(s.tailscale_ip)}${s.cpu&&s.cpu.count?' · '+s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'):''}</span>`:''}</span></div>
+      <div class="mname"><span class="grip">⠿</span><span class="ic">💻</span><span class="mntext"><span class="mn">${esc(name)}</span>${online&&s&&s.tailscale_ip?`<span class="m-net">Tailscale ${esc(s.tailscale_ip)}${s.cpu&&s.cpu.count?' · '+s.cpu.count+' '+(L==='tr'?'çekirdek':'cores'):''}</span>`:''}${online&&s?machineInfo(s,host):''}</span></div>
       <div class="mright">
         ${online&&!stale?sshChip(s):''}
         ${online&&!stale&&s.thermal?thermalChip(s.thermal):''}
@@ -1004,7 +1012,7 @@ function computeAlerts(){
     const m=Math.ceil((snoozeUntil()-Date.now())/60000);
     banner.style.display='flex'; banner.classList.add('snoozed');
     banner.textContent=`🔕 ${L==='tr'?'Alarmlar susturuldu':'Alerts snoozed'} · ${m}${L==='tr'?'dk':'m'}${al.length?` · ${al.length} ${L==='tr'?'gizli':'hidden'}`:''}`;
-    document.title='Mac Dashboard';
+    document.title='Mac System Dashboard';
     prevAlerts=new Set(al);                     // keep synced so nothing fires when snooze ends
     return;
   }
@@ -1012,9 +1020,9 @@ function computeAlerts(){
   if(al.length){
     banner.style.display='flex';
     banner.textContent='⚠️ ' + (sysAl.length ? t.highUse+' ' : '') + al.join('  ·  ');
-    document.title='⚠️ ('+al.length+') Mac Dashboard';
+    document.title='⚠️ ('+al.length+') Mac System Dashboard';
   } else {
-    banner.style.display='none';document.title='Mac Dashboard';
+    banner.style.display='none';document.title='Mac System Dashboard';
   }
   notifyAlerts(al);
 }
@@ -1040,7 +1048,7 @@ function notifyAlerts(al){
 }
 
 function renderAll(){
-  document.getElementById('titleText').textContent='Mac Dashboard';
+  document.getElementById('titleText').textContent='Mac System Dashboard';
   // subtitle from self
   const self=lastData[''];
   const _hs=hosts();
@@ -1523,7 +1531,7 @@ async function discover(){
   try{
     const list=await (await fetch('/api/peers',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json();
     autoPeers=(list||[]).filter(p=>p&&p.key).map(p=>({
-      base:'peer:'+p.key, name:p.name||'', statsUrl:'/api/peer?key='+encodeURIComponent(p.key)}));
+      base:'peer:'+p.key, name:p.name||'', path:p.path||'', statsUrl:'/api/peer?key='+encodeURIComponent(p.key)}));
   }catch(_){}
   try{
     showUnreachable(await (await fetch('/api/unreachable',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json());

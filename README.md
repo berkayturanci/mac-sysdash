@@ -1,11 +1,13 @@
-# mac-sysdash
+# Mac System Dashboard
+
+*(`mac-sysdash` — the repo, Homebrew formula and command keep the short name)*
 
 ![platform](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![homebrew](https://img.shields.io/badge/homebrew-tap-orange)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
-![version](https://img.shields.io/badge/version-1.37.1-blue)
+![version](https://img.shields.io/badge/version-1.38.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -29,6 +31,11 @@ Homebrew / `install.sh` set that up for you in an isolated virtualenv.
 - **Menu bar app** (optional, macOS 14+) — an overview tab plus one tab per
   machine, with a Settings window (Open at login, Show in Dock, icon-only mode).
   See [Menu bar app](#menu-bar-app-optional-macos-14).
+- **Machine facts at a glance** — macOS version, chip, and how each Mac is
+  connected (Wi-Fi / Ethernet / phone hotspot / VPN, plus whether the hub
+  reaches it directly or via a Tailscale relay). The Wi-Fi network *name* is
+  deliberately not shown: macOS 14+ hides it without Location Services, and it
+  would broadcast where each laptop is to the whole tailnet.
 - **Tailnet-only by default** — only this Mac and your Tailscale peers can open
   the dashboard (`SYSDASH_ALLOW=lan` / `any` to widen); settings live in
   `~/.config/mac-sysdash/config`.
@@ -189,12 +196,13 @@ Change the port with `SYSDASH_PORT=8770 ./install.sh`.
 
 ### Menu bar app (optional, macOS 14+)
 
-A native menu bar companion shows the fleet without a browser tab: an
-**Overview** tab (every machine's CPU / memory / disk, runners with their current
-job, offline and unreachable Macs) and **one tab per machine** (ring gauges with
-sparklines, load, swap, network, battery, top apps, runners, SSH / screen-share
-buttons). The menu bar shows this Mac's CPU, busy runners and queued runs at a
-glance.
+**Mac System Dashboard.app** is a native menu bar companion that shows the fleet
+without a browser tab: an **Overview** tab (every machine's CPU / memory / disk,
+macOS, chip and connection, runners with their current job, offline and
+unreachable Macs) and **one tab per machine** (ring gauges with sparklines, load,
+swap, network, battery, **AI quota** from CodexBar, top apps, runners, SSH /
+screen-share buttons). The menu bar shows this Mac's CPU, busy runners and
+queued runs at a glance.
 
 <p align="center">
   <img src="docs/menubar.png" width="300" alt="sysdash menu bar app: overview tab with per-machine CPU, memory and disk bars, runners and an offline Mac">

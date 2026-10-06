@@ -13,7 +13,7 @@ pkill -f "sysdash/server.py" 2>/dev/null || true
 # Menu bar app: its "Open at login" agent and the copy build.sh --install made.
 pkill -x SysdashBar 2>/dev/null || true
 rm -f "$HOME/Library/LaunchAgents/io.github.berkayturanci.sysdash-bar.plist"
-rm -rf "$HOME/Applications/SysdashBar.app"
+rm -rf "$HOME/Applications/Mac System Dashboard.app" "$HOME/Applications/SysdashBar.app"
 
 echo "mac-sysdash agent and menu bar app removed. The repo and logs were left in place."
 echo "Tip: if you exposed it over HTTPS, run 'tailscale serve reset' to stop that too."

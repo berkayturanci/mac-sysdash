@@ -137,6 +137,14 @@ update_behind, queue, top[], top_cpu[], top_groups, baseline, ai, uptime, ...}`
 - `disk_eta_days` is days-to-full from the 24h disk%-slope (or null); the disk
   gauge shows `⏳~Nd`. `update_behind` is commits behind `origin/main` (hourly
   background `git fetch`; header badge), 0 when current/offline.
+- `macos` / `chip` are read once at start (`MACHINE`). `link` is
+  `{type: wifi|ethernet|hotspot|vpn|other|"", iface}` from the default route +
+  `networksetup -listallhardwareports`, refreshed by the thermal sampler (30 s).
+  Never collect the Wi-Fi SSID (Location-gated on macOS 14+, and a privacy leak
+  to the tailnet). `/api/peers` items carry `path` (`direct` / `relay <region>`).
+- Display name is **Mac System Dashboard**; the repo, formula, command, config
+  paths and bundle id stay `mac-sysdash` / `io.github.berkayturanci.sysdash-bar`.
+  The menu bar bundle is `Mac System Dashboard.app` (executable `SysdashBar`).
 - `user` is the server's login user (`getpass.getuser()`) — the client builds a
   per-machine `ssh <user>@<tailscale_ip>` shortcut (a `>_` ssh:// link + a copy
   button in the machine header). Pure client-side; no backend/exec.

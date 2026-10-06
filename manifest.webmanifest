@@ -1,6 +1,6 @@
 {
-  "name": "Mac Dashboard",
-  "short_name": "sysdash",
+  "name": "Mac System Dashboard",
+  "short_name": "System Dashboard",
   "description": "System + GitHub Actions runner dashboard",
   "start_url": ".",
   "scope": ".",
