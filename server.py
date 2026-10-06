@@ -10,6 +10,7 @@ import glob
 import ipaddress
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -50,7 +51,7 @@ def _load_config(path):
 _load_config(CONFIG_FILE)
 
 PORT = int(os.environ.get("SYSDASH_PORT") or "8765")
-VERSION = "1.37.1"
+VERSION = "1.38.0"
 
 # Who may talk to this server. There is no login and the page lists processes,
 # runners and repo names, so by default only this Mac and the tailnet get in —
@@ -684,6 +685,56 @@ def _check_alert_sampler():
         time.sleep(60)
 
 
+def _chip():
+    """'Apple M1 Pro' / 'Intel(R) Core(TM) i7-…' — read once, it never changes."""
+    try:
+        return subprocess.run(["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"],
+                              capture_output=True, text=True, timeout=3).stdout.strip()
+    except Exception:
+        return ""
+
+
+# Fixed for the life of the process: an OS update reboots, restarting us.
+MACHINE = {"macos": platform.mac_ver()[0], "chip": _chip()}
+
+_LINK = {"type": "", "iface": ""}
+# iPhone Personal Hotspot hands out 172.20.10.0/28 over Wi-Fi.
+_HOTSPOT_NET = ipaddress.ip_network("172.20.10.0/28")
+
+
+def net_link():
+    """How this Mac reaches the internet: wifi | ethernet | hotspot | vpn | other.
+    The Wi-Fi network *name* needs Location Services since macOS 14 (it reads
+    back as <redacted>), so only the kind of link is reported."""
+    route = subprocess.run(["/sbin/route", "-n", "get", "default"],
+                           capture_output=True, text=True, timeout=5).stdout
+    iface = (re.search(r"interface:\s*(\S+)", route) or [None, ""])[1]
+    gw = (re.search(r"gateway:\s*(\S+)", route) or [None, ""])[1]
+    if not iface:
+        return {"type": "", "iface": ""}
+    if iface.startswith(("utun", "ipsec", "ppp")):
+        return {"type": "vpn", "iface": iface}
+    ports = subprocess.run(["/usr/sbin/networksetup", "-listallhardwareports"],
+                           capture_output=True, text=True, timeout=5).stdout
+    port = ""
+    for m in re.finditer(r"Hardware Port:\s*(.+)\nDevice:\s*(\S+)", ports):
+        if m.group(2) == iface:
+            port = m.group(1)
+    try:
+        hotspot = ipaddress.ip_address(gw) in _HOTSPOT_NET
+    except ValueError:
+        hotspot = False
+    if hotspot or re.search(r"iPhone|iPad|Bluetooth PAN", port):
+        kind = "hotspot"
+    elif "Wi-Fi" in port or "AirPort" in port:
+        kind = "wifi"
+    elif re.search(r"Ethernet|Thunderbolt|LAN|Adapter", port):
+        kind = "ethernet"
+    else:
+        kind = "other"
+    return {"type": kind, "iface": iface}
+
+
 def _thermal_sampler():
     """macOS thermal pressure via `pmset -g therm` (unprivileged). CPU_Speed_Limit
     drops below 100 when the SoC throttles — invisible in CPU% (which stays high)."""
@@ -701,6 +752,10 @@ def _thermal_sampler():
         try:
             dp = "/System/Volumes/Data" if os.path.isdir("/System/Volumes/Data") else "/"
             _DISK_AVAIL["important"] = _disk_important_available(dp)
+        except Exception:
+            pass
+        try:
+            _LINK.update(net_link())
         except Exception:
             pass
         time.sleep(30)
@@ -1157,7 +1212,9 @@ def tailnet_peers(ttl=30):
             ip = next((a for a in (p.get("TailscaleIPs") or []) if ":" not in a), None)
             if ip:
                 nm = (p.get("HostName") or dns or ip).split(".")[0]
-                peers.append({"ip": ip, "name": nm, "dns": dns, "os": p.get("OS") or ""})
+                # direct = a peer-to-peer path; otherwise traffic hops via a DERP relay.
+                path = "direct" if p.get("CurAddr") else ("relay " + p["Relay"] if p.get("Relay") else "")
+                peers.append({"ip": ip, "name": nm, "dns": dns, "os": p.get("OS") or "", "path": path})
     except Exception:
         pass
     _PEERS.update(ts=now, data=peers, offline=offline)
@@ -1304,12 +1361,16 @@ _PUSH_LIST = 90     # keep listing a pushed peer (shown as stale) this long afte
 def sysdash_peers():
     """All peers the browser can render: pull-discovered + push-reported, each
     with an opaque key the browser passes back to /api/peer."""
-    out = [{"name": p["name"], "key": "ip:" + p["ip"]} for p in _SPEERS["data"]]
+    # Tailscale path from this hub to each peer ("direct" / "relay fra"), by IP.
+    paths = {p["ip"]: p.get("path", "") for p in _PEERS.get("data", [])}
+    out = [{"name": p["name"], "key": "ip:" + p["ip"], "path": paths.get(p["ip"], "")}
+           for p in _SPEERS["data"]]
     seen = {p["name"] for p in out}
     now = time.time()
-    for host, (ts, _d) in list(_PUSHED.items()):
+    for host, (ts, d) in list(_PUSHED.items()):
         if now - ts < _PUSH_LIST and host not in seen:
-            out.append({"name": host, "key": "push:" + host})
+            out.append({"name": host, "key": "push:" + host,
+                        "path": paths.get(d.get("tailscale_ip") or "", "")})
     return out
 
 
@@ -1575,6 +1636,9 @@ def stats():
         "localtime": time.strftime("%H:%M:%S"),
         "tz": time.strftime("%Z"),
         "tailscale_ip": _current_tailscale_ip(),
+        "link": dict(_LINK),
+        "macos": MACHINE["macos"],
+        "chip": MACHINE["chip"],
         "user": SSH_USER,
         "ts": time.time(),
         "uptime": int(time.time() - psutil.boot_time()),

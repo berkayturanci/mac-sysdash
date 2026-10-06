@@ -238,7 +238,24 @@ class TailnetPeerTests(unittest.TestCase):
                         return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
             peers = server.tailnet_peers(ttl=0)
         self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio",
-                                  "dns": "studio.tailnet.ts.net", "os": ""}])
+                                  "dns": "studio.tailnet.ts.net", "os": "", "path": ""}])
+
+    def test_peer_path_direct_or_relay(self):
+        fake = {"Peer": {
+            "a": {"Online": True, "TailscaleIPs": ["100.1.1.1"], "HostName": "a", "CurAddr": "192.168.1.5:41641"},
+            "b": {"Online": True, "TailscaleIPs": ["100.1.1.2"], "HostName": "b", "Relay": "fra"}}}
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.subprocess.run",
+                        return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
+            peers = server.tailnet_peers(ttl=0)
+        self.assertEqual([p["path"] for p in peers], ["direct", "relay fra"])
+        server._SPEERS["data"] = [{"ip": "100.1.1.1", "name": "a"}]
+        server._PUSHED.clear()
+        server._PUSHED["B"] = (server.time.time(), {"host": "B", "tailscale_ip": "100.1.1.2"})
+        self.assertEqual({p["name"]: p["path"] for p in server.sysdash_peers()},
+                         {"a": "direct", "B": "relay fra"})
+        server._SPEERS["data"] = []
+        server._PUSHED.clear()
 
     def test_offline_macs_listed_with_last_seen(self):
         fake = {"Peer": {
@@ -254,6 +271,24 @@ class TailnetPeerTests(unittest.TestCase):
         self.assertEqual([p["name"] for p in off], ["laptop", "older", "never"])
         self.assertEqual(off[0]["last_seen"], 1791281253)
         self.assertIsNone(off[2]["last_seen"])
+
+    def test_net_link_kinds(self):
+        ports = ("Hardware Port: Wi-Fi\nDevice: en0\n\n"
+                 "Hardware Port: USB 10/100/1000 LAN\nDevice: en7\n\n"
+                 "Hardware Port: iPhone USB\nDevice: en8\n")
+        def fake(route):
+            def run(cmd, **kw):
+                return types.SimpleNamespace(stdout=route if cmd[0] == "/sbin/route" else ports)
+            return run
+        cases = [("interface: en0\n gateway: 192.168.1.1", "wifi"),
+                 ("interface: en0\n gateway: 172.20.10.1", "hotspot"),
+                 ("interface: en7\n gateway: 10.0.0.1", "ethernet"),
+                 ("interface: en8\n gateway: 172.20.10.1", "hotspot"),
+                 ("interface: utun4\n gateway: 10.2.0.1", "vpn"),
+                 ("", "")]
+        for route, kind in cases:
+            with mock.patch("server.subprocess.run", side_effect=fake(route)):
+                self.assertEqual(server.net_link()["type"], kind, route)
 
     def test_parse_ts(self):
         self.assertEqual(server._parse_ts("2026-10-06T10:07:33.123456789Z"), 1791281253)
@@ -586,6 +621,8 @@ class HttpRouteTests(unittest.TestCase):
         self.assertIsNone(r.headers.get("Access-Control-Allow-Origin"))
         d = json.load(r)
         self.assertEqual(d["version"], server.VERSION)
+        for k in ("link", "macos", "chip"):
+            self.assertIn(k, d)
 
     def test_api_history_json(self):
         r = self.get("/api/history?range=1h")
@@ -609,7 +646,7 @@ class HttpRouteTests(unittest.TestCase):
         r = self.get("/")
         self.assertEqual(r.status, 200)
         self.assertIn("text/html", r.headers.get("Content-Type", ""))
-        self.assertIn("Mac Dashboard", r.read().decode("utf-8", "ignore"))
+        self.assertIn("Mac System Dashboard", r.read().decode("utf-8", "ignore"))
 
     def test_svg_content_type(self):
         r = self.get("/icon.svg")

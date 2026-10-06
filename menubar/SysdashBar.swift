@@ -110,6 +110,15 @@ struct RunnerInfo: Identifiable {
     let elapsed: Double?
 }
 
+struct AIQuota: Identifiable {
+    var id: String { name }
+    let name: String
+    let session: Double?
+    let sessionReset: Date?
+    let weekly: Double?
+    let weeklyReset: Date?
+}
+
 struct AppUse: Identifiable {
     var id: String { name }
     let name: String
@@ -148,6 +157,28 @@ struct Stats {
         return b.isEmpty || b["pct"] == nil ? nil : (num(b["pct"]), b["plugged"] as? Bool ?? false)
     }
     var diskETA: Double? { raw["disk_eta_days"].flatMap { $0 is NSNull ? nil : num($0) } }
+    var macos: String { raw["macos"] as? String ?? "" }
+    var chip: String { raw["chip"] as? String ?? "" }
+    var link: String {
+        switch d("link")["type"] as? String {
+        case "wifi": return "Wi-Fi"
+        case "ethernet": return "Ethernet"
+        case "hotspot": return "Hotspot"
+        case "vpn": return "VPN"
+        default: return ""
+        }
+    }
+
+    /// CodexBar quotas the server read for this Mac: provider → session/weekly %.
+    var ai: [AIQuota] {
+        (raw["ai"] as? [String: Any] ?? [:]).compactMap { name, v in
+            guard let q = v as? [String: Any] else { return nil }
+            let date = { (k: String) in (q[k] as? String).flatMap { ISO8601DateFormatter().date(from: $0) } }
+            return AIQuota(name: name, session: q["session"].map(num), sessionReset: date("session_reset"),
+                           weekly: q["weekly"].map(num), weeklyReset: date("weekly_reset"))
+        }
+        .sorted { $0.name < $1.name }
+    }
     var pushedAge: Int? { raw["_age"].map { Int(num($0)) } }
 
     func hist(_ k: String) -> [Double] { (d("hist")[k] as? [Any] ?? []).map(num) }
@@ -181,8 +212,15 @@ struct Machine: Identifiable {
     let id: String          // "self" or the hub's peer key (ip:… / push:…)
     let listedName: String
     var stats: Stats?
+    var path = ""           // hub → peer Tailscale path: "direct" / "relay fra"
 
     var name: String { stats?.host ?? listedName }
+    /// "macOS 27.0 · Apple M1 Pro · Wi-Fi · relay fra"
+    var info: String {
+        guard let s = stats else { return "" }
+        return [s.macos.isEmpty ? "" : "macOS \(s.macos)", s.chip, s.link, path]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
     /// "Berkay’s Mac mini" → "Mac mini": the owner prefix repeats on every tab.
     var shortName: String {
         for sep in ["’s ", "'s "] {
@@ -242,27 +280,27 @@ final class Store: ObservableObject {
         async let missing = get("/api/unreachable")
         async let off = get("/api/offline")
         guard let selfStats = await me as? [String: Any] else {
-            hubError = L("Can't reach sysdash at \(hub.host ?? "?") — is it running?",
-                         "\(hub.host ?? "?") adresinde sysdash'e ulaşılamıyor — çalışıyor mu?")
+            hubError = L("Can't reach the Mac System Dashboard server at \(hub.host ?? "?") — is it running?",
+                         "\(hub.host ?? "?") adresindeki Mac System Dashboard sunucusuna ulaşılamıyor — çalışıyor mu?")
             machines = []
             lastUpdated = Date()
             return
         }
         hubError = nil
-        let peers = (await peerList as? [[String: Any]] ?? []).compactMap { p -> (String, String)? in
+        let peers = (await peerList as? [[String: Any]] ?? []).compactMap { p -> (String, String, String)? in
             guard let k = p["key"] as? String else { return nil }
-            return (k, p["name"] as? String ?? k)
+            return (k, p["name"] as? String ?? k, p["path"] as? String ?? "")
         }
         var fetched: [String: Stats] = [:]
         await withTaskGroup(of: (String, [String: Any]?).self) { group in
-            for (key, _) in peers {
+            for (key, _, _) in peers {
                 let q = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
                 group.addTask { (key, await self.get("/api/peer?key=\(q)") as? [String: Any]) }
             }
             for await (key, s) in group { if let s { fetched[key] = Stats(raw: s) } }
         }
         machines = [Machine(id: "self", listedName: "", stats: Stats(raw: selfStats))]
-            + peers.map { Machine(id: $0.0, listedName: $0.1, stats: fetched[$0.0]) }
+            + peers.map { Machine(id: $0.0, listedName: $0.1, stats: fetched[$0.0], path: $0.2) }
         unreachable = (await missing as? [String]) ?? []
         // /api/offline is 1.37+; an older hub just shows none.
         offline = (await off as? [[String: Any]] ?? []).compactMap { p in
@@ -423,6 +461,24 @@ struct MiniBar: View {
     }
 }
 
+/// One AI quota window: usage bar plus when it resets. A reset already in the
+/// past means CodexBar's data is stale, so it says so instead of a countdown.
+struct QuotaBar: View {
+    let label: String
+    let pct: Double
+    let reset: Date?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            MiniBar(label: label, pct: pct)
+            if let r = reset {
+                Text(r > Date() ? L("resets \(ago(r))", "sıfırlanma \(ago(r))")
+                                : L("stale · reset \(ago(r))", "eski veri · \(ago(r))"))
+                    .font(.system(size: 9)).foregroundStyle(r > Date() ? Color.secondary : Color.orange)
+            }
+        }
+    }
+}
+
 struct Sparkline: View {
     let values: [Double]
     let color: Color
@@ -553,6 +609,9 @@ struct MachineSummary: View {
                                   "\(L("up", "açık")) \(duration(s.uptime))"]
                                 .compactMap { $0 }.joined(separator: " · "))
                                 .font(.system(size: 10)).foregroundStyle(.secondary)
+                            if !m.info.isEmpty {
+                                Text(m.info).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                            }
                         }
                     }
                     Spacer()
@@ -619,8 +678,8 @@ struct HomeTab: View {
                 Card {
                     SectionTitle(text: L("Can't reach", "Ulaşılamıyor"))
                     Text(store.unreachable.joined(separator: ", ")).font(.system(size: 12))
-                    Text(L("sysdash isn't installed there, or that Mac blocks inbound connections — set SYSDASH_PUSH_TO on it.",
-                           "Orada sysdash kurulu değil ya da gelen bağlantıları engelliyor — o Mac'te SYSDASH_PUSH_TO kullanın."))
+                    Text(L("mac-sysdash isn't installed there, or that Mac blocks inbound connections — set SYSDASH_PUSH_TO on it.",
+                           "Orada mac-sysdash kurulu değil ya da gelen bağlantıları engelliyor — o Mac'te SYSDASH_PUSH_TO kullanın."))
                         .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -669,6 +728,9 @@ struct MachineTab: View {
                         Text(["v\(s.version)", s.tailscaleIP.isEmpty ? nil : s.tailscaleIP, s.localTime]
                             .compactMap { $0 }.joined(separator: " · "))
                             .font(.system(size: 10)).foregroundStyle(.secondary)
+                        if !m.info.isEmpty {
+                            Text(m.info).font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     if s.thermal != "nominal" {
@@ -699,6 +761,24 @@ struct MachineTab: View {
                                 value: "\(Int(b.pct))%\(b.plugged ? L(" · plugged in", " · şarjda") : "")")
                     }
                     InfoRow(icon: "clock.arrow.circlepath", label: L("Uptime", "Açık kalma"), value: duration(s.uptime))
+                }
+                if !s.ai.isEmpty {
+                    Card {
+                        SectionTitle(text: L("AI quota (CodexBar)", "AI kotası (CodexBar)"))
+                        ForEach(s.ai) { q in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(q.name.capitalized).font(.system(size: 12, weight: .medium))
+                                HStack(spacing: 10) {
+                                    if let v = q.session {
+                                        QuotaBar(label: L("Session", "Oturum"), pct: v, reset: q.sessionReset)
+                                    }
+                                    if let v = q.weekly {
+                                        QuotaBar(label: L("Week", "Hafta"), pct: v, reset: q.weeklyReset)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 if !s.topApps.isEmpty {
                     Card {
@@ -832,7 +912,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("sysdash").font(.system(size: 15, weight: .bold))
+                    Text(appName).font(.system(size: 15, weight: .bold))
                     Text(store.hub.host.map { $0 == "localhost" ? L("this Mac", "bu Mac") : $0 } ?? "")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                 }
@@ -898,6 +978,7 @@ struct ContentView: View {
 // MARK: - Settings
 
 let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+let appName = "Mac System Dashboard"
 
 struct SettingsView: View {
     @ObservedObject var prefs: Prefs
@@ -945,7 +1026,7 @@ struct SettingsView: View {
                         prefs.loginItem = LoginItem.enabled
                     }))
                 HStack {
-                    Text("sysdash \(appVersion)").foregroundStyle(.secondary)
+                    Text("\(appName) \(appVersion)").foregroundStyle(.secondary)
                     Spacer()
                     Button(L("Open panel", "Paneli aç")) { Windows.showPanel(store: store) }
                     Button(L("Web dashboard", "Web paneli")) { open(store.hub.absoluteString) }
@@ -969,13 +1050,13 @@ enum Windows {
 
     static func showSettings(store: Store) {
         if settings == nil {
-            settings = make(SettingsView(prefs: .shared, store: store), title: L("sysdash Settings", "sysdash Ayarları"))
+            settings = make(SettingsView(prefs: .shared, store: store), title: L("\(appName) Settings", "\(appName) Ayarları"))
         }
         bringUp(settings!)
     }
 
     static func showPanel(store: Store) {
-        if panel == nil { panel = make(ContentView(store: store, ui: WindowState()), title: "sysdash") }
+        if panel == nil { panel = make(ContentView(store: store, ui: WindowState()), title: appName) }
         bringUp(panel!)
     }
 
@@ -1007,6 +1088,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Prefs.shared.applyDock()
+        // Re-point an existing login item at this bundle: the app was renamed
+        // (SysdashBar.app → Mac System Dashboard.app) and the old path is gone.
+        if LoginItem.enabled { LoginItem.set(true) }
         // First run: show that it is running even if the menu bar hides the icon.
         if !Prefs.shared.welcomed {
             Prefs.shared.welcomed = true

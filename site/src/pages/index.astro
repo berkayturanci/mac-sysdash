@@ -4,7 +4,7 @@ const asset = (p: string) => `${base.replace(/\/$/, '')}/${p.replace(/^\//, '')}
 const demoUrl = asset('demo/');                     // interactive build; the copy is demo-forced, no ?demo needed
 const pageUrl = 'https://berkayturanci.github.io/mac-sysdash/';
 const ogImage = pageUrl + 'hero.png';
-const title = 'mac-sysdash — a tiny Mac + GitHub runner dashboard';
+const title = 'Mac System Dashboard (mac-sysdash) — a tiny Mac + GitHub runner dashboard';
 const description =
   'A tiny, dependency-light system + GitHub Actions self-hosted runner dashboard for macOS. ' +
   'Install with Homebrew or a git clone. One Python file, one HTML file. No cloud, no accounts, no token. ' +
@@ -23,7 +23,7 @@ const jsonLd = {
       image: ogImage,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS',
-      softwareVersion: '1.37.1',
+      softwareVersion: '1.38.0',
       softwareRequirements: 'Python 3.9+, psutil',
       license: 'https://commonsclause.com/',
       isAccessibleForFree: true,

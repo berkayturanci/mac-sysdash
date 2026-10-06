@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the sysdash menu bar app (needs the Xcode Command Line Tools for swiftc).
-#   ./menubar/build.sh                 -> menubar/build/SysdashBar.app
+# Build the Mac System Dashboard menu bar app (needs the Xcode Command Line Tools for swiftc).
+#   ./menubar/build.sh                 -> "menubar/build/Mac System Dashboard.app"
 #   ./menubar/build.sh --install       -> also copies it to ~/Applications and opens it
 #   ./menubar/build.sh <out-dir>       -> builds into <out-dir> (used by the Homebrew formula)
 set -euo pipefail
@@ -15,17 +15,18 @@ for a in "$@"; do
   esac
 done
 VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$HERE/../server.py")"
-APP="$OUT/SysdashBar.app"
+NAME="Mac System Dashboard"
+APP="$OUT/$NAME.app"
 
-rm -rf "$APP"
+rm -rf "$APP" "$OUT/SysdashBar.app"   # the bundle was SysdashBar.app before 1.38
 mkdir -p "$APP/Contents/MacOS"
 swiftc -O -swift-version 5 -parse-as-library "$HERE/SysdashBar.swift" -o "$APP/Contents/MacOS/SysdashBar"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>sysdash</string>
-  <key>CFBundleDisplayName</key><string>sysdash</string>
+  <key>CFBundleName</key><string>$NAME</string>
+  <key>CFBundleDisplayName</key><string>$NAME</string>
   <key>CFBundleIdentifier</key><string>io.github.berkayturanci.sysdash-bar</string>
   <key>CFBundleExecutable</key><string>SysdashBar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -51,8 +52,8 @@ echo "built $APP"
 if [ "$INSTALL" = 1 ]; then
   mkdir -p "$HOME/Applications"
   pkill -x SysdashBar 2>/dev/null || true
-  rm -rf "$HOME/Applications/SysdashBar.app"
+  rm -rf "$HOME/Applications/$NAME.app" "$HOME/Applications/SysdashBar.app"
   cp -R "$APP" "$HOME/Applications/"
-  open "$HOME/Applications/SysdashBar.app"
-  echo "installed ~/Applications/SysdashBar.app"
+  open "$HOME/Applications/$NAME.app"
+  echo "installed ~/Applications/$NAME.app"
 fi
