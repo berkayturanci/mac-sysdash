@@ -5,6 +5,7 @@ Serves a single polished HTML page plus a /api/stats JSON endpoint.
 Designed to run under the glances virtualenv python (has psutil) and be
 reached over Tailscale. No external deps beyond psutil + stdlib.
 """
+import datetime
 import glob
 import ipaddress
 import json
@@ -49,7 +50,7 @@ def _load_config(path):
 _load_config(CONFIG_FILE)
 
 PORT = int(os.environ.get("SYSDASH_PORT") or "8765")
-VERSION = "1.36.2"
+VERSION = "1.37.0"
 
 # Who may talk to this server. There is no login and the page lists processes,
 # runners and repo names, so by default only this Mac and the tailnet get in —
@@ -825,7 +826,7 @@ def discover_runners(ttl=30):
     return runners
 
 
-_PEERS = {"ts": 0, "data": []}
+_PEERS = {"ts": 0, "data": [], "offline": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
 _AI_CLI = {"ts": 0, "data": {}, "order": [], "busy": False}
 _AI_CLI_LOCK = threading.Lock()
@@ -1139,23 +1140,46 @@ def tailnet_peers(ttl=30):
     now = time.time()
     if now - _PEERS["ts"] < ttl and _PEERS["data"]:
         return _PEERS["data"]
-    peers = []
+    peers, offline = [], []
     try:
         out = subprocess.run([tailscale_bin(), "status", "--json"],
                              capture_output=True, text=True, timeout=4)
         data = json.loads(out.stdout)
         for p in (data.get("Peer") or {}).values():
+            dns = (p.get("DNSName") or "").rstrip(".")
             if not p.get("Online"):
+                # A Mac that dropped off (asleep, rebooted behind FileVault, lid
+                # closed) would otherwise just vanish from the dashboard.
+                if p.get("OS") == "macOS":
+                    offline.append({"name": (p.get("HostName") or dns or "?").split(".")[0],
+                                    "last_seen": _parse_ts(p.get("LastSeen"))})
                 continue
             ip = next((a for a in (p.get("TailscaleIPs") or []) if ":" not in a), None)
             if ip:
-                dns = (p.get("DNSName") or "").rstrip(".")
                 nm = (p.get("HostName") or dns or ip).split(".")[0]
                 peers.append({"ip": ip, "name": nm, "dns": dns, "os": p.get("OS") or ""})
     except Exception:
         pass
-    _PEERS.update(ts=now, data=peers)
+    _PEERS.update(ts=now, data=peers, offline=offline)
     return peers
+
+
+def _parse_ts(s):
+    """Tailscale RFC 3339 timestamp → epoch seconds; None for missing/zero.
+    Fractions are dropped: Tailscale sends 1–9 digits, which Python 3.9's
+    fromisoformat rejects."""
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", str(s or ""))
+    if not m:
+        return None
+    t = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+        tzinfo=datetime.timezone.utc).timestamp()
+    return int(t) if t > 0 else None
+
+
+def offline_macs():
+    """Tailnet Macs that are offline right now, most recently seen first."""
+    tailnet_peers()
+    return sorted(_PEERS.get("offline", []), key=lambda p: -(p["last_seen"] or 0))
 
 
 # --- server-side peer aggregation ---------------------------------------
@@ -1748,6 +1772,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, json.dumps(get_jobs()).encode(), "application/json")
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
+        if self.path.startswith("/api/offline"):
+            self._send(200, json.dumps(offline_macs()).encode(), "application/json")
             return
         if self.path.startswith("/api/unreachable"):
             self._send(200, json.dumps(unreachable_peers()).encode(), "application/json")

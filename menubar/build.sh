@@ -33,6 +33,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>${VERSION:-0}</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
+  <!-- sysdash://open and sysdash://settings, linked from the web dashboard. -->
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>io.github.berkayturanci.sysdash-bar</string>
+    <key>CFBundleURLSchemes</key><array><string>sysdash</string></array>
+  </dict></array>
   <!-- The hub is plain http on localhost or a tailnet IP. -->
   <key>NSAppTransportSecurity</key><dict>
     <key>NSAllowsLocalNetworking</key><true/>
