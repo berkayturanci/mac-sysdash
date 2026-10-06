@@ -9,8 +9,10 @@ APP_DIR="$SRC_DIR"                 # run directly from the repo clone
 LOG_DIR="$HOME/.local/log"
 LABEL="com.berkay.sysdash"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-PORT="${SYSDASH_PORT:-8765}"
+PORT="${SYSDASH_PORT:-}"            # empty: config file, else 8765
 PUSH_TO="${SYSDASH_PUSH_TO:-}"     # optional: hub /api/push URL for nodes that can't accept inbound
+ALLOW="${SYSDASH_ALLOW:-}"         # optional: tailnet (default) | lan | any
+# Empty values above defer to ~/.config/mac-sysdash/config (read by server.py).
 
 mkdir -p "$LOG_DIR" "$HOME/Library/LaunchAgents"
 
@@ -80,6 +82,8 @@ cat > "$PLIST" <<PLISTEOF
 		<string>$PORT</string>
 		<key>SYSDASH_PUSH_TO</key>
 		<string>$PUSH_TO</string>
+		<key>SYSDASH_ALLOW</key>
+		<string>$ALLOW</string>
 		<key>PATH</key>
 		<string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin</string>
 	</dict>
@@ -94,8 +98,8 @@ launchctl load -w "$PLIST"
 
 echo
 echo "mac-sysdash is running:"
-echo "  http://localhost:$PORT"
+echo "  http://localhost:${PORT:-8765}"
 if command -v tailscale >/dev/null 2>&1; then
   IP="$(tailscale ip -4 2>/dev/null | head -1 || true)"
-  [ -n "$IP" ] && echo "  http://$IP:$PORT   (over Tailscale)"
+  [ -n "$IP" ] && echo "  http://$IP:${PORT:-8765}   (over Tailscale)"
 fi

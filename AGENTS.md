@@ -141,11 +141,20 @@ runner jobs, PK `(runner, logfile)`, deduped; feeds `jobs_summary` and the modal
 Gantt timeline via `/api/jobs`). `sqlite3` is stdlib, so this is allowed.
 
 Endpoints: `/api/peers` lists reachable machines; `/api/peer?key=…` proxies one
-peer's stats and `/api/peer_jobs` its jobs (the hub fetches peers server-side so
-the browser makes no cross-origin calls). Machines that can't accept inbound
-connections POST to `/api/push` (`SYSDASH_PUSH_TO` may list several hubs,
-comma-separated). CLI: `python server.py --status [URL]` prints a
+peer's stats, `/api/peer_jobs` its jobs and `/api/peer_history?key=&range=` its
+history (the hub fetches peers server-side so the browser makes no cross-origin
+calls — hence no CORS header). Client host `base` is `peer:<key>`; strip the
+prefix (`peerKey()`) before calling a proxy. `/api/unreachable` lists online
+tailnet Macs that neither answer a pull nor push. Machines that can't accept
+inbound connections POST to `/api/push` (`SYSDASH_PUSH_TO` may list several
+hubs, comma-separated). The `/api/peer*` routes are prefix-matched: put longer
+names first. CLI: `python server.py --status [URL]` prints a
 text table (`--json` for raw).
+
+Access & config: every request passes `client_allowed()` (`SYSDASH_ALLOW`:
+`tailnet` default = loopback + `100.64.0.0/10` + `fd7a:115c:a1e0::/48`; `lan`;
+`any`) or gets 403. `~/.config/mac-sysdash/config` (`KEY=VALUE`, `SYSDASH_*`
+only) is loaded at import, before `PORT`; non-empty real env wins.
 
 UI (index.html): ring gauges + sparklines (disk gauge shows the fill ETA, a
 baseline `↑ unusual` cue), fleet overview banner, an "active runs" strip

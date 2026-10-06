@@ -1,5 +1,39 @@
-## [1.35.1] - 2026-09-04
+## [1.36.0] - 2026-10-06
+### Changed
+- **Only this Mac and your tailnet can open the dashboard by default.** It has
+  no login and shows processes, runners and repo names, yet it answered anyone
+  who could reach port 8765 — e.g. a neighbour on café or hotel Wi-Fi. Requests
+  from other addresses now get `403`. Set **`SYSDASH_ALLOW`** to choose:
+  `tailnet` (default: loopback + Tailscale `100.64.0.0/10` / `fd7a:115c:a1e0::/48`),
+  `lan` (adds private and link-local ranges — **set this if you reach the
+  dashboard over a plain LAN without Tailscale**), or `any` (the old behaviour).
+  `tailscale serve` keeps working (it proxies from loopback). Pushes to
+  `/api/push` are filtered the same way.
+- The `Access-Control-Allow-Origin: *` header is gone. The page only talks to
+  its own origin, so the wildcard only let other websites read your stats.
+
+### Added
+- **Config file `~/.config/mac-sysdash/config`** (`KEY=VALUE` lines, `#`
+  comments; path overridable with `SYSDASH_CONFIG`). `brew services` rewrites
+  its plist on every start, so env vars edited there didn't stick — now every
+  install method reads the same file. A non-empty real environment variable
+  still wins. The formula no longer pins `SYSDASH_PORT` in the service (8765
+  stays the default), so the file can change the port.
+- **"Can't reach" hint.** Online tailnet Macs that the hub can neither pull
+  from nor receive pushes from are listed under the machines, with the likely
+  cause (sysdash missing, or inbound blocked → use `SYSDASH_PUSH_TO`), instead of
+  silently not appearing. Backed by `/api/unreachable`.
+
 ### Fixed
+- **Peer charts and timeline.** The 24h / 7d chart of a remote machine threw
+  before fetching (it built a URL from the relative proxy path), and the runner
+  modal asked `/api/peer_jobs` with the `peer:`-prefixed client key, which the
+  server didn't recognise. History now goes through a new `/api/peer_history`
+  proxy and both use the bare key.
+
+Also includes the never-tagged 1.35.1 changes:
+
+### Fixed (1.35.1)
 - **Tailscale CLI found without a manual symlink** (#72). The server called
   `/usr/local/bin/tailscale`, which only exists after Tailscale's optional
   "install CLI" step, so a fresh Mac running the App Store / standalone app got
@@ -22,7 +56,7 @@
   that merely shares the name prefix.
 - Brew installs skip the hourly `git fetch` self-update check (not a checkout).
 
-### Added
+### Added (1.35.1)
 - **`SYSDASH_PUSH_TO` accepts several hubs** (comma- or space-separated), so a
   node that can't take inbound connections shows up on every dashboard in the
   fleet instead of one.
