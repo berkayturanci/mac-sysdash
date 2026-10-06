@@ -7,7 +7,7 @@
 ![homebrew](https://img.shields.io/badge/homebrew-tap-orange)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
-![version](https://img.shields.io/badge/version-1.38.0-blue)
+![version](https://img.shields.io/badge/version-1.38.1-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -227,6 +227,11 @@ mac-sysdash menubar                 # Homebrew (built with the formula)
 ./menubar/build.sh --install        # git clone: build → ~/Applications, open
 ```
 
+Homebrew keeps the app under `/opt/homebrew`, which Spotlight and Launchpad
+don't index, so on launch it keeps a copy at `~/Applications/Mac System
+Dashboard.app` (refreshed when the version changes) — search for it there.
+Opening that copy while the app already runs just brings up its panel.
+
 **Open at login** is a LaunchAgent that opens the version-independent Homebrew
 path, so it survives upgrades; untick it to remove it. To watch a hub on another
 Mac, set the address in Settings or add
@@ -251,6 +256,8 @@ changes.
 **Homebrew:** untick **Open at login** in the menu bar app's Settings (if you
 used it), then `brew services stop mac-sysdash && brew uninstall mac-sysdash`.
 Missed the first step? `rm ~/Library/LaunchAgents/io.github.berkayturanci.sysdash-bar.plist`.
+Also remove the menu bar app's Spotlight copy:
+`rm -rf ~/Applications/"Mac System Dashboard.app"`.
 
 **Git clone:**
 

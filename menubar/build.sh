@@ -19,8 +19,20 @@ NAME="Mac System Dashboard"
 APP="$OUT/$NAME.app"
 
 rm -rf "$APP" "$OUT/SysdashBar.app"   # the bundle was SysdashBar.app before 1.38
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 swiftc -O -swift-version 5 -parse-as-library "$HERE/SysdashBar.swift" -o "$APP/Contents/MacOS/SysdashBar"
+
+# App icon (Dock, Finder, Spotlight) from the dashboard's own PNG — sips and
+# iconutil ship with macOS, so no extra tooling.
+ICONSET="$(mktemp -d)/AppIcon.iconset"
+mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z "$s" "$s" "$HERE/../icon-512.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  [ "$s" -lt 512 ] && sips -z $((s * 2)) $((s * 2)) "$HERE/../icon-512.png" \
+    --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf "$(dirname "$ICONSET")"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -29,6 +41,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>$NAME</string>
   <key>CFBundleIdentifier</key><string>io.github.berkayturanci.sysdash-bar</string>
   <key>CFBundleExecutable</key><string>SysdashBar</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${VERSION:-0}</string>
   <key>CFBundleVersion</key><string>${VERSION:-0}</string>
