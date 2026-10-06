@@ -240,6 +240,26 @@ class TailnetPeerTests(unittest.TestCase):
         self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio",
                                   "dns": "studio.tailnet.ts.net", "os": ""}])
 
+    def test_offline_macs_listed_with_last_seen(self):
+        fake = {"Peer": {
+            "a": {"Online": True, "TailscaleIPs": ["100.1.2.3"], "HostName": "studio", "OS": "macOS"},
+            "b": {"Online": False, "HostName": "laptop", "OS": "macOS", "LastSeen": "2026-10-06T10:07:33.1Z"},
+            "c": {"Online": False, "HostName": "older", "OS": "macOS", "LastSeen": "2026-09-02T15:15:52Z"},
+            "d": {"Online": False, "HostName": "never", "OS": "macOS", "LastSeen": "0001-01-01T00:00:00Z"},
+            "e": {"Online": False, "HostName": "phone", "OS": "iOS", "LastSeen": "2026-10-06T10:00:00Z"}}}
+        server._PEERS["ts"] = 0.0
+        with mock.patch("server.subprocess.run",
+                        return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
+            off = server.offline_macs()
+        self.assertEqual([p["name"] for p in off], ["laptop", "older", "never"])
+        self.assertEqual(off[0]["last_seen"], 1791281253)
+        self.assertIsNone(off[2]["last_seen"])
+
+    def test_parse_ts(self):
+        self.assertEqual(server._parse_ts("2026-10-06T10:07:33.123456789Z"), 1791281253)
+        self.assertIsNone(server._parse_ts(None))
+        self.assertIsNone(server._parse_ts("garbage"))
+
     def test_handles_tailscale_failure(self):
         server._PEERS["ts"] = 0.0
         with mock.patch("server.subprocess.run", side_effect=OSError):
@@ -648,6 +668,10 @@ class HttpRouteTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as cm:
                 self.get("/api/peer_history?key=push:x&range=bogus")
             self.assertEqual(cm.exception.code, 404)
+
+    def test_offline_route(self):
+        with mock.patch("server.offline_macs", return_value=[{"name": "ekos", "last_seen": 1}]):
+            self.assertEqual(json.load(self.get("/api/offline")), [{"name": "ekos", "last_seen": 1}])
 
     def test_unreachable_route(self):
         with mock.patch("server.unreachable_peers", return_value=["ekos"]):

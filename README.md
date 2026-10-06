@@ -5,7 +5,7 @@
 ![homebrew](https://img.shields.io/badge/homebrew-tap-orange)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/berkayturanci/mac-sysdash/badge)](https://scorecard.dev/viewer/?uri=github.com/berkayturanci/mac-sysdash)
 ![license](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue)
-![version](https://img.shields.io/badge/version-1.35.0-blue)
+![version](https://img.shields.io/badge/version-1.37.0-blue)
 
 A tiny, dependency-light **system + GitHub Actions runner dashboard** for macOS,
 reachable over your LAN or [Tailscale](https://tailscale.com/) from any device.
@@ -26,6 +26,16 @@ Homebrew / `install.sh` set that up for you in an isolated virtualenv.
 
 ## Features
 
+- **Menu bar app** (optional, macOS 14+) — an overview tab plus one tab per
+  machine, with a Settings window (Open at login, Show in Dock, icon-only mode).
+  See [Menu bar app](#menu-bar-app-optional-macos-14).
+- **Tailnet-only by default** — only this Mac and your Tailscale peers can open
+  the dashboard (`SYSDASH_ALLOW=lan` / `any` to widen); settings live in
+  `~/.config/mac-sysdash/config`.
+- **Offline & unreachable Macs** — tailnet Macs that are off (asleep, rebooted
+  behind FileVault) are listed with when they were last seen, and online Macs the
+  hub can't reach are flagged with the fix (push mode), instead of silently
+  missing.
 - **CPU / Memory / Disk** ring gauges (blue → amber → red), refreshing every second.
   - On macOS, **disk** usage matches the **Storage** settings figure: it counts
     purgeable space (caches, local snapshots) as available (via Foundation's
@@ -181,9 +191,23 @@ Change the port with `SYSDASH_PORT=8770 ./install.sh`.
 
 A native menu bar companion shows the fleet without a browser tab: an
 **Overview** tab (every machine's CPU / memory / disk, runners with their current
-job, unreachable Macs) and **one tab per machine** (ring gauges with sparklines,
-load, swap, network, battery, top apps, runners, SSH / screen-share buttons).
-The menu bar shows this Mac's CPU, busy runners and queued runs at a glance.
+job, offline and unreachable Macs) and **one tab per machine** (ring gauges with
+sparklines, load, swap, network, battery, top apps, runners, SSH / screen-share
+buttons). The menu bar shows this Mac's CPU, busy runners and queued runs at a
+glance.
+
+<p align="center">
+  <img src="docs/menubar.png" width="300" alt="sysdash menu bar app: overview tab with per-machine CPU, memory and disk bars, runners and an offline Mac">
+  <img src="docs/menubar-machine.png" width="300" alt="sysdash menu bar app: a machine tab with CPU, memory and disk ring gauges, system details and top apps">
+  <img src="docs/menubar-settings.png" width="300" alt="sysdash menu bar app settings: hub address, menu bar items, Show in Dock, refresh interval, GitHub queue, Open at login">
+</p>
+
+A **Settings** window (gear in the panel) sets the hub address, what the menu
+bar title shows (all off → icon only, for crowded menu bars), **Show in Dock**,
+the refresh interval, the GitHub queue, and **Open at login**. If the menu bar
+icon is hidden behind the notch, open the app again (Dock, Spotlight,
+`mac-sysdash menubar`) or use **Open menu bar app** in the web dashboard's ⚙
+(`sysdash://open`) — the same panel opens as a normal window.
 
 It only reads the hub's HTTP API, so it needs nothing else. If the
 [`gh`](https://cli.github.com/) CLI is installed and logged in, it also lists
@@ -195,9 +219,9 @@ mac-sysdash menubar                 # Homebrew (built with the formula)
 ./menubar/build.sh --install        # git clone: build → ~/Applications, open
 ```
 
-Tick **Open at login** in its window (a LaunchAgent that opens the
-version-independent Homebrew path, so it survives upgrades; untick to remove
-it). To watch a hub on another Mac, add
+**Open at login** is a LaunchAgent that opens the version-independent Homebrew
+path, so it survives upgrades; untick it to remove it. To watch a hub on another
+Mac, set the address in Settings or add
 `SYSDASH_HUB=http://<hub-tailscale-ip>:8765` to `~/.config/mac-sysdash/config`.
 
 ## Updating
@@ -216,12 +240,14 @@ changes.
 
 ## Uninstall
 
-**Homebrew:** `brew services stop mac-sysdash && brew uninstall mac-sysdash`
+**Homebrew:** untick **Open at login** in the menu bar app's Settings (if you
+used it), then `brew services stop mac-sysdash && brew uninstall mac-sysdash`.
+Missed the first step? `rm ~/Library/LaunchAgents/io.github.berkayturanci.sysdash-bar.plist`.
 
 **Git clone:**
 
 ```sh
-./uninstall.sh
+./uninstall.sh      # also removes the menu bar app and its login item
 ```
 
 ## Multiple machines

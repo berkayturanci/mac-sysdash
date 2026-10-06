@@ -39,10 +39,56 @@ enum Config {
 
     static var hub: URL {
         let v = values()
-        if let h = v["SYSDASH_HUB"], let u = URL(string: h.hasSuffix("/") ? String(h.dropLast()) : h) {
-            return u
-        }
+        if let h = v["SYSDASH_HUB"], let u = url(h) { return u }
         return URL(string: "http://localhost:\(v["SYSDASH_PORT"] ?? "8765")")!
+    }
+
+    static func url(_ s: String) -> URL? {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return nil }
+        let full = t.contains("://") ? t : "http://" + t
+        return URL(string: full.hasSuffix("/") ? String(full.dropLast()) : full)
+    }
+}
+
+/// Settings-window choices, kept in UserDefaults. An ObservableObject rather
+/// than @AppStorage/@State so the Command Line Tools build keeps working.
+@MainActor
+final class Prefs: ObservableObject {
+    static let shared = Prefs()
+    private let d = UserDefaults.standard
+
+    /// Empty → the config file's SYSDASH_HUB, else localhost.
+    @Published var hubOverride: String { didSet { d.set(hubOverride, forKey: "hub") } }
+    @Published var refreshSeconds: Int { didSet { d.set(refreshSeconds, forKey: "refresh") } }
+    @Published var showCPU: Bool { didSet { d.set(showCPU, forKey: "showCPU") } }
+    @Published var showBusy: Bool { didSet { d.set(showBusy, forKey: "showBusy") } }
+    @Published var showQueue: Bool { didSet { d.set(showQueue, forKey: "showQueue") } }
+    @Published var githubQueue: Bool { didSet { d.set(githubQueue, forKey: "githubQueue") } }
+    /// A Dock icon is the fallback when a crowded menu bar hides ours behind the notch.
+    @Published var showDock: Bool { didSet { d.set(showDock, forKey: "showDock"); applyDock() } }
+    @Published var loginItem = LoginItem.enabled
+    var welcomed: Bool {
+        get { d.bool(forKey: "welcomed") }
+        set { d.set(newValue, forKey: "welcomed") }
+    }
+
+    private init() {
+        d.register(defaults: ["refresh": 5, "showCPU": true, "showBusy": true,
+                              "showQueue": true, "githubQueue": true])
+        hubOverride = d.string(forKey: "hub") ?? ""
+        refreshSeconds = d.integer(forKey: "refresh")
+        showCPU = d.bool(forKey: "showCPU")
+        showBusy = d.bool(forKey: "showBusy")
+        showQueue = d.bool(forKey: "showQueue")
+        githubQueue = d.bool(forKey: "githubQueue")
+        showDock = d.bool(forKey: "showDock")
+    }
+
+    var hub: URL { Config.url(hubOverride) ?? Config.hub }
+
+    func applyDock() {
+        NSApp?.setActivationPolicy(showDock ? .regular : .accessory)
     }
 }
 
@@ -163,14 +209,21 @@ struct RunItem: Identifiable {
 final class Store: ObservableObject {
     @Published var machines: [Machine] = []
     @Published var unreachable: [String] = []
-    @Published var runs: [RunItem]?          // nil → gh unavailable, section hidden
+    @Published var offline: [(name: String, lastSeen: Date?)] = []
+    @Published var runs: [RunItem]?          // nil → gh unavailable or turned off, section hidden
+    @Published var ghStatus = ""             // shown in Settings
     @Published var hubError: String?
     @Published var lastUpdated: Date?
-    let hub = Config.hub
+    var hub: URL { Prefs.shared.hub }
 
     init(autoRefresh: Bool = true) {
         guard autoRefresh else { return }
-        Task { while true { await refresh(); try? await Task.sleep(for: .seconds(5)) } }
+        Task {
+            while true {
+                await refresh()
+                try? await Task.sleep(for: .seconds(max(Prefs.shared.refreshSeconds, 2)))
+            }
+        }
         Task { while true { await refreshRuns(); try? await Task.sleep(for: .seconds(60)) } }
     }
 
@@ -187,9 +240,11 @@ final class Store: ObservableObject {
         async let me = get("/api/stats")
         async let peerList = get("/api/peers")
         async let missing = get("/api/unreachable")
+        async let off = get("/api/offline")
         guard let selfStats = await me as? [String: Any] else {
             hubError = L("Can't reach sysdash at \(hub.host ?? "?") — is it running?",
                          "\(hub.host ?? "?") adresinde sysdash'e ulaşılamıyor — çalışıyor mu?")
+            machines = []
             lastUpdated = Date()
             return
         }
@@ -209,15 +264,28 @@ final class Store: ObservableObject {
         machines = [Machine(id: "self", listedName: "", stats: Stats(raw: selfStats))]
             + peers.map { Machine(id: $0.0, listedName: $0.1, stats: fetched[$0.0]) }
         unreachable = (await missing as? [String]) ?? []
+        // /api/offline is 1.37+; an older hub just shows none.
+        offline = (await off as? [[String: Any]] ?? []).compactMap { p in
+            guard let n = p["name"] as? String else { return nil }
+            let t = p["last_seen"].flatMap { $0 is NSNull ? nil : num($0) }
+            return (n, t.map { Date(timeIntervalSince1970: $0) })
+        }
         lastUpdated = Date()
     }
 
     /// Repos come from the runners the fleet already reports, so nothing to configure.
     func refreshRuns() async {
+        guard Prefs.shared.githubQueue else {
+            runs = nil; ghStatus = L("Off", "Kapalı"); return
+        }
         let repos = Set(machines.flatMap { $0.stats?.runners.map(\.repo) ?? [] }.filter { $0.contains("/") })
         guard let gh = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"]
-            .first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { runs = nil; return }
-        if repos.isEmpty { runs = []; return }
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            runs = nil; ghStatus = L("gh CLI not found", "gh CLI bulunamadı"); return
+        }
+        if repos.isEmpty {
+            runs = []; ghStatus = L("No runner repos yet", "Henüz runner reposu yok"); return
+        }
         let items: [RunItem]? = await Task.detached {
             var out: [RunItem] = []
             var anyOK = false
@@ -237,6 +305,10 @@ final class Store: ObservableObject {
             return anyOK ? out.sorted { $0.createdAt < $1.createdAt } : nil   // nil: gh not logged in
         }.value
         runs = items
+        ghStatus = items == nil
+            ? L("gh couldn't read the runner repos — logged in (gh auth login) with access?",
+                "gh runner repolarını okuyamadı — oturum açık mı (gh auth login), erişim var mı?")
+            : L("\(repos.count) repos via gh", "gh ile \(repos.count) repo")
     }
 
     var allRunners: [RunnerInfo] { machines.flatMap { $0.stats?.runners ?? [] } }
@@ -511,8 +583,8 @@ struct HomeTab: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Chip(icon: "desktopcomputer",
-                     text: "\(store.machines.filter(\.online).count)/\(store.machines.count + store.unreachable.count) \(L("online", "çevrimiçi"))",
-                     tint: store.unreachable.isEmpty ? .green : .orange)
+                     text: "\(store.machines.filter(\.online).count)/\(store.machines.count + store.unreachable.count + store.offline.count) \(L("online", "çevrimiçi"))",
+                     tint: store.unreachable.isEmpty && store.offline.isEmpty ? .green : .orange)
                 if !store.allRunners.isEmpty {
                     Chip(icon: "bolt.fill", text: "\(store.busyCount) \(L("busy", "meşgul"))", tint: .blue)
                     if store.offlineRunners > 0 {
@@ -525,6 +597,24 @@ struct HomeTab: View {
                 }
             }
             ForEach(store.machines) { m in MachineSummary(m: m) { select(m.id) } }
+            if !store.offline.isEmpty {
+                Card {
+                    SectionTitle(text: L("Offline", "Çevrimdışı"))
+                    ForEach(store.offline, id: \.name) { m in
+                        HStack(spacing: 7) {
+                            Dot(color: .red)
+                            Text(m.name).font(.system(size: 12))
+                            Spacer()
+                            if let t = m.lastSeen {
+                                Text(ago(t)).font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Text(L("Asleep, shut down, or waiting at the FileVault login after a restart.",
+                           "Uykuda, kapalı ya da yeniden başladıktan sonra FileVault girişinde bekliyor."))
+                        .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
             if !store.unreachable.isEmpty {
                 Card {
                     SectionTitle(text: L("Can't reach", "Ulaşılamıyor"))
@@ -721,7 +811,6 @@ final class WindowState: ObservableObject {
     // A ScrollView in a MenuBarExtra window has no ideal height and collapses to
     // zero under maxHeight alone, so it is sized to the measured content.
     @Published var contentHeight: CGFloat = 0
-    @Published var loginItem = LoginItem.enabled
 
     init(tab: String = "home") { self.tab = tab }
 }
@@ -792,14 +881,10 @@ struct ContentView: View {
                         .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
                 }
                 Spacer()
-                Toggle(L("Open at login", "Girişte aç"), isOn: Binding(
-                    get: { ui.loginItem },
-                    set: { on in
-                        LoginItem.set(on)
-                        ui.loginItem = LoginItem.enabled
-                    }))
-                    .toggleStyle(.checkbox)
                 Button(L("Dashboard", "Panel")) { open(store.hub.absoluteString) }
+                Button { Windows.showSettings(store: store) } label: {
+                    Label(L("Settings", "Ayarlar"), systemImage: "gearshape")
+                }
                 Button(L("Quit", "Çık")) { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
@@ -810,12 +895,158 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Settings
+
+let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+
+struct SettingsView: View {
+    @ObservedObject var prefs: Prefs
+    @ObservedObject var store: Store
+
+    private func note(_ s: String, error: Bool = false) -> some View {
+        Text(s).font(.system(size: 11)).foregroundStyle(error ? .red : .secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    var body: some View {
+        Form {
+            Section("Hub") {
+                TextField(L("Address", "Adres"), text: $prefs.hubOverride, prompt: Text(Config.hub.absoluteString))
+                    .onSubmit { Task { await store.refresh() } }
+                note(store.hubError ?? L("Connected to \(store.hub.absoluteString) · \(store.machines.count) machines",
+                                         "\(store.hub.absoluteString) adresine bağlı · \(store.machines.count) makine"),
+                     error: store.hubError != nil)
+                note(L("Leave empty to use SYSDASH_HUB from ~/.config/mac-sysdash/config, or this Mac.",
+                       "Boş bırakılırsa ~/.config/mac-sysdash/config içindeki SYSDASH_HUB, yoksa bu Mac kullanılır."))
+            }
+            Section(L("Menu bar", "Menü çubuğu")) {
+                Toggle(L("This Mac's CPU %", "Bu Mac'in CPU %'si"), isOn: $prefs.showCPU)
+                Toggle(L("Busy runners ⚡", "Meşgul runner'lar ⚡"), isOn: $prefs.showBusy)
+                Toggle(L("Queued GitHub runs ⏳", "Kuyruktaki GitHub işleri ⏳"), isOn: $prefs.showQueue)
+                note(L("Turn them all off for an icon-only item when the menu bar is crowded.",
+                       "Menü çubuğu kalabalıksa hepsini kapatıp yalnızca simgeyi bırakın."))
+                Toggle(L("Show in Dock", "Dock'ta göster"), isOn: $prefs.showDock)
+                note(L("If the menu bar icon is hidden behind the notch, the Dock icon opens the same panel.",
+                       "Menü çubuğu simgesi çentiğin arkasında kalırsa Dock simgesi aynı paneli açar."))
+            }
+            Section(L("Data", "Veri")) {
+                Picker(L("Refresh every", "Yenileme sıklığı"), selection: $prefs.refreshSeconds) {
+                    ForEach([2, 5, 10, 30, 60], id: \.self) { Text("\($0) s").tag($0) }
+                }
+                Toggle(L("GitHub queue (via the gh CLI)", "GitHub kuyruğu (gh CLI ile)"), isOn: $prefs.githubQueue)
+                    .onChange(of: prefs.githubQueue) { Task { await store.refreshRuns() } }
+                if !store.ghStatus.isEmpty { note(store.ghStatus) }
+            }
+            Section(L("General", "Genel")) {
+                Toggle(L("Open at login", "Girişte aç"), isOn: Binding(
+                    get: { prefs.loginItem },
+                    set: { on in
+                        LoginItem.set(on)
+                        prefs.loginItem = LoginItem.enabled
+                    }))
+                HStack {
+                    Text("sysdash \(appVersion)").foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L("Open panel", "Paneli aç")) { Windows.showPanel(store: store) }
+                    Button(L("Web dashboard", "Web paneli")) { open(store.hub.absoluteString) }
+                    Button(L("Quit", "Çık")) { NSApp.terminate(nil) }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 460)
+    }
+}
+
+/// Plain AppKit windows: the menu bar popover can't be opened programmatically,
+/// so reopening the app (Dock, Spotlight, `mac-sysdash menubar`, sysdash://)
+/// shows the same panel in a normal window instead.
+@MainActor
+enum Windows {
+    private static var settings: NSWindow?
+    private static var panel: NSWindow?
+
+    static func showSettings(store: Store) {
+        if settings == nil {
+            settings = make(SettingsView(prefs: .shared, store: store), title: L("sysdash Settings", "sysdash Ayarları"))
+        }
+        bringUp(settings!)
+    }
+
+    static func showPanel(store: Store) {
+        if panel == nil { panel = make(ContentView(store: store, ui: WindowState()), title: "sysdash") }
+        bringUp(panel!)
+    }
+
+    private static func make<V: View>(_ view: V, title: String) -> NSWindow {
+        let w = NSWindow(contentViewController: NSHostingController(rootView: view))
+        w.title = title
+        w.styleMask = [.titled, .closable, .miniaturizable]
+        w.isReleasedWhenClosed = false
+        w.center()
+        return w
+    }
+
+    private static func bringUp(_ w: NSWindow) {
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+    }
+}
+
 // MARK: - App
 
-/// `SysdashBar --snapshot out.png [--dark] [--tab N]` renders the window to a
-/// PNG and exits (tab 0 = overview, N = Nth machine) — for docs and debugging.
 @MainActor
-func renderSnapshot(to path: String, dark: Bool, tab: Int) {
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let store = Store()
+    let popover = WindowState()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Prefs.shared.applyDock()
+        // First run: show that it is running even if the menu bar hides the icon.
+        if !Prefs.shared.welcomed {
+            Prefs.shared.welcomed = true
+            Windows.showSettings(store: store)
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Windows.showPanel(store: store)
+        return false
+    }
+
+    /// sysdash://open (panel) and sysdash://settings — linked from the web dashboard.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for u in urls where u.scheme == "sysdash" {
+            u.host == "settings" ? Windows.showSettings(store: store) : Windows.showPanel(store: store)
+        }
+    }
+}
+
+struct MenuLabel: View {
+    @ObservedObject var store: Store
+    @ObservedObject var prefs: Prefs
+
+    var text: String {
+        var parts: [String] = []
+        if prefs.showCPU, let s = store.selfStats { parts.append("\(Int(s.cpu.rounded()))%") }
+        if prefs.showBusy, store.busyCount > 0 { parts.append("\(store.busyCount)⚡") }
+        if prefs.showQueue, store.queuedCount > 0 { parts.append("\(store.queuedCount)⏳") }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: store.alert ? "exclamationmark.triangle.fill" : "gauge.with.dots.needle.33percent")
+            if !text.isEmpty { Text(text).monospacedDigit() }
+        }
+    }
+}
+
+/// `SysdashBar --snapshot out.png [--dark] [--tab N | --settings]` renders the
+/// panel (tab 0 = overview, N = Nth machine) or the settings window to a PNG
+/// and exits — for docs and debugging.
+@MainActor
+func renderSnapshot(to path: String, dark: Bool, tab: Int, settings: Bool) {
     let store = Store(autoRefresh: false)
     var done = false
     Task { await store.refresh(); await store.refreshRuns(); done = true }
@@ -824,8 +1055,10 @@ func renderSnapshot(to path: String, dark: Bool, tab: Int) {
     _ = NSApplication.shared
     NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     let selected = tab > 0 && tab <= store.machines.count ? store.machines[tab - 1].id : "home"
-    let host = NSHostingView(rootView: ContentView(store: store, ui: WindowState(tab: selected))
-        .background(Color(nsColor: .windowBackgroundColor)))
+    let root: AnyView = settings
+        ? AnyView(SettingsView(prefs: .shared, store: store))
+        : AnyView(ContentView(store: store, ui: WindowState(tab: selected)))
+    let host = NSHostingView(rootView: root.background(Color(nsColor: .windowBackgroundColor)))
     host.appearance = NSApp.appearance
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 400),
                           styleMask: [.borderless], backing: .buffered, defer: false)
@@ -847,7 +1080,10 @@ struct Launcher {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             let tab = args.firstIndex(of: "--tab").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil } ?? 0
-            MainActor.assumeIsolated { renderSnapshot(to: args[i + 1], dark: args.contains("--dark"), tab: tab) }
+            MainActor.assumeIsolated {
+                renderSnapshot(to: args[i + 1], dark: args.contains("--dark"), tab: tab,
+                               settings: args.contains("--settings"))
+            }
             return
         }
         SysdashBarApp.main()
@@ -855,22 +1091,13 @@ struct Launcher {
 }
 
 struct SysdashBarApp: App {
-    @StateObject private var store = Store()
-    @StateObject private var ui = WindowState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView(store: store, ui: ui)
+            ContentView(store: delegate.store, ui: delegate.popover)
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: store.alert ? "exclamationmark.triangle.fill" : "gauge.with.dots.needle.33percent")
-                if let s = store.selfStats {
-                    Text("\(Int(s.cpu.rounded()))%"
-                         + (store.busyCount > 0 ? " · \(store.busyCount)⚡" : "")
-                         + (store.queuedCount > 0 ? " · \(store.queuedCount)⏳" : ""))
-                        .monospacedDigit()
-                }
-            }
+            MenuLabel(store: delegate.store, prefs: .shared)
         }
         .menuBarExtraStyle(.window)
     }

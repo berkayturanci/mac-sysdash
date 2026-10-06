@@ -400,6 +400,8 @@
     <label>Warning %<input type="number" min="1" max="100" id="cfgWarn" oninput="setCfg('warn',this.value)"></label>
     <label>Stuck job (min)<input type="number" min="1" id="cfgStuck" oninput="setCfg('stuck',this.value)"></label>
     <label class="wide" title="ntfy.sh / Slack / Discord webhook — alerts POST here">Alert webhook<input type="url" id="cfgHook" placeholder="https://ntfy.sh/your-topic" oninput="setHook(this.value)"></label>
+    <!-- Opens the optional macOS menu bar app (registers sysdash://); a no-op without it. -->
+    <div class="wide" style="margin-top:8px;font-size:12px"><a href="sysdash://open" id="cfgBar" title="Requires the sysdash menu bar app (macOS 14+)">Open menu bar app ↗</a> · <a href="sysdash://settings" id="cfgBarSet">its settings</a></div>
   </div>
   <div id="evtPop" class="cfgpop" hidden style="min-width:300px;max-width:390px">
     <div class="cfgttl" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><span id="evtTitle">Recent events</span><button class="evt-clear" onclick="clearEvents()">clear</button></div>
@@ -411,6 +413,7 @@
   <div id="checksStrip"></div>
   <div id="machines"></div>
   <div class="foot" id="unreach" hidden></div>
+  <div class="foot" id="offline" hidden></div>
   <div class="foot" id="foot"></div>
 </div>
 
@@ -481,6 +484,8 @@ function applyLang(){
   const p=langPref();
   langBtn.textContent = p==='auto'?'🌐':p.toUpperCase();
   langBtn.title=t.langName+': '+(p==='auto'?t.themeNames.auto:p);
+  document.getElementById('cfgBar').textContent=L==='tr'?'Menü çubuğu uygulamasını aç ↗':'Open menu bar app ↗';
+  document.getElementById('cfgBarSet').textContent=L==='tr'?'ayarları':'its settings';
 }
 langBtn.addEventListener('click',()=>{
   const order=['auto','en','tr'];
@@ -1523,6 +1528,20 @@ async function discover(){
   try{
     showUnreachable(await (await fetch('/api/unreachable',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json());
   }catch(_){}
+  try{
+    showOffline(await (await fetch('/api/offline',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json());
+  }catch(_){}
+}
+// Tailnet Macs that are off (asleep, rebooted behind FileVault, lid shut).
+function showOffline(list){
+  const el=document.getElementById('offline');
+  list=(list||[]).filter(p=>p&&typeof p.name==='string');
+  el.hidden=!list.length;
+  if(!list.length)return;
+  const ago=s=>{if(!s)return '';const m=Math.max(0,Math.round((Date.now()/1000-s)/60));
+    const v=m<60?m+(L==='tr'?' dk':'m'):m<2880?Math.round(m/60)+(L==='tr'?' sa':'h'):Math.round(m/1440)+(L==='tr'?' g':'d');
+    return ' ('+v+(L==='tr'?' önce':' ago')+')'};
+  el.textContent=(L==='tr'?'Çevrimdışı: ':'Offline: ')+list.map(p=>p.name+ago(p.last_seen)).join(', ');
 }
 // Online tailnet Macs the hub can't see: say why, instead of them silently missing.
 function showUnreachable(names){

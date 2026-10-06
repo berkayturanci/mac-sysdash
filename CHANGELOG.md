@@ -1,3 +1,26 @@
+## [1.37.0] - 2026-10-06
+### Added
+- **Offline Macs are listed.** Tailnet Macs that are offline (asleep, lid shut,
+  or waiting at the FileVault login after a restart) used to vanish from the
+  dashboard. The hub now reports them with when they were last seen
+  (`/api/offline`); the web dashboard shows "Offline: … (2h ago)" and the menu
+  bar overview gets an Offline card.
+- **Menu bar app Settings window** (gear in the panel): hub address, which
+  items the menu bar title shows (all off → icon only, for crowded menu bars),
+  **Show in Dock**, refresh interval, GitHub queue on/off with its status, and
+  **Open at login** (moved here from the panel footer).
+- **Reach the panel when the menu bar icon is hidden.** Opening the app again
+  (Dock, Spotlight, `mac-sysdash menubar`) or a `sysdash://open` link shows the
+  same panel as a normal window; `sysdash://settings` opens Settings. The web
+  dashboard's ⚙ has an "Open menu bar app" link. First launch opens Settings
+  once, so you can tell it is running.
+
+### Changed
+- `./uninstall.sh` also removes the menu bar app and its login item; README and
+  the formula caveats say how to drop the login item before `brew uninstall`.
+- README, website and `llms.txt` describe the menu bar app, tailnet-only access
+  and the config file, with anonymised screenshots.
+
 ## [1.36.2] - 2026-10-06
 ### Fixed
 - **Menu bar "Open at login" survives `brew upgrade`.** It used SMAppService,

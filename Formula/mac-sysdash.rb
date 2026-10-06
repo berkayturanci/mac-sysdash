@@ -68,7 +68,11 @@ class MacSysdash < Formula
       Dashboard: http://localhost:8765
 
       Menu bar app (macOS 14+):  mac-sysdash menubar
-      then tick "Open at login" in its window.
+      Its Settings window has "Open at login" and "Show in Dock" (use that if
+      a crowded menu bar hides the icon). Running the command again, or
+      sysdash://open, brings up its panel.
+      Before `brew uninstall`, untick "Open at login" (or delete
+      ~/Library/LaunchAgents/io.github.berkayturanci.sysdash-bar.plist).
 
       Do not run ./install.sh for a brew install — that writes a separate
       launchd label (com.berkay.sysdash) and can fight brew services.

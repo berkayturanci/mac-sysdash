@@ -30,12 +30,19 @@ database server, no cloud.
 - `menubar/SysdashBar.swift` — optional **menu bar app** (single-file SwiftUI
   `MenuBarExtra`, macOS 14+), built by `menubar/build.sh` (plain `swiftc`, no
   Xcode project, no packages). It reads **only the hub's HTTP API**
-  (`/api/stats`, `/api/peers`, `/api/peer`, `/api/unreachable`) — never
+  (`/api/stats`, `/api/peers`, `/api/peer`, `/api/unreachable`, `/api/offline`) — never
   Tailscale, runner files or the server's internals — so it works against any
   hub (`SYSDASH_HUB`). The single exception is the GitHub queue section, which
   shells out to an already-authenticated `gh` and hides itself when that fails;
   keep that optional and client-side (the server stays token-free).
-  `SysdashBar --snapshot out.png [--dark] [--tab N]` renders the window to a PNG.
+  Settings live in `Prefs` (UserDefaults); the Settings window and the
+  standalone panel window are plain AppKit windows (`Windows`) because a
+  `MenuBarExtra` popover can't be opened programmatically — reopen, the Dock
+  icon and `sysdash://open|settings` (registered in `build.sh`) use them.
+  `SysdashBar --snapshot out.png [--dark] [--tab N | --settings]` renders to a
+  PNG. README/site screenshots (`docs/menubar*.png`, copied to `site/public/`)
+  must use anonymised data — point `SYSDASH_HUB` at a throwaway fake hub, never
+  a real fleet.
   Gotcha: a `ScrollView` inside a `MenuBarExtra` window collapses to zero height
   under `maxHeight` alone — it is sized from a measured content height.
   **Don't use `@State`**: in the macOS 27 SDK it is a macro whose plugin ships
@@ -160,7 +167,8 @@ peer's stats, `/api/peer_jobs` its jobs and `/api/peer_history?key=&range=` its
 history (the hub fetches peers server-side so the browser makes no cross-origin
 calls — hence no CORS header). Client host `base` is `peer:<key>`; strip the
 prefix (`peerKey()`) before calling a proxy. `/api/unreachable` lists online
-tailnet Macs that neither answer a pull nor push. Machines that can't accept
+tailnet Macs that neither answer a pull nor push; `/api/offline` lists offline
+tailnet Macs as `[{name, last_seen}]` (epoch seconds or null, newest first). Machines that can't accept
 inbound connections POST to `/api/push` (`SYSDASH_PUSH_TO` may list several
 hubs, comma-separated). The `/api/peer*` routes are prefix-matched: put longer
 names first. CLI: `python server.py --status [URL]` prints a

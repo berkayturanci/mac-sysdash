@@ -8,7 +8,7 @@ const title = 'mac-sysdash — a tiny Mac + GitHub runner dashboard';
 const description =
   'A tiny, dependency-light system + GitHub Actions self-hosted runner dashboard for macOS. ' +
   'Install with Homebrew or a git clone. One Python file, one HTML file. No cloud, no accounts, no token. ' +
-  'Viewable over LAN or Tailscale.';
+  'Viewable over Tailscale (or your LAN), plus an optional native menu bar app.';
 
 const author = { '@type': 'Person', name: 'Berkay Turancı', url: 'https://github.com/berkayturanci' };
 const jsonLd = {
@@ -23,7 +23,7 @@ const jsonLd = {
       image: ogImage,
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'macOS',
-      softwareVersion: '1.35.0',
+      softwareVersion: '1.37.0',
       softwareRequirements: 'Python 3.9+, psutil',
       license: 'https://commonsclause.com/',
       isAccessibleForFree: true,
@@ -48,7 +48,9 @@ const jsonLd = {
 const features = [
   { ic: '📊', h: 'Live gauges & sparklines', p: 'CPU, memory, and disk ring gauges refreshing every second, with ~5 minutes of per-second history and a per-core view.' },
   { ic: '🏃', h: 'Self-hosted runner status', p: "Busy / idle / offline per runner, with the live job's PR, branch, commit, and actor — read from local files, never the GitHub API." },
-  { ic: '🖧', h: 'Multi-machine fleet', p: "Point one Mac at the others over LAN or Tailscale and see the whole fleet on one screen. Machines that can't accept inbound can push instead." },
+  { ic: '🖧', h: 'Multi-machine fleet', p: "One Mac gathers the others over Tailscale and shows the whole fleet on one screen. Machines that can't accept inbound push instead; offline and unreachable Macs are called out, not silently missing." },
+  { ic: '🍎', h: 'Menu bar app', p: 'An optional native companion: an overview tab plus one tab per Mac with gauges, top apps and runners. Settings for Open at login, Show in Dock and an icon-only mode — no browser tab needed.' },
+  { ic: '🔒', h: 'Tailnet-only by default', p: 'No login, so it only answers this Mac and your Tailscale peers. Open it to the LAN with one line in ~/.config/mac-sysdash/config.' },
   { ic: '💾', h: 'Accurate disk & memory', p: 'Disk matches the macOS Storage figure (purgeable-inclusive); memory matches Activity Monitor. Plus a disk-fill ETA.' },
   { ic: '📈', h: 'CI health & history', p: 'Per-runner 30-day health heatmap, flaky-job detection, queue-pressure, and a Gantt timeline — backed by a local SQLite DB.' },
   { ic: '🔔', h: 'Alerts & dead-man checks', p: 'Threshold alerts, offline-runner mutes, a snooze/maintenance mode, an optional webhook, and cron dead-man checks.' },
@@ -136,7 +138,8 @@ const features = [
   <p class="lead">
     A tiny system <b>+ GitHub Actions self-hosted runner</b> dashboard for macOS.
     One Python file, one HTML file — <b>no build step, no accounts, no token,
-    no cloud.</b> Several Macs show each other's stats over your LAN or Tailscale.
+    no cloud.</b> Several Macs show each other's stats over Tailscale — in the
+    browser or a native menu bar app.
     Install with <b>Homebrew</b> or a one-line git clone.
   </p>
   <div class="cta">
@@ -179,6 +182,24 @@ const features = [
   </div>
 </section>
 
+<section id="menubar">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Menu bar app</div>
+      <h2>The fleet, one click away</h2>
+      <p>Optional native companion (macOS 14+), built by the Homebrew formula: <code>mac-sysdash menubar</code>.</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:flex-start">
+      <img src={asset('menubar.png')} width="300" loading="lazy" style="max-width:100%;height:auto;border-radius:12px"
+        alt="Menu bar app overview tab: per-machine CPU, memory and disk bars, runners with their current job, and an offline Mac" />
+      <img src={asset('menubar-machine.png')} width="300" loading="lazy" style="max-width:100%;height:auto;border-radius:12px"
+        alt="Menu bar app machine tab: CPU, memory and disk ring gauges with sparklines, system details and top apps" />
+      <img src={asset('menubar-settings.png')} width="300" loading="lazy" style="max-width:100%;height:auto;border-radius:12px"
+        alt="Menu bar app settings: hub address, menu bar items, Show in Dock, refresh interval, GitHub queue and Open at login" />
+    </div>
+  </div>
+</section>
+
 <section id="how">
   <div class="wrap">
     <div class="how">
@@ -188,7 +209,7 @@ const features = [
           <li>Each Mac runs <b>one Python file</b> that samples the system in the background and serves a JSON API + a single static page.</li>
           <li>The browser opens that page and draws everything with <b>hand-drawn SVG</b> — no framework, no build step.</li>
           <li>Designate one Mac as the <b>hub</b>; it pulls each peer's stats server-side (or peers <b>push</b> to it), so your browser makes no cross-origin calls.</li>
-          <li>Reach it over your <b>LAN or Tailscale</b> from any device — phone, tablet, or a TV on the wall.</li>
+          <li>Reach it over <b>Tailscale</b> from any device — phone, tablet, or a TV on the wall — or glance at the <b>menu bar app</b>. Only your tailnet gets in by default.</li>
         </ul>
       </div>
       <svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:100%;height:auto">
@@ -228,11 +249,12 @@ const features = [
       <div class="method method-featured">
         <div class="mhead"><h3>Homebrew</h3><span class="mtag">recommended</span></div>
         <p>Tap this repo and install. <code>brew services</code> runs the launchd agent; upgrades are <code>brew upgrade mac-sysdash</code>. Don't also run <code>./install.sh</code>.</p>
-        <pre><button class="copy" data-copy={`brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash\nbrew trust berkayturanci/mac-sysdash\nbrew install mac-sysdash\nbrew services start mac-sysdash`}>Copy</button><code><span class="tok-c"># Homebrew (formula lives in this repo)</span>
+        <pre><button class="copy" data-copy={`brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash\nbrew trust berkayturanci/mac-sysdash\nbrew install mac-sysdash\nbrew services start mac-sysdash\nmac-sysdash menubar`}>Copy</button><code><span class="tok-c"># Homebrew (formula lives in this repo)</span>
 brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash
 brew trust berkayturanci/mac-sysdash   <span class="tok-c"># Homebrew 6+, once</span>
 brew install mac-sysdash
-brew services start mac-sysdash</code></pre>
+brew services start mac-sysdash
+mac-sysdash menubar                    <span class="tok-c"># optional menu bar app</span></code></pre>
       </div>
       <div class="method">
         <div class="mhead"><h3>Git clone</h3><span class="mtag alt">in-place</span></div>
@@ -257,8 +279,10 @@ SYSDASH_PORT=8799 ./venv/bin/python server.py</code></pre>
     <p class="startnote">
       Then open <code>http://localhost:8765</code>. Want a clean HTTPS URL on your
       tailnet (and browser notifications)? Run <code>./serve.sh</code> — it exposes
-      it via <a href="https://tailscale.com/">Tailscale</a> Serve. Run the same on
-      each Mac and use <b>＋ machine</b> in the header to watch the whole fleet.
+      it via <a href="https://tailscale.com/">Tailscale</a> Serve. Install it on
+      each Mac and the hub finds the others on your tailnet by itself. Reaching
+      it over a plain LAN? Put <code>SYSDASH_ALLOW=lan</code> in
+      <code>~/.config/mac-sysdash/config</code>.
     </p>
     <p style="text-align:center;margin-top:26px">
       <a class="btn primary" href={demoUrl}>▶ Try the live demo</a>
