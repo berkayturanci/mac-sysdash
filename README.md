@@ -177,6 +177,27 @@ Reaching it over a plain LAN (no Tailscale)? Set `SYSDASH_ALLOW=lan` — see
 
 Change the port with `SYSDASH_PORT=8770 ./install.sh`.
 
+### Menu bar app (optional, macOS 14+)
+
+A native menu bar companion shows the fleet without a browser tab: an
+**Overview** tab (every machine's CPU / memory / disk, runners with their current
+job, unreachable Macs) and **one tab per machine** (ring gauges with sparklines,
+load, swap, network, battery, top apps, runners, SSH / screen-share buttons).
+The menu bar shows this Mac's CPU, busy runners and queued runs at a glance.
+
+It only reads the hub's HTTP API, so it needs nothing else. If the
+[`gh`](https://cli.github.com/) CLI is installed and logged in, it also lists
+**queued / in-progress GitHub runs** for the repos your runners serve; without
+`gh` that section is simply hidden (the server itself stays token-free).
+
+```sh
+mac-sysdash menubar                 # Homebrew (built with the formula)
+./menubar/build.sh --install        # git clone: build → ~/Applications, open
+```
+
+Tick **Open at login** in its window. To watch a hub on another Mac, add
+`SYSDASH_HUB=http://<hub-tailscale-ip>:8765` to `~/.config/mac-sysdash/config`.
+
 ## Updating
 
 **Homebrew:** `brew update && brew upgrade mac-sysdash`
@@ -358,6 +379,8 @@ A non-empty environment variable overrides the file (for a git clone,
   stats to that hub (for machines that can't accept inbound). Several hubs can
   be listed, comma-separated, so the node appears on every dashboard. Off by
   default.
+- `SYSDASH_HUB` — menu bar app only: the hub to read (default
+  `http://localhost:<SYSDASH_PORT>`).
 
 At the top of `server.py`:
 

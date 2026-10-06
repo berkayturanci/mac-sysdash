@@ -13,6 +13,14 @@
   its own origin, so the wildcard only let other websites read your stats.
 
 ### Added
+- **Menu bar app** (`menubar/`, macOS 14+). An Overview tab plus one tab per
+  machine — CPU / memory / disk gauges with sparklines, load, swap, network,
+  battery, top apps, runners with their current job, SSH / screen-share
+  buttons — and a menu bar title with this Mac's CPU, busy runners and queued
+  runs. Reads only the hub API (`SYSDASH_HUB` for a remote hub). Lists
+  queued / in-progress GitHub runs when a logged-in `gh` is available, hidden
+  otherwise. Homebrew builds it (`mac-sysdash menubar`); from a clone run
+  `./menubar/build.sh --install`. "Open at login" toggle built in.
 - **Config file `~/.config/mac-sysdash/config`** (`KEY=VALUE` lines, `#`
   comments; path overridable with `SYSDASH_CONFIG`). `brew services` rewrites
   its plist on every start, so env vars edited there didn't stick — now every

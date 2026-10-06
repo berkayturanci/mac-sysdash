@@ -27,6 +27,17 @@ database server, no cloud.
 - `Formula/mac-sysdash.rb` — Homebrew formula (same repo). Tap with
   `brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash`.
   Bump `url`/`sha256` when cutting a GitHub release.
+- `menubar/SysdashBar.swift` — optional **menu bar app** (single-file SwiftUI
+  `MenuBarExtra`, macOS 14+), built by `menubar/build.sh` (plain `swiftc`, no
+  Xcode project, no packages). It reads **only the hub's HTTP API**
+  (`/api/stats`, `/api/peers`, `/api/peer`, `/api/unreachable`) — never
+  Tailscale, runner files or the server's internals — so it works against any
+  hub (`SYSDASH_HUB`). The single exception is the GitHub queue section, which
+  shells out to an already-authenticated `gh` and hides itself when that fails;
+  keep that optional and client-side (the server stays token-free).
+  `SysdashBar --snapshot out.png [--dark] [--tab N]` renders the window to a PNG.
+  Gotcha: a `ScrollView` inside a `MenuBarExtra` window collapses to zero height
+  under `maxHeight` alone — it is sized from a measured content height.
 - `site/` — the **marketing website** (Astro), deployed to GitHub Pages by
   `.github/workflows/deploy-site.yml`. This is a separate project with its own
   `package.json`/build. **The no-build-step / no-dependency rules below apply to
