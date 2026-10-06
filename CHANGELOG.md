@@ -1,3 +1,10 @@
+## [1.37.1] - 2026-10-06
+### Fixed
+- **Menu bar Settings window opened as just a title bar.** The AppKit window
+  kept its initial zero content height: the hosting controller now follows the
+  SwiftUI preferred size, and the grouped Settings form (which reports no ideal
+  height) has a fixed one. The standalone panel window gets the same sizing.
+
 ## [1.37.0] - 2026-10-06
 ### Added
 - **Offline Macs are listed.** Tailnet Macs that are offline (asleep, lid shut,

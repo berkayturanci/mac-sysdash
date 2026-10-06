@@ -954,7 +954,8 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460)
+        // A grouped Form scrolls and reports no ideal height of its own.
+        .frame(width: 460, height: 660)
     }
 }
 
@@ -979,7 +980,11 @@ enum Windows {
     }
 
     private static func make<V: View>(_ view: V, title: String) -> NSWindow {
-        let w = NSWindow(contentViewController: NSHostingController(rootView: view))
+        // Without .preferredContentSize the window keeps its initial (zero)
+        // content height and shows only a title bar.
+        let host = NSHostingController(rootView: view)
+        host.sizingOptions = [.preferredContentSize]
+        let w = NSWindow(contentViewController: host)
         w.title = title
         w.styleMask = [.titled, .closable, .miniaturizable]
         w.isReleasedWhenClosed = false
