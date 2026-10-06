@@ -6,6 +6,7 @@ Designed to run under the glances virtualenv python (has psutil) and be
 reached over Tailscale. No external deps beyond psutil + stdlib.
 """
 import glob
+import ipaddress
 import json
 import os
 import re
@@ -23,8 +24,55 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import psutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PORT = int(os.environ.get("SYSDASH_PORT", "8765"))
-VERSION = "1.35.1"
+
+
+# `brew services` regenerates its launchd plist on every start, so env vars
+# edited into it don't stick. A KEY=VALUE file is the one place every install
+# method reads. A non-empty real environment variable still wins.
+CONFIG_FILE = os.environ.get("SYSDASH_CONFIG") or os.path.expanduser("~/.config/mac-sysdash/config")
+
+
+def _load_config(path):
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = (s.strip() for s in line.split("=", 1))
+                if k.startswith("SYSDASH_") and not os.environ.get(k):
+                    os.environ[k] = v.strip("\"'")
+    except OSError:
+        pass
+
+
+_load_config(CONFIG_FILE)
+
+PORT = int(os.environ.get("SYSDASH_PORT") or "8765")
+VERSION = "1.36.0"
+
+# Who may talk to this server. There is no login and the page lists processes,
+# runners and repo names, so by default only this Mac and the tailnet get in —
+# not whoever shares the café Wi-Fi. "lan" adds private/link-local ranges;
+# "any" is the pre-1.36 open behaviour. Unknown values fall back to "tailnet".
+ALLOW = (os.environ.get("SYSDASH_ALLOW") or "tailnet").strip().lower()
+_TAILNET_NETS = (ipaddress.ip_network("100.64.0.0/10"),
+                 ipaddress.ip_network("fd7a:115c:a1e0::/48"))
+
+
+def client_allowed(addr, mode=None):
+    mode = mode or ALLOW
+    if mode == "any":
+        return True
+    try:
+        ip = ipaddress.ip_address(str(addr).split("%", 1)[0])
+    except ValueError:
+        return False
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    if ip.is_loopback or any(ip in n for n in _TAILNET_NETS):
+        return True
+    return mode == "lan" and (ip.is_private or ip.is_link_local)
 
 # Self-hosted runners installed on this Mac.
 HOME = os.path.expanduser("~")
@@ -1103,7 +1151,7 @@ def tailnet_peers(ttl=30):
             if ip:
                 dns = (p.get("DNSName") or "").rstrip(".")
                 nm = (p.get("HostName") or dns or ip).split(".")[0]
-                peers.append({"ip": ip, "name": nm, "dns": dns})
+                peers.append({"ip": ip, "name": nm, "dns": dns, "os": p.get("OS") or ""})
     except Exception:
         pass
     _PEERS.update(ts=now, data=peers)
@@ -1120,12 +1168,15 @@ _PEER_PORTS = (8765, 8770)
 
 def _fetch_stats(url, timeout=6.0, endpoint="/api/stats"):
     """GET a peer endpoint. /api/stats must look like a sysdash stats dict (so a
-    random web server on :8765 isn't mistaken for a peer); /api/jobs is a list."""
+    random web server on :8765 isn't mistaken for a peer); /api/jobs is a list,
+    /api/history a dict of series."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             d = json.loads(r.read().decode("utf-8", "ignore"))
         if endpoint == "/api/jobs":
             return d if isinstance(d, list) else None
+        if endpoint.startswith("/api/history"):
+            return d if isinstance(d, dict) and "cpu" in d else None
         if isinstance(d, dict) and "cpu" in d and "version" in d:
             return d
     except Exception:
@@ -1144,12 +1195,12 @@ def _peer_urls(p, endpoint="/api/stats"):
     return urls
 
 
-_SPEERS = {"ts": 0.0, "data": []}      # reachable sysdash peers: [{ip,name}]
+_SPEERS = {"ts": 0.0, "data": [], "missing": []}   # reachable sysdash peers: [{ip,name}]
 _PEER_CACHE = {}                       # ip -> (ts, stats, working_url)
 
 
 def _refresh_sysdash_peers():
-    out = []
+    out, missing = [], []
     for p in tailnet_peers(ttl=60):
         if p["ip"] == _current_tailscale_ip():
             continue
@@ -1159,7 +1210,21 @@ def _refresh_sysdash_peers():
                 out.append({"ip": p["ip"], "name": p["name"]})
                 _PEER_CACHE[f"{p['ip']}_/api/stats"] = (time.time(), d, u)
                 break
-    _SPEERS.update(ts=time.time(), data=out)
+        else:
+            # Only Macs: phones/Linux boxes on the tailnet never run sysdash.
+            if p.get("os") == "macOS":
+                missing.append({"ip": p["ip"], "name": p["name"]})
+    _SPEERS.update(ts=time.time(), data=out, missing=missing)
+
+
+def unreachable_peers():
+    """Online tailnet Macs this hub can't pull from and that aren't pushing
+    either — usually sysdash isn't installed there, or the Mac drops inbound
+    connections and should use SYSDASH_PUSH_TO instead."""
+    now = time.time()
+    pushing = {d.get("tailscale_ip") for ts, d in list(_PUSHED.values())
+               if now - ts < _PUSH_LIST}
+    return [p["name"] for p in _SPEERS["missing"] if p["ip"] not in pushing]
 
 
 def _peer_sampler():
@@ -1226,8 +1291,9 @@ def sysdash_peers():
 
 def peer_by_key(key, endpoint="/api/stats"):
     if key.startswith("push:"):
+        # A push-only node is unreachable from here, so only its pushed stats exist.
         if endpoint != "/api/stats":
-            return []
+            return [] if endpoint == "/api/jobs" else None
         c = _PUSHED.get(key[5:])
         if c and time.time() - c[0] < _PUSH_LIST:
             d = dict(c[1])
@@ -1625,11 +1691,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
+    def _allowed(self):
+        if client_allowed(self.client_address[0]):
+            return True
+        self._send(403, b"sysdash: this address is not allowed. "
+                        b"Set SYSDASH_ALLOW=lan (or any) on the server to open it up.\n",
+                   "text/plain")
+        return False
+
     def do_GET(self):
+        if not self._allowed():
+            return
         if self.path.startswith("/api/stats"):
             try:
                 body = json.dumps(cached_stats()).encode()
@@ -1674,8 +1749,26 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
             return
-        # Must precede /api/peer: that prefix test would swallow this route and
-        # answer with the peer's stats dict instead of its jobs list.
+        if self.path.startswith("/api/unreachable"):
+            self._send(200, json.dumps(unreachable_peers()).encode(), "application/json")
+            return
+        # Both must precede /api/peer: that prefix test would swallow them and
+        # answer with the peer's stats dict.
+        if self.path.startswith("/api/peer_history"):
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                key = (q.get("key") or [""])[0]
+                rng = (q.get("range") or ["1h"])[0]
+                if rng not in ("1h", "24h", "7d"):
+                    rng = "1h"
+                d = peer_by_key(key, endpoint="/api/history?range=" + rng)
+                if d is None:
+                    self._send(404, b'{"error":"peer unreachable"}', "application/json")
+                else:
+                    self._send(200, json.dumps(d).encode(), "application/json")
+            except Exception as e:
+                self._send(500, json.dumps({"error": str(e)}).encode(), "application/json")
+            return
         if self.path.startswith("/api/peer_jobs"):
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -1711,6 +1804,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, b"not found", "text/plain")
 
     def do_POST(self):
+        if not self._allowed():
+            return
         if self.path.startswith("/api/push"):
             try:
                 n = int(self.headers.get("Content-Length", 0))
@@ -1804,5 +1899,5 @@ if __name__ == "__main__":
         threading.Thread(target=_pusher, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {_current_tailscale_ip()})")
+    print(f"sysdash on http://0.0.0.0:{PORT}  (tailscale {_current_tailscale_ip()}, allow {ALLOW})")
     srv.serve_forever()

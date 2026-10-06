@@ -165,12 +165,15 @@ cd mac-sysdash
 The installer runs the app **in place from this repo clone** (no copy), ensures
 `psutil` (using an existing interpreter that has it, otherwise a fresh venv under
 `venv/`), generates a per-user `launchd` agent, and starts it. The dashboard then
-runs at login, restarts on crash, and listens on all interfaces:
+runs at login, restarts on crash, and answers this Mac and your tailnet:
 
 ```
 http://localhost:8765
 http://<your-tailscale-ip>:8765   # from another device on your tailnet
 ```
+
+Reaching it over a plain LAN (no Tailscale)? Set `SYSDASH_ALLOW=lan` — see
+[Configuration](#configuration).
 
 Change the port with `SYSDASH_PORT=8770 ./install.sh`.
 
@@ -213,18 +216,23 @@ browser. Peers are gathered two ways, and the browser only ever talks to the hub
    stats to the hub. Enable it by pointing `SYSDASH_PUSH_TO` at the hub's push URL:
 
    ```sh
-   SYSDASH_PUSH_TO=https://<hub-host>.<tailnet>.ts.net/api/push ./install.sh
+   # Homebrew (or any install): add to ~/.config/mac-sysdash/config, then restart
+   SYSDASH_PUSH_TO=http://<hub-tailscale-ip>:8765/api/push
+   # git clone, alternatively:
+   SYSDASH_PUSH_TO=http://<hub-tailscale-ip>:8765/api/push ./install.sh
    ```
 
-   The node then streams its stats outbound every few seconds and shows up on the
+   The hub lists online tailnet Macs it can't reach under the machines ("Can't
+   reach: …"), which is the cue to switch that Mac to push. The node then streams its stats outbound every few seconds and shows up on the
    hub like any other machine. Pull and push coexist; push is off unless set. A
    peer that stops pushing is shown as **stale** (amber, with "Ns ago") before it
    drops off.
 
-> **Security.** The dashboard has no authentication and `/api/push` accepts any
-> POST. It is meant for a private tailnet — keep it tailnet-only (don't expose it
-> publicly with Tailscale **Funnel**). The `/api/peer` proxy only fetches IPs that
-> are already your tailnet peers.
+> **Security.** The dashboard has no authentication. By default it only answers
+> this Mac and tailnet addresses (`SYSDASH_ALLOW=tailnet`), which also applies to
+> `/api/push`. Don't expose it publicly with Tailscale **Funnel** — Funnel traffic
+> arrives via loopback and would get in. The `/api/peer` proxy only fetches IPs
+> that are already your tailnet peers.
 
 ## Runner auto-discovery
 
@@ -326,14 +334,26 @@ python3 -m unittest discover -s tests -v
 
 ## Configuration
 
-Environment variables:
+Settings live in **`~/.config/mac-sysdash/config`**, one `KEY=VALUE` per line
+(`#` starts a comment). Every install method reads it; restart after editing
+(`brew services restart mac-sysdash`, or re-run `./install.sh`):
 
-- **Homebrew:** edit the Homebrew service plist (or reinstall after exporting);
-  shell `export` alone is not seen by `brew services`.
-- **git clone:** set them before `./install.sh`; they are written into the
-  launchd agent.
+```sh
+mkdir -p ~/.config/mac-sysdash
+cat >> ~/.config/mac-sysdash/config <<'EOF'
+SYSDASH_ALLOW=lan
+SYSDASH_PUSH_TO=http://100.x.y.z:8765/api/push
+EOF
+```
+
+A non-empty environment variable overrides the file (for a git clone,
+`SYSDASH_PORT=8770 ./install.sh` writes it into the launchd agent).
+`SYSDASH_CONFIG` points at a different file.
 
 - `SYSDASH_PORT` — listening port (default `8765`)
+- `SYSDASH_ALLOW` — who may open the dashboard: `tailnet` (default — this Mac
+  and Tailscale addresses), `lan` (adds private / link-local ranges, for LAN use
+  without Tailscale) or `any`. Everyone else gets `403`.
 - `SYSDASH_PUSH_TO` — a hub's `/api/push` URL; when set, this node streams its
   stats to that hub (for machines that can't accept inbound). Several hubs can
   be listed, comma-separated, so the node appears on every dashboard. Off by
@@ -372,7 +392,12 @@ thresholds (critical %, warning %, stuck-job minutes) and the alert **webhook UR
   (`curl -s localhost:8765/api/stats` returns JSON) and that the address
   includes a reachable host. If it answers locally but not over Tailscale, the
   macOS firewall is likely dropping incoming connections — allow the interpreter
-  in System Settings → Network → Firewall, or turn the firewall off.
+  in System Settings → Network → Firewall, or turn the firewall off. VPN apps
+  (and leftover VPN network extensions) can drop inbound tailnet traffic too; if
+  you can't fix that, switch the Mac to push mode (`SYSDASH_PUSH_TO`).
+- **`403 … not allowed`.** You're opening the dashboard from an address outside
+  `SYSDASH_ALLOW` (default: this Mac + tailnet). Use the Tailscale IP, or set
+  `SYSDASH_ALLOW=lan` in the config file.
 - **No peers and no SSH chip on this machine, but others see it.** sysdash
   needs the Tailscale CLI. It looks in `/usr/local/bin`, `/opt/homebrew/bin`,
   the app bundle (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`) and

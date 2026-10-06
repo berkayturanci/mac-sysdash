@@ -45,7 +45,9 @@ class MacSysdash < Formula
     working_dir opt_libexec
     log_path var/"log/mac-sysdash.log"
     error_log_path var/"log/mac-sysdash.log"
-    environment_variables PATH: std_service_path_env, SYSDASH_PORT: "8765"
+    # No SYSDASH_* here: the server reads ~/.config/mac-sysdash/config, and a
+    # value pinned in the plist would override it.
+    environment_variables PATH: std_service_path_env
   end
 
   def caveats
@@ -58,9 +60,13 @@ class MacSysdash < Formula
       Do not run ./install.sh for a brew install — that writes a separate
       launchd label (com.berkay.sysdash) and can fight brew services.
 
-      Optional env (edit the Homebrew service plist, not a shell export):
+      Only this Mac and your tailnet can open it by default.
+
+      Settings go in ~/.config/mac-sysdash/config (KEY=VALUE per line),
+      then `brew services restart mac-sysdash`:
         SYSDASH_PORT=8770
-        SYSDASH_PUSH_TO=https://<hub>/api/push
+        SYSDASH_ALLOW=lan          # also allow private LAN addresses
+        SYSDASH_PUSH_TO=http://<hub-tailscale-ip>:8765/api/push
     EOS
   end
 

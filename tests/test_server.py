@@ -238,7 +238,7 @@ class TailnetPeerTests(unittest.TestCase):
                         return_value=types.SimpleNamespace(stdout=json.dumps(fake))):
             peers = server.tailnet_peers(ttl=0)
         self.assertEqual(peers, [{"ip": "100.1.2.3", "name": "studio",
-                                  "dns": "studio.tailnet.ts.net"}])
+                                  "dns": "studio.tailnet.ts.net", "os": ""}])
 
     def test_handles_tailscale_failure(self):
         server._PEERS["ts"] = 0.0
@@ -561,7 +561,9 @@ class HttpRouteTests(unittest.TestCase):
     def test_api_stats_json(self):
         r = self.get("/api/stats")
         self.assertEqual(r.status, 200)
-        self.assertEqual(r.headers.get("Access-Control-Allow-Origin"), "*")
+        # The UI only talks to its own origin; a wildcard would let any web
+        # page the viewer opens read this machine's stats.
+        self.assertIsNone(r.headers.get("Access-Control-Allow-Origin"))
         d = json.load(r)
         self.assertEqual(d["version"], server.VERSION)
 
@@ -627,6 +629,30 @@ class HttpRouteTests(unittest.TestCase):
             self.assertIsNone(server._static_path("/../app2/secret.txt"))
             self.assertIsNone(server._static_path("/../app"))
 
+    def test_disallowed_client_gets_403(self):
+        with mock.patch("server.client_allowed", return_value=False):
+            for path in ("/api/stats", "/"):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    self.get(path)
+                self.assertEqual(cm.exception.code, 403)
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(self.base + "/api/push", data=b"{}", timeout=10)
+            self.assertEqual(cm.exception.code, 403)
+
+    def test_peer_history_route(self):
+        with mock.patch("server.peer_by_key", return_value={"cpu": [1]}) as pk:
+            d = json.load(self.get("/api/peer_history?key=ip:100.1.2.3&range=7d"))
+        self.assertEqual(d, {"cpu": [1]})
+        pk.assert_called_with("ip:100.1.2.3", endpoint="/api/history?range=7d")
+        with mock.patch("server.peer_by_key", return_value=None):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                self.get("/api/peer_history?key=push:x&range=bogus")
+            self.assertEqual(cm.exception.code, 404)
+
+    def test_unreachable_route(self):
+        with mock.patch("server.unreachable_peers", return_value=["ekos"]):
+            self.assertEqual(json.load(self.get("/api/unreachable")), ["ekos"])
+
     def test_push_then_serve_over_http(self):
         server._PUSHED.clear()
         payload = {"version": "9.9.9", "host": "HttpPush", "cpu": {"pct": 1}}
@@ -681,6 +707,38 @@ class PushTests(unittest.TestCase):
             self.assertEqual(server.peer_by_key("ip:100.1.2.3", endpoint="/api/jobs"), [])
             self.assertIn("cpu", server.peer_by_key("ip:100.1.2.3"))
 
+    def test_push_only_peer_has_no_history(self):
+        server._PUSHED["Box"] = (server.time.time(), {"host": "Box", "cpu": {}})
+        self.assertIsNone(server.peer_by_key("push:Box", endpoint="/api/history?range=1h"))
+        self.assertEqual(server.peer_by_key("push:Box", endpoint="/api/jobs"), [])
+
+    def test_unreachable_lists_silent_macs_only(self):
+        peers = [{"ip": "100.1.1.1", "name": "studio", "dns": "", "os": "macOS"},
+                 {"ip": "100.1.1.2", "name": "phone", "dns": "", "os": "iOS"},
+                 {"ip": "100.1.1.3", "name": "mini", "dns": "", "os": "macOS"},
+                 {"ip": "100.1.1.4", "name": "pusher", "dns": "", "os": "macOS"}]
+        up = {"cpu": {}, "version": "1"}
+        server._PUSHED["Pusher"] = (server.time.time(), {"host": "Pusher", "tailscale_ip": "100.1.1.4"})
+        with mock.patch("server.tailnet_peers", return_value=peers), \
+                mock.patch("server._current_tailscale_ip", return_value="100.9.9.9"), \
+                mock.patch("server._fetch_stats",
+                           side_effect=lambda u, timeout=6.0, endpoint="/api/stats":
+                           up if "100.1.1.3" in u else None):
+            server._refresh_sysdash_peers()
+        self.assertEqual([p["name"] for p in server._SPEERS["data"]], ["mini"])
+        self.assertEqual(server.unreachable_peers(), ["studio"])
+
+    def test_fetch_accepts_history_dict(self):
+        class Resp:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def read(self): return self.body
+        with mock.patch("server.urllib.request.urlopen",
+                        return_value=Resp(json.dumps({"cpu": [], "step": 60}).encode())):
+            self.assertIn("cpu", server._fetch_stats("http://x/", endpoint="/api/history?range=1h"))
+            self.assertIsNone(server._fetch_stats("http://x/"))   # not a stats dict
+
     def test_push_targets_accept_list(self):
         self.assertEqual(server._push_targets(""), [])
         self.assertEqual(server._push_targets("http://a/api/push"), ["http://a/api/push"])
@@ -695,6 +753,44 @@ class PushTests(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 server._pusher()
         self.assertEqual([c.args[0] for c in once.call_args_list], ["http://a/", "http://b/"])
+
+
+class AccessTests(unittest.TestCase):
+    def test_tailnet_default_admits_loopback_and_tailnet_only(self):
+        for ok in ("127.0.0.1", "::1", "100.101.102.103", "fd7a:115c:a1e0::1",
+                   "::ffff:127.0.0.1", "::ffff:100.64.0.1"):
+            self.assertTrue(server.client_allowed(ok, "tailnet"), ok)
+        for bad in ("192.168.1.20", "10.0.0.5", "172.20.10.2", "8.8.8.8",
+                    "fe80::1", "not-an-ip"):
+            self.assertFalse(server.client_allowed(bad, "tailnet"), bad)
+
+    def test_lan_adds_private_ranges_not_public(self):
+        for ok in ("192.168.1.20", "10.0.0.5", "172.20.10.2", "fe80::1%en0", "100.64.0.1"):
+            self.assertTrue(server.client_allowed(ok, "lan"), ok)
+        self.assertFalse(server.client_allowed("8.8.8.8", "lan"))
+
+    def test_any_and_unknown_modes(self):
+        self.assertTrue(server.client_allowed("8.8.8.8", "any"))
+        self.assertFalse(server.client_allowed("192.168.1.20", "typo"))   # falls back to tailnet
+
+    def test_config_file_fills_unset_vars_only(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as f:
+            f.write("# comment\nSYSDASH_T_A = 1\nSYSDASH_T_B=\"two\"\n"
+                    "SYSDASH_T_C=file\nSYSDASH_T_D=filled\nPATH=/nope\njunk\n")
+        env = {"SYSDASH_T_C": "env", "SYSDASH_T_D": ""}
+        with mock.patch.dict(os.environ, env):
+            server._load_config(f.name)
+            self.assertEqual(os.environ["SYSDASH_T_A"], "1")
+            self.assertEqual(os.environ["SYSDASH_T_B"], "two")
+            self.assertEqual(os.environ["SYSDASH_T_C"], "env")      # real env wins
+            self.assertEqual(os.environ["SYSDASH_T_D"], "filled")   # empty env counts as unset
+            self.assertNotEqual(os.environ.get("PATH"), "/nope")    # only SYSDASH_* keys
+            for k in ("SYSDASH_T_A", "SYSDASH_T_B"):
+                os.environ.pop(k, None)
+        os.unlink(f.name)
+
+    def test_missing_config_file_is_ignored(self):
+        server._load_config("/nonexistent/mac-sysdash/config")
 
 
 class CliModeTests(unittest.TestCase):

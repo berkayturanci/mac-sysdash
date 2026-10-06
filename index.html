@@ -410,6 +410,7 @@
   <div id="activeRuns"></div>
   <div id="checksStrip"></div>
   <div id="machines"></div>
+  <div class="foot" id="unreach" hidden></div>
   <div class="foot" id="foot"></div>
 </div>
 
@@ -574,6 +575,8 @@ function demoAnimate(d,key){
 }
 
 let autoPeers=[];  // tailnet peers discovered to be running sysdash
+// A peer's base is 'peer:<key>'; the server's proxy endpoints want the bare key.
+function peerKey(h){return (h.base||'').replace(/^peer:/,'')}
 function hosts(){
   if(DEMO_MODE) return DEMO_HOSTS;
   const list=[{name:'',base:'',self:true},
@@ -1358,7 +1361,7 @@ function drawRunner(){
     </div>`;
 
   const fetchId = ++currentRunnerFetches;
-  const endpoint = host.self ? '/api/jobs' : `/api/peer_jobs?key=${encodeURIComponent(host.base)}`;
+  const endpoint = host.self ? '/api/jobs' : `/api/peer_jobs?key=${encodeURIComponent(peerKey(host))}`;
   fetch(endpoint).then(res=>res.json()).then(data=>{
     if(fetchId !== currentRunnerFetches) return;
     const jobs = (data||[]).filter(x => x.runner === r.dir).slice(0, 50);
@@ -1407,13 +1410,11 @@ async function setChartRange(rng){
       const [base,metric]=chartKey.split('|');
       const h = hosts().find(x => x.base === base);
       if(!h) return;
-      let url = '';
-      if(h.statsUrl) {
-        url = new URL(h.statsUrl).origin + '/api/history?range=' + rng;
-      } else {
-        url = (h.base||'') + '/api/history?range=' + rng;
-      }
+      // Peers go through this origin's proxy, like their stats (statsUrl is relative).
+      const url = h.self ? '/api/history?range=' + rng
+        : '/api/peer_history?key=' + encodeURIComponent(peerKey(h)) + '&range=' + rng;
       const r = await fetch(url);
+      if(!r.ok) throw new Error('history ' + r.status);
       _chartHistData = await r.json();
       drawChart();
     } catch(e) {
@@ -1519,6 +1520,19 @@ async function discover(){
     autoPeers=(list||[]).filter(p=>p&&p.key).map(p=>({
       base:'peer:'+p.key, name:p.name||'', statsUrl:'/api/peer?key='+encodeURIComponent(p.key)}));
   }catch(_){}
+  try{
+    showUnreachable(await (await fetch('/api/unreachable',{cache:'no-store',signal:AbortSignal.timeout(6000)})).json());
+  }catch(_){}
+}
+// Online tailnet Macs the hub can't see: say why, instead of them silently missing.
+function showUnreachable(names){
+  const el=document.getElementById('unreach');
+  names=(names||[]).filter(n=>typeof n==='string');
+  el.hidden=!names.length;
+  if(!names.length)return;
+  el.textContent=(L==='tr'
+    ?'Ulaşılamayan Mac\'ler: '+names.join(', ')+' — orada sysdash kurulu değil ya da gelen bağlantıları engelliyor (o Mac\'te SYSDASH_PUSH_TO kullanın).'
+    :'Can\'t reach: '+names.join(', ')+' — sysdash isn\'t installed there, or that Mac blocks inbound connections (set SYSDASH_PUSH_TO on it).');
 }
 
 applyLang(); applyTheme(); bellState();
