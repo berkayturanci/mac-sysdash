@@ -29,6 +29,14 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       - run: ./menubar/build.sh
+      # Homebrew users often have only the Command Line Tools; their SDK lacks
+      # Xcode's SwiftUI macro plugins, so typecheck against it too.
+      - name: Typecheck against the Command Line Tools SDK
+        run: |
+          SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+          if [ -d "$SDK" ]; then
+            SDKROOT="$SDK" swiftc -typecheck -swift-version 5 -parse-as-library menubar/SysdashBar.swift
+          fi
 
   site:
     name: Build site

@@ -1,3 +1,12 @@
+## [1.36.1] - 2026-10-06
+### Fixed
+- **Homebrew install failed building the menu bar app.** The formula moved
+  `server.py` into `libexec` before `menubar/build.sh` read the version from it,
+  and with only the Command Line Tools (no Xcode) the macOS 27 SDK's `@State`
+  macro has no plugin, so `swiftc` rejected the window's state. The formula now
+  builds the app first, and the window state lives in an `ObservableObject`, so
+  it compiles with either toolchain.
+
 ## [1.36.0] - 2026-10-06
 ### Changed
 - **Only this Mac and your tailnet can open the dashboard by default.** It has

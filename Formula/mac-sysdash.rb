@@ -28,14 +28,16 @@ class MacSysdash < Formula
     venv = virtualenv_create(libexec, "python3.14")
     venv.pip_install resources
 
-    # server.py serves static files from its own directory (HERE).
-    libexec.install "server.py", "index.html", "sw.js", "manifest.webmanifest",
-                    "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"
-
-    # Menu bar companion (SwiftUI, macOS 14+). Optional: the dashboard works without it.
+    # Menu bar companion (SwiftUI, macOS 14+). Optional: the dashboard works
+    # without it. Built before libexec.install moves server.py, which build.sh
+    # reads the version from.
     if MacOS.version >= :sonoma && File.exist?("menubar/build.sh")
       system "./menubar/build.sh", prefix
     end
+
+    # server.py serves static files from its own directory (HERE).
+    libexec.install "server.py", "index.html", "sw.js", "manifest.webmanifest",
+                    "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"
 
     (bin/"mac-sysdash").write <<~EOS
       #!/bin/bash
