@@ -681,6 +681,37 @@ struct TabButton: View {
     }
 }
 
+/// "Open at login" as a per-user LaunchAgent rather than SMAppService:
+/// SMAppService records the resolved bundle path, which for Homebrew is
+/// `…/Cellar/mac-sysdash/<version>/` and vanishes on the next upgrade. The agent
+/// opens the version-independent `…/opt/mac-sysdash/` path instead.
+enum LoginItem {
+    static let label = "io.github.berkayturanci.sysdash-bar"
+    static var plist: URL {
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    static var stableAppPath: String {
+        let path = Bundle.main.bundlePath
+        guard let r = path.range(of: #"/Cellar/([^/]+)/[^/]+/"#, options: .regularExpression) else { return path }
+        let name = path[r].split(separator: "/")[1]
+        return path.replacingCharacters(in: r, with: "/opt/\(name)/")
+    }
+
+    static var enabled: Bool { FileManager.default.fileExists(atPath: plist.path) }
+
+    static func set(_ on: Bool) {
+        // Drop any registration an earlier build made through SMAppService.
+        if SMAppService.mainApp.status == .enabled { try? SMAppService.mainApp.unregister() }
+        guard on else { try? FileManager.default.removeItem(at: plist); return }
+        let agent: [String: Any] = ["Label": label,
+                                    "ProgramArguments": ["/usr/bin/open", stableAppPath],
+                                    "RunAtLoad": true]
+        try? FileManager.default.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? PropertyListSerialization.data(fromPropertyList: agent, format: .xml, options: 0).write(to: plist)
+    }
+}
+
 /// Window state. Deliberately not `@State`: in the macOS 27 SDK that is a macro
 /// whose plugin ships with Xcode but not the Command Line Tools, so a Homebrew
 /// build without Xcode fails on it.
@@ -690,7 +721,7 @@ final class WindowState: ObservableObject {
     // A ScrollView in a MenuBarExtra window has no ideal height and collapses to
     // zero under maxHeight alone, so it is sized to the measured content.
     @Published var contentHeight: CGFloat = 0
-    @Published var loginItem = SMAppService.mainApp.status == .enabled
+    @Published var loginItem = LoginItem.enabled
 
     init(tab: String = "home") { self.tab = tab }
 }
@@ -764,8 +795,8 @@ struct ContentView: View {
                 Toggle(L("Open at login", "Girişte aç"), isOn: Binding(
                     get: { ui.loginItem },
                     set: { on in
-                        try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
-                        ui.loginItem = SMAppService.mainApp.status == .enabled
+                        LoginItem.set(on)
+                        ui.loginItem = LoginItem.enabled
                     }))
                     .toggleStyle(.checkbox)
                 Button(L("Dashboard", "Panel")) { open(store.hub.absoluteString) }
