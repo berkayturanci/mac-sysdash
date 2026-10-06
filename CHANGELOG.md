@@ -1,3 +1,13 @@
+## [1.36.2] - 2026-10-06
+### Fixed
+- **Menu bar "Open at login" survives `brew upgrade`.** It used SMAppService,
+  which records the resolved app path — for Homebrew a versioned
+  `…/Cellar/mac-sysdash/<version>/` directory that the next upgrade deletes. It
+  is now a per-user LaunchAgent
+  (`~/Library/LaunchAgents/io.github.berkayturanci.sysdash-bar.plist`) that opens
+  the version-independent `…/opt/mac-sysdash/SysdashBar.app`. Re-tick the box
+  once after upgrading.
+
 ## [1.36.1] - 2026-10-06
 ### Fixed
 - **Homebrew install failed building the menu bar app.** The formula moved

@@ -195,7 +195,9 @@ mac-sysdash menubar                 # Homebrew (built with the formula)
 ./menubar/build.sh --install        # git clone: build → ~/Applications, open
 ```
 
-Tick **Open at login** in its window. To watch a hub on another Mac, add
+Tick **Open at login** in its window (a LaunchAgent that opens the
+version-independent Homebrew path, so it survives upgrades; untick to remove
+it). To watch a hub on another Mac, add
 `SYSDASH_HUB=http://<hub-tailscale-ip>:8765` to `~/.config/mac-sysdash/config`.
 
 ## Updating
