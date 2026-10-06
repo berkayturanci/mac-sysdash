@@ -1081,12 +1081,50 @@ enum Windows {
 
 // MARK: - App
 
+/// Homebrew installs the app under /opt/homebrew, which Spotlight, Launchpad
+/// and Finder's Applications don't show. A brew-launched instance keeps a copy
+/// at ~/Applications in step with its version so it can be found there; the
+/// login item still opens the version-independent opt/ path.
+enum AppCopy {
+    static let showPanel = Notification.Name("io.github.berkayturanci.sysdash-bar.showPanel")
+    static var dest: URL {
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications/\(appName).app")
+    }
+
+    static func sync() {
+        let src = Bundle.main.bundleURL
+        guard src.path.contains("/Cellar/") else { return }
+        let plist = dest.appendingPathComponent("Contents/Info.plist")
+        let current = (NSDictionary(contentsOf: plist)?["CFBundleShortVersionString"] as? String)
+        guard current != appVersion else { return }
+        let fm = FileManager.default
+        try? fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.removeItem(at: dest)
+        try? fm.copyItem(at: src, to: dest)
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = Store()
     let popover = WindowState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // One instance: a second launch (e.g. the ~/Applications copy from
+        // Spotlight) asks the running one to show its panel, then quits.
+        let me = NSRunningApplication.current
+        if NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .contains(where: { $0.processIdentifier != me.processIdentifier }) {
+            DistributedNotificationCenter.default().postNotificationName(
+                AppCopy.showPanel, object: nil, userInfo: nil, deliverImmediately: true)
+            NSApp.terminate(nil)
+            return
+        }
+        DistributedNotificationCenter.default().addObserver(
+            forName: AppCopy.showPanel, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { if let s = self?.store { Windows.showPanel(store: s) } }
+        }
+        AppCopy.sync()
         Prefs.shared.applyDock()
         // Re-point an existing login item at this bundle: the app was renamed
         // (SysdashBar.app → Mac System Dashboard.app) and the old path is gone.

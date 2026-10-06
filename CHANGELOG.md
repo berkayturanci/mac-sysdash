@@ -1,3 +1,11 @@
+## [1.38.1] - 2026-10-06
+### Fixed
+- **The menu bar app couldn't be found in Spotlight / Launchpad.** Homebrew
+  installs it under `/opt/homebrew`, which they don't index. A brew-launched
+  instance now keeps `~/Applications/Mac System Dashboard.app` in step with its
+  version. Only one instance runs: launching a second copy shows the running
+  one's panel and quits.
+
 ## [1.38.0] - 2026-10-06
 ### Changed
 - **New display name: Mac System Dashboard.** The page title, PWA name, menu bar
