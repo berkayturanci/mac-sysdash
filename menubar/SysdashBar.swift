@@ -681,13 +681,32 @@ struct TabButton: View {
     }
 }
 
-struct ContentView: View {
-    @ObservedObject var store: Store
-    @State var tab = "home"
+/// Window state. Deliberately not `@State`: in the macOS 27 SDK that is a macro
+/// whose plugin ships with Xcode but not the Command Line Tools, so a Homebrew
+/// build without Xcode fails on it.
+@MainActor
+final class WindowState: ObservableObject {
+    @Published var tab: String
     // A ScrollView in a MenuBarExtra window has no ideal height and collapses to
     // zero under maxHeight alone, so it is sized to the measured content.
-    @State private var contentHeight: CGFloat = 0
-    @State private var loginItem = SMAppService.mainApp.status == .enabled
+    @Published var contentHeight: CGFloat = 0
+    @Published var loginItem = SMAppService.mainApp.status == .enabled
+
+    init(tab: String = "home") { self.tab = tab }
+}
+
+struct ContentView: View {
+    @ObservedObject var store: Store
+    @ObservedObject var ui: WindowState
+
+    private var tab: String {
+        get { ui.tab }
+        nonmutating set { ui.tab = newValue }
+    }
+    private var contentHeight: CGFloat {
+        get { ui.contentHeight }
+        nonmutating set { ui.contentHeight = newValue }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -742,12 +761,13 @@ struct ContentView: View {
                         .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
                 }
                 Spacer()
-                Toggle(L("Open at login", "Girişte aç"), isOn: $loginItem)
-                    .toggleStyle(.checkbox)
-                    .onChange(of: loginItem) { _, on in
+                Toggle(L("Open at login", "Girişte aç"), isOn: Binding(
+                    get: { ui.loginItem },
+                    set: { on in
                         try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
-                        loginItem = SMAppService.mainApp.status == .enabled
-                    }
+                        ui.loginItem = SMAppService.mainApp.status == .enabled
+                    }))
+                    .toggleStyle(.checkbox)
                 Button(L("Dashboard", "Panel")) { open(store.hub.absoluteString) }
                 Button(L("Quit", "Çık")) { NSApp.terminate(nil) }
             }
@@ -773,7 +793,7 @@ func renderSnapshot(to path: String, dark: Bool, tab: Int) {
     _ = NSApplication.shared
     NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     let selected = tab > 0 && tab <= store.machines.count ? store.machines[tab - 1].id : "home"
-    let host = NSHostingView(rootView: ContentView(store: store, tab: selected)
+    let host = NSHostingView(rootView: ContentView(store: store, ui: WindowState(tab: selected))
         .background(Color(nsColor: .windowBackgroundColor)))
     host.appearance = NSApp.appearance
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 400),
@@ -805,10 +825,11 @@ struct Launcher {
 
 struct SysdashBarApp: App {
     @StateObject private var store = Store()
+    @StateObject private var ui = WindowState()
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView(store: store)
+            ContentView(store: store, ui: ui)
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: store.alert ? "exclamationmark.triangle.fill" : "gauge.with.dots.needle.33percent")

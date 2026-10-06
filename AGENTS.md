@@ -38,6 +38,10 @@ database server, no cloud.
   `SysdashBar --snapshot out.png [--dark] [--tab N]` renders the window to a PNG.
   Gotcha: a `ScrollView` inside a `MenuBarExtra` window collapses to zero height
   under `maxHeight` alone — it is sized from a measured content height.
+  **Don't use `@State`**: in the macOS 27 SDK it is a macro whose plugin ships
+  only with Xcode, so Homebrew builds on Command Line Tools fail. Keep view
+  state in an `ObservableObject` (`WindowState`). Check with
+  `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk swiftc -typecheck -swift-version 5 -parse-as-library menubar/SysdashBar.swift`.
 - `site/` — the **marketing website** (Astro), deployed to GitHub Pages by
   `.github/workflows/deploy-site.yml`. This is a separate project with its own
   `package.json`/build. **The no-build-step / no-dependency rules below apply to

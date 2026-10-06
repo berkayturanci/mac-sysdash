@@ -49,7 +49,7 @@ def _load_config(path):
 _load_config(CONFIG_FILE)
 
 PORT = int(os.environ.get("SYSDASH_PORT") or "8765")
-VERSION = "1.36.0"
+VERSION = "1.36.1"
 
 # Who may talk to this server. There is no login and the page lists processes,
 # runners and repo names, so by default only this Mac and the tailnet get in —
