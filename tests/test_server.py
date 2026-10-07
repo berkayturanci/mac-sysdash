@@ -1235,16 +1235,77 @@ class AiStatsTests(unittest.TestCase):
             self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
             server._CODEXBAR_HISTORY = hist + os.sep
             server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            # Last CLI attempt older than the loop period: a stale entry kicks.
             server._AI_STATS_CACHE["ts"] = 0
             with server._AI_CLI_LOCK:
                 server._AI_CLI.update(
-                    ts=time.time(),
+                    ts=time.time() - server._AI_CLI_PERIOD - 5,
                     data={"cursor": {"session": 5}},
                     order=["claude", "cursor"],
                 )
             with mock.patch("server._ai_cli_kick") as mock_kick:
                 server._get_ai_stats()
                 mock_kick.assert_called_once()
+            # A seconds-old attempt that could not answer for the stale provider
+            # must not kick again on the next miss (the 30 s loop covers it).
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI["ts"] = time.time()
+            with mock.patch("server._ai_cli_kick") as mock_kick:
+                server._get_ai_stats()
+                mock_kick.assert_not_called()
+
+    def test_invalid_reset_date_does_not_break_stats(self):
+        # 2026-02-30 matches the timestamp regex but is no date; it used to raise
+        # ValueError out of the cache-hit merge and 500 all of /api/stats.
+        self.assertIsNone(server._parse_ts("2026-02-30T00:00:00Z"))
+        self.assertFalse(server._ai_entry_is_stale({"session_reset": "2026-02-30T00:00:00Z"}))
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2026-02-30T00:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(ts=time.time(), data={"claude": {"session": 42}}, order=["claude"])
+            with mock.patch("server._ai_cli_kick"):
+                miss = server._get_ai_stats()
+                hit = server._get_ai_stats()      # cache-hit merge path
+            self.assertEqual(miss["claude"]["session"], 10)
+            self.assertEqual(hit["claude"]["session"], 10)
+
+    def test_no_enabled_providers_keeps_cli_data_and_marks_attempt(self):
+        self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+        self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+        server._CODEXBAR_SNAPSHOT = "/nonexistent/widget-snapshot.json"
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(ts=0, data={"claude": {"session": 42}}, order=["claude"])
+        with mock.patch("server._codexbar_enabled_providers", return_value=[]), \
+                mock.patch("server._codexbar_fetch_providers") as fetch:
+            server._refresh_ai_cli()
+        fetch.assert_not_called()
+        self.assertNotEqual(server._AI_CLI["ts"], 0)
+        self.assertEqual(server._AI_CLI["data"], {"claude": {"session": 42}})
+
+    def test_malformed_history_file_skips_only_that_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "claude.json"), "w", encoding="utf-8") as f:
+                f.write("{not json")
+            with open(os.path.join(tmp, "codex.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "weekly", "entries": [{"usedPercent": 30}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            server._CODEXBAR_HISTORY = tmp + os.sep
+            res = server._read_codexbar_history()
+        self.assertNotIn("claude", res)
+        self.assertEqual(res.get("codex"), {"weekly": 30})
 
     def test_empty_cli_result_does_not_retrigger_kick_when_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -884,6 +884,7 @@ def discover_runners(ttl=30):
 _PEERS = {"ts": 0, "data": [], "offline": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
 _AI_CLI = {"ts": 0, "data": {}, "order": [], "busy": False}
+_AI_CLI_PERIOD = 30  # seconds between background codexbar CLI refreshes
 _AI_CLI_LOCK = threading.Lock()
 # CodexBar data sources (module-level so tests can point them at fixtures).
 _CODEXBAR_HISTORY = os.path.expanduser(
@@ -976,8 +977,13 @@ def _parse_ts(s):
     m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", str(s or ""))
     if not m:
         return None
-    t = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
-        tzinfo=datetime.timezone.utc).timestamp()
+    try:
+        t = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=datetime.timezone.utc).timestamp()
+    except ValueError:
+        # Well-formed but impossible (2026-02-30): CodexBar data reaches this on the
+        # /api/stats cache-hit path, where a raise would 500 the whole endpoint.
+        return None
     return int(t) if t > 0 else None
 
 
@@ -1085,8 +1091,10 @@ def _refresh_ai_cli():
         return
     enabled = _codexbar_enabled_providers()
     if not enabled:
+        # Mark the attempt but keep earlier results: one failed `codexbar config`
+        # call must not drop fresh CLI data back to stale history.
         with _AI_CLI_LOCK:
-            _AI_CLI.update(ts=time.time(), data={}, order=[])
+            _AI_CLI["ts"] = time.time()
         return
     hist = _read_codexbar_history()
     to_fetch = [p for p in enabled if p not in hist or _ai_entry_is_stale(hist[p])]
@@ -1147,7 +1155,7 @@ def _ai_cli_loop():
                     _AI_CLI["busy"] = False
         except Exception:
             pass
-        time.sleep(30)
+        time.sleep(_AI_CLI_PERIOD)
 
 
 def _ai_fda_status():
@@ -1222,8 +1230,13 @@ def _get_ai_stats():
 
         res = _ai_cli_merge(res, snap_ok)
         with _AI_CLI_LOCK:
-            never_fetched = _AI_CLI["ts"] == 0
-        if not snap_ok and (never_fetched or any(_ai_entry_is_stale(v) for v in res.values())):
+            last_fetch = _AI_CLI["ts"]
+        # Kick when the CLI was never asked, or when an entry is still stale and the
+        # last attempt is older than the 30 s loop period — a stale provider the CLI
+        # cannot answer for must not double the codexbar spawn rate.
+        if not snap_ok and (last_fetch == 0 or (
+                time.time() - last_fetch > _AI_CLI_PERIOD
+                and any(_ai_entry_is_stale(v) for v in res.values()))):
             _ai_cli_kick()
 
         _AI_STATS_CACHE.update(ts=now, data=res, snap_ok=snap_ok)
@@ -1266,7 +1279,6 @@ def tailnet_peers(ttl=30):
         pass
     _PEERS.update(ts=now, data=peers, offline=offline)
     return peers
-
 
 
 def offline_macs():
