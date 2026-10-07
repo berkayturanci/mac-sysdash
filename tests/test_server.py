@@ -1180,7 +1180,8 @@ class AiStatsTests(unittest.TestCase):
                     data={"cursor": {"session": 5}},
                     order=["claude", "cursor"],
                 )
-            res = server._get_ai_stats()
+            with mock.patch("server._ai_cli_kick"):
+                res = server._get_ai_stats()
             self.assertEqual(res.get("claude"), {
                 "session": 10, "session_reset": "2026-09-21T21:10:00Z",
                 "weekly": 20, "weekly_reset": "2026-09-27T10:00:00Z",
@@ -1244,6 +1245,82 @@ class AiStatsTests(unittest.TestCase):
             with mock.patch("server._ai_cli_kick") as mock_kick:
                 server._get_ai_stats()
                 mock_kick.assert_called_once()
+
+    def test_empty_cli_result_does_not_retrigger_kick_when_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "codex.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 15, "resetsAt": "2099-01-01T00:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={},
+                    order=["codex"],
+                    busy=False,
+                )
+            with mock.patch("server._ai_cli_kick") as mock_kick:
+                server._get_ai_stats()
+                mock_kick.assert_not_called()
+
+    def test_never_fetched_triggers_kick_even_if_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "codex.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 15, "resetsAt": "2099-01-01T00:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=0,
+                    data={},
+                    order=[],
+                    busy=False,
+                )
+            with mock.patch("server._ai_cli_kick") as mock_kick:
+                server._get_ai_stats()
+                mock_kick.assert_called_once()
+
+    def test_ai_cli_kick_with_non_empty_data_runs_refresh_only_when_not_busy(self):
+        self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+        # 1. Non-empty CLI data + busy=False -> real _ai_cli_kick spawns thread and runs _refresh_ai_cli
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(ts=time.time(), data={"cursor": {"session": 5}}, order=["cursor"], busy=False)
+        called = threading.Event()
+        def fake_refresh():
+            called.set()
+        with mock.patch("server._refresh_ai_cli", side_effect=fake_refresh):
+            server._ai_cli_kick()
+            self.assertTrue(called.wait(timeout=2.0), "_refresh_ai_cli should run when not busy even if data is non-empty")
+        # Wait for thread to clear busy flag
+        for _ in range(100):
+            with server._AI_CLI_LOCK:
+                if not server._AI_CLI["busy"]:
+                    break
+            time.sleep(0.01)
+
+        # 2. Non-empty CLI data + busy=True -> real _ai_cli_kick returns immediately without running _refresh_ai_cli
+        with server._AI_CLI_LOCK:
+            server._AI_CLI.update(ts=time.time(), data={"cursor": {"session": 5}}, order=["cursor"], busy=True)
+        with mock.patch("server._refresh_ai_cli") as mock_refresh:
+            server._ai_cli_kick()
+            time.sleep(0.05)
+            mock_refresh.assert_not_called()
 
 
 if __name__ == "__main__":

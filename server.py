@@ -1085,13 +1085,11 @@ def _refresh_ai_cli():
         return
     enabled = _codexbar_enabled_providers()
     if not enabled:
+        with _AI_CLI_LOCK:
+            _AI_CLI.update(ts=time.time(), data={}, order=[])
         return
     hist = _read_codexbar_history()
     to_fetch = [p for p in enabled if p not in hist or _ai_entry_is_stale(hist[p])]
-    if not to_fetch:
-        with _AI_CLI_LOCK:
-            _AI_CLI.update(ts=time.time(), data={}, order=enabled)
-        return
     cli = _codexbar_fetch_providers(to_fetch)
     with _AI_CLI_LOCK:
         _AI_CLI.update(ts=time.time(), data=cli, order=enabled)
@@ -1223,7 +1221,9 @@ def _get_ai_stats():
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
 
         res = _ai_cli_merge(res, snap_ok)
-        if not snap_ok and (not _AI_CLI["data"] or any(_ai_entry_is_stale(v) for v in res.values())):
+        with _AI_CLI_LOCK:
+            never_fetched = _AI_CLI["ts"] == 0
+        if not snap_ok and (never_fetched or any(_ai_entry_is_stale(v) for v in res.values())):
             _ai_cli_kick()
 
         _AI_STATS_CACHE.update(ts=now, data=res, snap_ok=snap_ok)
