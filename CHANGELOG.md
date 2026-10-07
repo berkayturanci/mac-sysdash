@@ -1,3 +1,12 @@
+## [1.38.2] - 2026-10-07
+### Fixed
+- **Stale CodexBar history entries blocked fresh CLI quota data.** When CodexBar
+  stopped updating a provider's history file, `/api/stats` kept showing past reset
+  times forever because history was preferred over CLI data. Entries whose reset
+  windows are all in the past are now recognized as stale and replaced with the
+  background `codexbar` CLI cache, while fresh history continues to win. The
+  background CLI refresh also covers providers present but stale in history.
+
 ## [1.38.1] - 2026-10-06
 ### Fixed
 - **The menu bar app couldn't be found in Spotlight / Launchpad.** Homebrew

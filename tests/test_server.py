@@ -1083,6 +1083,168 @@ class AiStatsTests(unittest.TestCase):
         res = server._get_ai_stats()
         self.assertEqual(res.get("cursor"), {"session": 7})
 
+    def test_ai_entry_is_stale(self):
+        past1 = "2026-09-01T00:00:00Z"
+        past2 = "2026-09-02T00:00:00Z"
+        future1 = "2099-01-01T00:00:00Z"
+        # All reset times in the past -> stale
+        self.assertTrue(server._ai_entry_is_stale(
+            {"session_reset": past1, "weekly_reset": past2}))
+        # Single window in the past (lacks other window) -> stale
+        self.assertTrue(server._ai_entry_is_stale({"session_reset": past1}))
+        self.assertTrue(server._ai_entry_is_stale({"weekly_reset": past2}))
+        # One reset in past, other unparseable/missing -> stale
+        self.assertTrue(server._ai_entry_is_stale(
+            {"session_reset": past1, "weekly_reset": "invalid"}))
+        # Any reset time in future -> fresh (not stale)
+        self.assertFalse(server._ai_entry_is_stale(
+            {"session_reset": past1, "weekly_reset": future1}))
+        self.assertFalse(server._ai_entry_is_stale(
+            {"session_reset": future1, "weekly_reset": past1}))
+        self.assertFalse(server._ai_entry_is_stale({"weekly_reset": future1}))
+        # No reset timestamps or invalid object -> not stale
+        self.assertFalse(server._ai_entry_is_stale({"session": 50}))
+        self.assertFalse(server._ai_entry_is_stale({}))
+        self.assertFalse(server._ai_entry_is_stale(None))
+
+    def test_stale_history_replaced_by_cli_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2026-09-21T21:10:00Z"}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 20, "resetsAt": "2026-09-27T10:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"claude": {"session": 80, "weekly": 40,
+                                     "session_reset": "2099-01-01T00:00:00Z"}},
+                    order=["claude"],
+                )
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {
+                "session": 80, "weekly": 40, "session_reset": "2099-01-01T00:00:00Z"
+            })
+
+    def test_fresh_history_wins_over_cli_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "codex.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 15, "resetsAt": "2099-01-01T00:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"codex": {"session": 99, "weekly": 99}},
+                    order=["codex"],
+                )
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("codex"), {
+                "session": 15, "session_reset": "2099-01-01T00:00:00Z"
+            })
+
+    def test_stale_history_without_cli_value_returned_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2026-09-21T21:10:00Z"}]},
+                    {"name": "weekly", "entries": [{"usedPercent": 20, "resetsAt": "2026-09-27T10:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"cursor": {"session": 5}},
+                    order=["claude", "cursor"],
+                )
+            res = server._get_ai_stats()
+            self.assertEqual(res.get("claude"), {
+                "session": 10, "session_reset": "2026-09-21T21:10:00Z",
+                "weekly": 20, "weekly_reset": "2026-09-27T10:00:00Z",
+            })
+            self.assertEqual(res.get("cursor"), {"session": 5})
+
+    def test_refresh_ai_cli_fetches_stale_history_providers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            # claude is stale (resets in the past)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2026-09-21T21:10:00Z"}]}]}}, f)
+            # codex is fresh (reset in the future)
+            with open(os.path.join(hist, "codex.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2099-01-01T00:00:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            with mock.patch("server._codexbar_enabled_providers",
+                            return_value=["claude", "codex", "cursor"]), \
+                 mock.patch("server._codexbar_fetch_providers",
+                            return_value={"claude": {"session": 42}, "cursor": {"session": 12}}) as mock_fetch:
+                server._refresh_ai_cli()
+                self.assertTrue(mock_fetch.called)
+                requested = mock_fetch.call_args[0][0]
+                # Present but stale provider must be fetched
+                self.assertIn("claude", requested)
+                # Provider missing from history must be fetched
+                self.assertIn("cursor", requested)
+                # Fresh provider must NOT be fetched via slow CLI
+                self.assertNotIn("codex", requested)
+                # Cached CLI data was updated
+                self.assertEqual(server._AI_CLI["data"].get("claude"), {"session": 42})
+                self.assertEqual(server._AI_CLI["data"].get("cursor"), {"session": 12})
+
+    def test_ai_cli_kick_triggered_when_stale_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hist = os.path.join(tmp, "history")
+            os.makedirs(hist)
+            with open(os.path.join(hist, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "acc", "accounts": {"acc": [
+                    {"name": "session", "entries": [{"usedPercent": 10, "resetsAt": "2026-09-21T21:10:00Z"}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            self.addCleanup(setattr, server, "_CODEXBAR_SNAPSHOT", server._CODEXBAR_SNAPSHOT)
+            self.addCleanup(server._AI_STATS_CACHE.update, ts=0, data={})
+            self.addCleanup(lambda: server._AI_CLI.update(ts=0, data={}, order=[], busy=False))
+            server._CODEXBAR_HISTORY = hist + os.sep
+            server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
+            server._AI_STATS_CACHE["ts"] = 0
+            with server._AI_CLI_LOCK:
+                server._AI_CLI.update(
+                    ts=time.time(),
+                    data={"cursor": {"session": 5}},
+                    order=["claude", "cursor"],
+                )
+            with mock.patch("server._ai_cli_kick") as mock_kick:
+                server._get_ai_stats()
+                mock_kick.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
