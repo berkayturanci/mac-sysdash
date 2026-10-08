@@ -51,7 +51,7 @@ def _load_config(path):
 _load_config(CONFIG_FILE)
 
 PORT = int(os.environ.get("SYSDASH_PORT") or "8765")
-VERSION = "1.38.1"
+VERSION = "1.38.2"
 
 # Who may talk to this server. There is no login and the page lists processes,
 # runners and repo names, so by default only this Mac and the tailnet get in —
@@ -884,6 +884,7 @@ def discover_runners(ttl=30):
 _PEERS = {"ts": 0, "data": [], "offline": []}
 _AI_STATS_CACHE = {"ts": 0, "data": {}}
 _AI_CLI = {"ts": 0, "data": {}, "order": [], "busy": False}
+_AI_CLI_PERIOD = 30  # seconds between background codexbar CLI refreshes
 _AI_CLI_LOCK = threading.Lock()
 # CodexBar data sources (module-level so tests can point them at fixtures).
 _CODEXBAR_HISTORY = os.path.expanduser(
@@ -969,6 +970,73 @@ def _codexbar_enabled_providers():
         return []
 
 
+def _parse_ts(s):
+    """Tailscale RFC 3339 / ISO 8601 timestamp → epoch seconds; None for missing/zero.
+    Fractions are dropped: Tailscale sends 1–9 digits, which Python 3.9's
+    fromisoformat rejects."""
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", str(s or ""))
+    if not m:
+        return None
+    try:
+        t = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=datetime.timezone.utc).timestamp()
+    except ValueError:
+        # Well-formed but impossible (2026-02-30): CodexBar data reaches this on the
+        # /api/stats cache-hit path, where a raise would 500 the whole endpoint.
+        return None
+    return int(t) if t > 0 else None
+
+
+def _ai_entry_is_stale(entry, now=None):
+    """A provider entry whose reset times are all in the past is stale.
+    Providers with any reset time in the future are fresh. Entries with no
+    valid reset timestamps are not considered stale."""
+    if not isinstance(entry, dict):
+        return False
+    if now is None:
+        now = time.time()
+    resets = []
+    for k, v in entry.items():
+        if k.endswith("_reset"):
+            ts = _parse_ts(v)
+            if ts is not None:
+                resets.append(ts)
+    if not resets:
+        return False
+    return all(ts <= now for ts in resets)
+
+
+def _read_codexbar_history():
+    """Read Claude and Codex stats from history files (launchd fallback)."""
+    res = {}
+    base_path = _CODEXBAR_HISTORY
+    for m in ["claude", "codex"]:
+        p = os.path.join(base_path, f"{m}.json")
+        try:
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    pref = d.get("preferredAccountKey")
+                    accs = d.get("accounts", {})
+                    acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
+                    if acc:
+                        entry = {}
+                        for tracker in acc:
+                            name = tracker.get("name")
+                            if name in ("session", "weekly"):
+                                entries = tracker.get("entries", [])
+                                if entries:
+                                    entry[name] = entries[-1].get("usedPercent", 0)
+                                    if entries[-1].get("resetsAt"):
+                                        entry[name + "_reset"] = entries[-1]["resetsAt"]
+                        # An empty entry is "not stale" and would shadow CLI data forever.
+                        if entry:
+                            res[m] = entry
+        except Exception:
+            pass
+    return res
+
+
 def _parse_codexbar_usage(item):
     """CodexBar CLI `usage` JSON entry → {session, weekly, *_reset}."""
     u = (item or {}).get("usage") or {}
@@ -1026,16 +1094,22 @@ def _refresh_ai_cli():
         return
     enabled = _codexbar_enabled_providers()
     if not enabled:
+        # Mark the attempt but keep earlier results: one failed `codexbar config`
+        # call must not drop fresh CLI data back to stale history.
+        with _AI_CLI_LOCK:
+            _AI_CLI["ts"] = time.time()
         return
-    cli = _codexbar_fetch_providers(enabled)
+    hist = _read_codexbar_history()
+    to_fetch = [p for p in enabled if p not in hist or _ai_entry_is_stale(hist[p])]
+    cli = _codexbar_fetch_providers(to_fetch)
     with _AI_CLI_LOCK:
         _AI_CLI.update(ts=time.time(), data=cli, order=enabled)
 
 
 def _ai_cli_kick():
-    """Non-blocking one-shot refresh when cache is empty (first dashboard load)."""
+    """Non-blocking one-shot refresh when cache is empty or has stale providers."""
     with _AI_CLI_LOCK:
-        if _AI_CLI["busy"] or _AI_CLI["data"]:
+        if _AI_CLI["busy"]:
             return
         _AI_CLI["busy"] = True
 
@@ -1056,7 +1130,7 @@ def _ai_cli_merge(res, snap_ok):
     with _AI_CLI_LOCK:
         cli, order = _AI_CLI["data"], _AI_CLI["order"]
     for p, v in cli.items():
-        if p not in res:
+        if p not in res or _ai_entry_is_stale(res[p]):
             res[p] = v
     if order:
         ordered = {p: res[p] for p in order if p in res}
@@ -1084,7 +1158,7 @@ def _ai_cli_loop():
                     _AI_CLI["busy"] = False
         except Exception:
             pass
-        time.sleep(30)
+        time.sleep(_AI_CLI_PERIOD)
 
 
 def _ai_fda_status():
@@ -1111,25 +1185,7 @@ def _get_ai_stats():
         res = {}
         
         # 1. Fallback: Read from history (accessible by launchd without Full Disk Access)
-        base_path = _CODEXBAR_HISTORY
-        for m in ["claude", "codex"]:
-            p = os.path.join(base_path, f"{m}.json")
-            if os.path.exists(p):
-                with open(p, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                    pref = d.get("preferredAccountKey")
-                    accs = d.get("accounts", {})
-                    acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
-                    if acc:
-                        res[m] = {}
-                        for tracker in acc:
-                            name = tracker.get("name")
-                            if name in ("session", "weekly"):
-                                entries = tracker.get("entries", [])
-                                if entries:
-                                    res[m][name] = entries[-1].get("usedPercent", 0)
-                                    if entries[-1].get("resetsAt"):
-                                        res[m][name + "_reset"] = entries[-1]["resetsAt"]
+        res = _read_codexbar_history()
                                     
         # 2. Primary (richer): widget-snapshot. Best-effort ONLY — under launchd this
         # lives in a TCC-protected Group Container and open() raises PermissionError.
@@ -1176,7 +1232,14 @@ def _get_ai_stats():
             pass  # TCC-blocked under launchd (or missing/malformed) — keep `res` fallback
 
         res = _ai_cli_merge(res, snap_ok)
-        if not snap_ok and not _AI_CLI["data"]:
+        with _AI_CLI_LOCK:
+            last_fetch = _AI_CLI["ts"]
+        # Kick when the CLI was never asked, or when an entry is still stale and the
+        # last attempt is older than the 30 s loop period — a stale provider the CLI
+        # cannot answer for must not double the codexbar spawn rate.
+        if not snap_ok and (last_fetch == 0 or (
+                time.time() - last_fetch > _AI_CLI_PERIOD
+                and any(_ai_entry_is_stale(v) for v in res.values()))):
             _ai_cli_kick()
 
         _AI_STATS_CACHE.update(ts=now, data=res, snap_ok=snap_ok)
@@ -1219,18 +1282,6 @@ def tailnet_peers(ttl=30):
         pass
     _PEERS.update(ts=now, data=peers, offline=offline)
     return peers
-
-
-def _parse_ts(s):
-    """Tailscale RFC 3339 timestamp → epoch seconds; None for missing/zero.
-    Fractions are dropped: Tailscale sends 1–9 digits, which Python 3.9's
-    fromisoformat rejects."""
-    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", str(s or ""))
-    if not m:
-        return None
-    t = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
-        tzinfo=datetime.timezone.utc).timestamp()
-    return int(t) if t > 0 else None
 
 
 def offline_macs():
