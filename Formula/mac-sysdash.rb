@@ -4,8 +4,9 @@
 #   brew install mac-sysdash
 #   brew services start mac-sysdash
 #
-# After each GitHub release: bump `url`/`sha256` (and re-run
-# `brew update-python-resources Formula/mac-sysdash.rb` if psutil changes).
+# After each GitHub release: the formula-bump.yml workflow opens a PR to bump
+# `url`/`sha256` (re-run `brew update-python-resources Formula/mac-sysdash.rb`
+# if psutil changes).
 
 class MacSysdash < Formula
   include Language::Python::Virtualenv

@@ -210,10 +210,10 @@ Runs as launchd agent `com.berkay.sysdash` (git clone) or
 
 - **git:** `git pull --ff-only` + `launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
 - **brew:** publishing a release triggers `.github/workflows/formula-bump.yml`
-  which pushes `chore/formula-vX.Y.Z` and tries `gh pr create` (if GHA PR
-  creation is disabled, use the compare link in the job summary; start CI on
-  bot PRs by closing/reopening or pushing an empty commit), merge to `main`,
-  then `brew update && brew upgrade mac-sysdash`
+  (skips pre-releases and downgrades), which pushes `chore/formula-vX.Y.Z` and
+  tries `gh pr create` (if GHA PR creation is disabled, use the compare link in
+  the job summary; start CI on bot PRs by closing/reopening or pushing an empty
+  commit), merge to `main`, then `brew update && brew upgrade mac-sysdash`
 
 `index.html` changes need no restart (served fresh); `server.py` changes do.
 
