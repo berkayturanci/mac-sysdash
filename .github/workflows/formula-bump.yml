@@ -1,15 +1,19 @@
 name: Bump Homebrew formula
 
+# `released` fires when a non-pre-release is published and when a pre-release is
+# promoted — never for a pre-release itself — so promoted pre-releases still bump.
 'on':
   release:
-    types: [published]
+    types: [released]
 
 permissions:
   contents: read
 
+# One queue for all releases, so two close together bump in order and never race
+# on the formula or a branch.
 concurrency:
-  group: formula-bump-${{ github.ref }}
-  cancel-in-progress: true
+  group: formula-bump
+  cancel-in-progress: false
 
 jobs:
   bump:
@@ -19,240 +23,94 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - name: Skip pre-releases
-        if: github.event.release.prerelease == true
-        run: echo "Release is a pre-release (prerelease=true); skipping formula bump."
-
-      - name: Validate release tag
-        id: check_tag
-        if: github.event.release.prerelease != true
-        env:
-          TAG_NAME: ${{ github.event.release.tag_name }}
-        run: |
-          if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag '$TAG_NAME' does not match ^v[0-9]+\.[0-9]+\.[0-9]+$; skipping formula bump."
-            echo "valid=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "valid=true" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        if: github.event.release.prerelease != true && steps.check_tag.outputs.valid == 'true'
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Bump formula and open PR
-        if: github.event.release.prerelease != true && steps.check_tag.outputs.valid == 'true'
         env:
           TAG_NAME: ${{ github.event.release.tag_name }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          FORMULA_FILE="Formula/mac-sysdash.rb"
+          BUMP=".github/scripts/bump_formula.py"
+          SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          BOT_EMAIL="github-actions[bot]@users.noreply.github.com"
 
-          if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid tag '$TAG_NAME'; aborting." >&2
-            exit 1
-          fi
+          # Tag format, current pin and "strictly newer" are all decided by one
+          # parser (exit 10 = skip: same or older tag, so no downgrade PR).
+          set +e
+          python3 "$BUMP" check "$FORMULA_FILE" "$TAG_NAME"
+          CHECK=$?
+          set -e
+          if [ "$CHECK" -eq 10 ]; then exit 0; fi
+          if [ "$CHECK" -ne 0 ]; then echo "Refusing to bump for '$TAG_NAME'." >&2; exit 1; fi
 
-          export FORMULA_FILE="Formula/mac-sysdash.rb"
           TARBALL_URL="https://github.com/${REPO}/archive/refs/tags/${TAG_NAME}.tar.gz"
-
-          # Extract currently pinned version from top-level url in formula
-          CURRENT_VER=$(sed -nE 's/^[[:space:]]*url "https:\/\/github\.com\/[^"]+\/archive\/refs\/tags\/v([^"]+)\.tar\.gz"/\1/p' "$FORMULA_FILE" | head -n 1)
-          if [ -z "$CURRENT_VER" ]; then
-            echo "Error: Could not extract current version from $FORMULA_FILE" >&2
-            exit 1
-          fi
-          echo "Current version pinned in $FORMULA_FILE: v$CURRENT_VER"
-
-          TARGET_VER="${TAG_NAME#v}"
-          if [ "$CURRENT_VER" = "$TARGET_VER" ]; then
-            echo "Formula $FORMULA_FILE is already pinned to v$CURRENT_VER ($TAG_NAME); nothing to do."
-            exit 0
-          fi
-
-          NEWEST_VER=$(printf '%s\n%s\n' "$CURRENT_VER" "$TARGET_VER" | sort -V | tail -n 1)
-          if [ "$NEWEST_VER" != "$TARGET_VER" ]; then
-            echo "Target release $TAG_NAME is not strictly newer than current version v$CURRENT_VER; skipping formula bump."
-            exit 0
-          fi
-
-          echo "Downloading source tarball from ${TARBALL_URL}..."
-          MAX_RETRIES=5
-          DELAY=3
-          DOWNLOADED=false
-
-          for attempt in $(seq 1 "$MAX_RETRIES"); do
-            rm -f tarball.tar.gz
-            if curl -sSL -f -o tarball.tar.gz "$TARBALL_URL"; then
-              echo "Downloaded source tarball on attempt ${attempt}."
-              DOWNLOADED=true
+          for attempt in 1 2 3 4 5; do
+            # The tag archive can 404 for a few seconds right after publishing.
+            if curl -fsSL -o tarball.tar.gz "$TARBALL_URL" && gzip -t tarball.tar.gz; then
               break
             fi
-            echo "Attempt ${attempt} failed to download ${TARBALL_URL} (may be 404 right after release publish). Retrying in ${DELAY}s..."
-            sleep "$DELAY"
+            if [ "$attempt" -eq 5 ]; then
+              echo "Could not download ${TARBALL_URL}." >&2
+              exit 1
+            fi
+            sleep 3
           done
-
-          if [ "$DOWNLOADED" != "true" ]; then
-            echo "Error: Failed to download source tarball from ${TARBALL_URL} after ${MAX_RETRIES} attempts." >&2
-            exit 1
-          fi
-
           SHA256=$(sha256sum tarball.tar.gz | awk '{print $1}')
           rm -f tarball.tar.gz
-
-          if ! [[ "$SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
-            echo "Error: Invalid SHA-256 calculated: '$SHA256'" >&2
-            exit 1
-          fi
-          echo "Calculated SHA-256: ${SHA256}"
-          export SHA256
-
-          python3 -c "import sys, textwrap; exec(textwrap.dedent(sys.stdin.read()))" << 'EOF'
-          import os
-          import re
-          import sys
-
-          formula_file = os.environ.get("FORMULA_FILE", "Formula/mac-sysdash.rb")
-          tag = os.environ["TAG_NAME"]
-          sha = os.environ["SHA256"]
-          repo = os.environ["REPO"]
-
-          with open(formula_file, "r", encoding="utf-8") as f:
-              lines = f.readlines()
-
-          url_idx = None
-          indent = ""
-          for i, line in enumerate(lines):
-              if re.match(r"^\s*resource\b", line):
-                  break
-              m = re.match(r"^(\s*)url\s+\"https://github\.com/[^/]+/[^/]+/archive/refs/tags/v[^\"]+\.tar\.gz\"\s*$", line)
-              if m:
-                  url_idx = i
-                  indent = m.group(1)
-                  break
-
-          if url_idx is None:
-              print(f"Error: Could not find top-level url before any resource block in {formula_file}", file=sys.stderr)
-              sys.exit(1)
-
-          sha_idx = url_idx + 1
-          if sha_idx >= len(lines):
-              print(f"Error: Expected sha256 immediately after url in {formula_file}", file=sys.stderr)
-              sys.exit(1)
-
-          sha_match = re.match(r"^" + re.escape(indent) + r"sha256\s+\"[0-9a-fA-F]{64}\"\s*$", lines[sha_idx])
-          if not sha_match:
-              print(f"Error: Top-level sha256 line must immediately follow url with the same indentation in {formula_file}", file=sys.stderr)
-              sys.exit(1)
-
-          new_url = f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
-          new_url_line = f"{indent}url \"{new_url}\"\n"
-          new_sha_line = f"{indent}sha256 \"{sha}\"\n"
-
-          if lines[url_idx] == new_url_line and lines[sha_idx] == new_sha_line:
-              print(f"{formula_file} is already up to date with {tag}.")
-              sys.exit(0)
-
-          lines[url_idx] = new_url_line
-          lines[sha_idx] = new_sha_line
-
-          with open(formula_file, "w", encoding="utf-8") as f:
-              f.writelines(lines)
-
-          print(f"Updated {formula_file} to {tag} ({sha})")
-          EOF
-
-          if git diff --exit-code "$FORMULA_FILE" > /dev/null; then
-            echo "No changes made to ${FORMULA_FILE}. Nothing to commit or push."
-            exit 0
-          fi
+          python3 "$BUMP" apply "$FORMULA_FILE" "$REPO" "$TAG_NAME" "$SHA256"
 
           BRANCH="chore/formula-${TAG_NAME}"
           PR_TITLE="chore(brew): point formula at ${TAG_NAME}"
-
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
+          git config user.email "$BOT_EMAIL"
           git checkout -B "$BRANCH"
           git add "$FORMULA_FILE"
           git commit -m "$PR_TITLE"
 
-          echo "Checking remote status for branch ${BRANCH}..."
-          REMOTE_SHA=$(git ls-remote --heads origin "refs/heads/$BRANCH" | awk '{print $1}')
-          if [ -n "$REMOTE_SHA" ]; then
-            git fetch origin "$BRANCH" --depth=1 || true
-            if git show "${REMOTE_SHA}:${FORMULA_FILE}" > /dev/null 2>&1 && cmp -s <(git show "${REMOTE_SHA}:${FORMULA_FILE}") "$FORMULA_FILE"; then
-              echo "Remote branch ${BRANCH} already contains identical formula content. Skipping push."
+          # Never overwrite a maintainer's work: if the branch already exists and
+          # carries any commit not made by this bot, leave it alone.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            git fetch --quiet origin "$BRANCH"
+            AUTHORS=$(git log --format=%ae "origin/main..origin/${BRANCH}" | sort -u)
+            if [ -n "$AUTHORS" ] && [ "$AUTHORS" != "$BOT_EMAIL" ]; then
+              {
+                echo "### Homebrew formula bump: \`${TAG_NAME}\`"
+                echo ""
+                echo "Branch \`${BRANCH}\` already has commits from someone other than the bot, so it was left untouched. Update it by hand or delete it and re-run this job."
+              } >> "$SUMMARY"
+              exit 0
+            fi
+            if git diff --quiet "origin/${BRANCH}" HEAD -- "$FORMULA_FILE"; then
+              echo "Branch ${BRANCH} already pins ${TAG_NAME}; not pushing."
             else
-              echo "Remote branch ${BRANCH} exists at ${REMOTE_SHA}. Pushing with --force-with-lease..."
-              git push --force-with-lease="${BRANCH}:${REMOTE_SHA}" origin "$BRANCH"
+              git push --force-with-lease="${BRANCH}:$(git rev-parse "origin/${BRANCH}")" origin "$BRANCH"
             fi
           else
-            echo "Pushing new branch ${BRANCH} to origin..."
             git push origin "$BRANCH"
           fi
 
-          PR_BODY=$(printf "%s\n\n%s\n%s\n%s\n%s\n" \
-            "Bumps the Homebrew formula \`url\` and \`sha256\` to point to \`${TAG_NAME}\`." \
-            "> [!IMPORTANT]" \
-            "> Because this PR was opened by GitHub Actions (\`GITHUB_TOKEN\`), CI workflows are not triggered automatically." \
-            "> To run CI checks before merging, close and reopen this PR, or push an empty commit:" \
-            "> \`git commit --allow-empty -m \"trigger ci\" && git push\`")
-
-          COMPARE_URL="https://github.com/${REPO}/compare/main...${BRANCH}?expand=1"
-          SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
-
-          echo "Checking if an open pull request already exists for ${BRANCH}..."
-          EXISTING_PR_URL=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json url -q '.[0].url' 2>/dev/null || true)
-
-          if [ -n "$EXISTING_PR_URL" ]; then
-            echo "Found open pull request: ${EXISTING_PR_URL}"
-            {
-              echo "### Homebrew Formula Bump: \`${TAG_NAME}\`"
-              echo ""
-              echo "Pull request open: ${EXISTING_PR_URL}"
-              echo ""
-              echo "> **Note:** Bot-opened PRs do not trigger GitHub Actions workflows. Start CI by closing and reopening the PR or pushing an empty commit."
-            } >> "$SUMMARY"
+          NOTE="> Opened by GitHub Actions, so CI does not start on its own: close and reopen this PR (or push an empty commit) to run it."
+          PR_BODY=$(printf 'Bumps the Homebrew formula `url` and `sha256` to `%s`.\n\n%s\n' "$TAG_NAME" "$NOTE")
+          EXISTING=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json url -q '.[0].url' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            printf '### Homebrew formula bump: `%s`\n\nPull request already open: %s\n' "$TAG_NAME" "$EXISTING" >> "$SUMMARY"
+          elif PR_URL=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY" 2>&1); then
+            printf '### Homebrew formula bump: `%s`\n\nPull request opened: %s\n\n%s\n' "$TAG_NAME" "$PR_URL" "$NOTE" >> "$SUMMARY"
           else
-            echo "Attempting to create pull request via gh CLI..."
-            set +e
-            PR_OUTPUT=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY" 2>&1)
-            GH_STATUS=$?
-            set -e
-
-            if [ $GH_STATUS -eq 0 ]; then
-              echo "Pull request created successfully: ${PR_OUTPUT}"
-              {
-                echo "### Homebrew Formula Bump: \`${TAG_NAME}\`"
-                echo ""
-                echo "Pull request opened: ${PR_OUTPUT}"
-                echo ""
-                echo "> **Note:** Bot-opened PRs do not trigger GitHub Actions workflows. Start CI by closing and reopening the PR or pushing an empty commit."
-              } >> "$SUMMARY"
-            else
-              echo "gh pr create exited with code ${GH_STATUS} (expected when workflow PR creation is disabled):"
-              echo "${PR_OUTPUT}"
-              {
-                echo "### Homebrew Formula Bump: \`${TAG_NAME}\`"
-                echo ""
-                echo "Branch [\`${BRANCH}\`](https://github.com/${REPO}/tree/${BRANCH}) was updated and pushed, but \`gh pr create\` could not open a PR automatically."
-                echo ""
-                echo "#### One-click PR creation"
-                echo "[Open pull request on GitHub](${COMPARE_URL})"
-                echo ""
-                echo "**Title:**"
-                echo "\`\`\`"
-                echo "${PR_TITLE}"
-                echo "\`\`\`"
-                echo ""
-                echo "**Body:**"
-                echo "\`\`\`markdown"
-                echo "${PR_BODY}"
-                echo "\`\`\`"
-              } >> "$SUMMARY"
-            fi
+            # Expected while "Allow GitHub Actions to create pull requests" is off.
+            echo "gh pr create failed: ${PR_URL}"
+            {
+              echo "### Homebrew formula bump: \`${TAG_NAME}\`"
+              echo ""
+              echo "Branch \`${BRANCH}\` is pushed but the workflow may not open pull requests here."
+              echo "[Open the pull request](https://github.com/${REPO}/compare/main...${BRANCH}?expand=1) — a PR you open runs CI normally."
+              echo ""
+              echo "Title: \`${PR_TITLE}\`"
+            } >> "$SUMMARY"
           fi

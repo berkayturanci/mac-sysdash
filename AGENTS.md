@@ -209,11 +209,15 @@ Runs as launchd agent `com.berkay.sysdash` (git clone) or
 `main`. Deploy = land on `main`, then on each Mac either:
 
 - **git:** `git pull --ff-only` + `launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
-- **brew:** publishing a release triggers `.github/workflows/formula-bump.yml`
-  (skips pre-releases and downgrades), which pushes `chore/formula-vX.Y.Z` and
-  tries `gh pr create` (if GHA PR creation is disabled, use the compare link in
-  the job summary; start CI on bot PRs by closing/reopening or pushing an empty
-  commit), merge to `main`, then `brew update && brew upgrade mac-sysdash`
+- **brew:** a full release (`released`: published, or a pre-release promoted)
+  runs `.github/workflows/formula-bump.yml`. `.github/scripts/bump_formula.py`
+  (tested in `tests/test_bump_formula.py`) skips non-`vX.Y.Z` tags and anything
+  not newer than the pinned version, then rewrites only the top-level
+  `url`/`sha256`. The job pushes `chore/formula-vX.Y.Z` — never over a branch
+  that has non-bot commits — and opens a PR, or reports an open one. With
+  "Allow GitHub Actions to create pull requests" off, open it from the compare
+  link in the job summary; a bot-opened PR needs close/reopen or an empty
+  commit to start CI. Merge to `main`, then `brew update && brew upgrade mac-sysdash`
 
 `index.html` changes need no restart (served fresh); `server.py` changes do.
 
