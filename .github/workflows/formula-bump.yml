@@ -2,6 +2,8 @@ name: Bump Homebrew formula
 
 # `released` fires when a non-pre-release is published and when a pre-release is
 # promoted — never for a pre-release itself — so promoted pre-releases still bump.
+# GitHub runs this file from the tagged commit, so the first bump comes from the
+# first release tagged after this workflow landed on main.
 'on':
   release:
     types: [released]
@@ -9,8 +11,9 @@ name: Bump Homebrew formula
 permissions:
   contents: read
 
-# One queue for all releases, so two close together bump in order and never race
-# on the formula or a branch.
+# One bump at a time, so two releases never race on the formula or a branch.
+# GitHub keeps only the newest *pending* run per group: with three releases in
+# quick succession a middle one can be cancelled — re-run it from the Actions tab.
 concurrency:
   group: formula-bump
   cancel-in-progress: false
@@ -41,9 +44,12 @@ jobs:
           BOT_EMAIL="github-actions[bot]@users.noreply.github.com"
 
           # Tag format, current pin and "strictly newer" are all decided by one
-          # parser (exit 10 = skip: same or older tag, so no downgrade PR).
+          # parser (exit 10 = skip: same or older than main's pin or than a bump
+          # branch still waiting to merge, so no downgrade or conflicting PR).
+          PENDING=$(git ls-remote --heads origin 'refs/heads/chore/formula-v*' | sed -n 's|.*refs/heads/chore/formula-||p')
           set +e
-          python3 "$BUMP" check "$FORMULA_FILE" "$TAG_NAME"
+          # shellcheck disable=SC2086  # PENDING is a list of validated-later tag names
+          python3 "$BUMP" check "$FORMULA_FILE" "$TAG_NAME" $PENDING
           CHECK=$?
           set -e
           if [ "$CHECK" -eq 10 ]; then exit 0; fi
@@ -73,12 +79,13 @@ jobs:
           git add "$FORMULA_FILE"
           git commit -m "$PR_TITLE"
 
-          # Never overwrite a maintainer's work: if the branch already exists and
-          # carries any commit not made by this bot, leave it alone.
+          # Never overwrite a maintainer's work: if the branch already exists and any
+          # commit on it was authored *or committed* by someone else (an amend keeps
+          # the bot as author), leave it alone.
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
             git fetch --quiet origin "$BRANCH"
-            AUTHORS=$(git log --format=%ae "origin/main..origin/${BRANCH}" | sort -u)
-            if [ -n "$AUTHORS" ] && [ "$AUTHORS" != "$BOT_EMAIL" ]; then
+            PEOPLE=$(git log --format='%ae%n%ce' "origin/main..origin/${BRANCH}" | sort -u)
+            if [ -n "$PEOPLE" ] && [ "$PEOPLE" != "$BOT_EMAIL" ]; then
               {
                 echo "### Homebrew formula bump: \`${TAG_NAME}\`"
                 echo ""
@@ -102,9 +109,13 @@ jobs:
             printf '### Homebrew formula bump: `%s`\n\nPull request already open: %s\n' "$TAG_NAME" "$EXISTING" >> "$SUMMARY"
           elif PR_URL=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY" 2>&1); then
             printf '### Homebrew formula bump: `%s`\n\nPull request opened: %s\n\n%s\n' "$TAG_NAME" "$PR_URL" "$NOTE" >> "$SUMMARY"
+          elif ! printf '%s' "$PR_URL" | grep -qi 'not permitted to create'; then
+            # Anything other than the known permission refusal is a real failure.
+            echo "gh pr create failed: ${PR_URL}" >&2
+            exit 1
           else
             # Expected while "Allow GitHub Actions to create pull requests" is off.
-            echo "gh pr create failed: ${PR_URL}"
+            echo "gh pr create was refused: ${PR_URL}"
             {
               echo "### Homebrew formula bump: \`${TAG_NAME}\`"
               echo ""

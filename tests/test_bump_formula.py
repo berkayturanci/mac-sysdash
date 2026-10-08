@@ -1,5 +1,7 @@
 """Tests for .github/scripts/bump_formula.py (the release → formula bump logic)."""
+import contextlib
 import importlib.util
+import io
 import os
 import tempfile
 import unittest
@@ -47,6 +49,19 @@ class BumpFormulaTests(unittest.TestCase):
         self.assertFalse(bump.needs_bump(FORMULA, "v1.37.9"))     # older line: no downgrade
         self.assertFalse(bump.needs_bump(FORMULA, "v1.9.99"))
 
+    def test_newer_pending_bump_blocks_an_older_release(self):
+        # v1.40.0's bump PR is still open: a late v1.39.5 must not open a second,
+        # conflicting PR that would downgrade it.
+        self.assertFalse(bump.needs_bump(FORMULA, "v1.39.5", ["v1.40.0"]))
+        self.assertTrue(bump.needs_bump(FORMULA, "v1.41.0", ["v1.40.0"]))
+        self.assertTrue(bump.needs_bump(FORMULA, "v1.40.0", ["v1.40.0"]))   # its own branch
+        self.assertTrue(bump.needs_bump(FORMULA, "v1.39.0", ["junk", "v1.2"]))
+
+    def test_refuses_sha_with_a_different_indent(self):
+        text = FORMULA.replace(f'  sha256 "{SHA_OLD}"', f'    sha256 "{SHA_OLD}"', 1)
+        with self.assertRaises(bump.FormulaError):
+            bump.current_tag(text)
+
     def test_refuses_sha_before_url(self):
         lines = FORMULA.splitlines(True)
         lines[1], lines[2] = lines[2], lines[1]
@@ -73,11 +88,13 @@ class BumpFormulaTests(unittest.TestCase):
             bump.rewrite(FORMULA, "acme/x y", "v1.39.0", SHA_NEW)
 
     def test_cli_exit_codes(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             path = os.path.join(tmp, "f.rb")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(FORMULA)
             self.assertEqual(bump.main(["check", path, "v1.39.0"]), 0)
+            self.assertEqual(bump.main(["check", path, "v1.39.0", "v1.40.0"]), bump.SKIP)
             self.assertEqual(bump.main(["check", path, "v1.38.1"]), bump.SKIP)
             self.assertEqual(bump.main(["check", path, "v1.37.0"]), bump.SKIP)
             self.assertEqual(bump.main(["check", path, "nope"]), bump.SKIP)

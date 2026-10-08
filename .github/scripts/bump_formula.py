@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Point Formula/mac-sysdash.rb at a release tag — used by formula-bump.yml.
 
-  bump_formula.py check FILE TAG          exit 0: bump needed · 10: skip (not v<semver>, same or older) · 1: error
+  bump_formula.py check FILE TAG [PENDING_TAG ...]
+                                          exit 0: bump needed · 10: skip (not v<semver>, same or older
+                                          than the pin or than a pending bump branch) · 1: error
   bump_formula.py apply FILE REPO TAG SHA rewrite the top-level url/sha256 in place
 
 One parser for both questions, so "which version is pinned" and "which lines get
@@ -48,10 +50,13 @@ def current_tag(text):
     return _locate(text.splitlines(True))[2]
 
 
-def needs_bump(text, tag):
-    """True only when `tag` is strictly newer than the pinned one: a late release for
-    an older line must not downgrade everyone's `brew upgrade`."""
-    return _parse_tag(tag) > _parse_tag(current_tag(text))
+def needs_bump(text, tag, pending=()):
+    """True only when `tag` is strictly newer than the pinned one and than every
+    other pending bump (open chore/formula-v* branches): a late release for an older
+    line must neither downgrade `brew upgrade` nor race a newer bump PR."""
+    new = _parse_tag(tag)
+    newer_pending = [p for p in pending if TAG_RE.match(p) and p != tag and _parse_tag(p) > new]
+    return new > _parse_tag(current_tag(text)) and not newer_pending
 
 
 def rewrite(text, repo, tag, sha):
@@ -69,17 +74,19 @@ def rewrite(text, repo, tag, sha):
 
 def main(argv):
     try:
-        if len(argv) == 3 and argv[0] == "check":
-            if not TAG_RE.match(argv[2]):
+        if len(argv) >= 3 and argv[0] == "check":
+            tag, pending = argv[2], argv[3:]
+            if not TAG_RE.match(tag):
                 # rc/beta/odd tags are not formula releases: skip, don't fail the job.
-                print(f"skip: {argv[2]!r} is not a v<major>.<minor>.<patch> tag")
+                print(f"skip: {tag!r} is not a v<major>.<minor>.<patch> tag")
                 return SKIP
             with open(argv[1], encoding="utf-8") as f:
                 text = f.read()
-            if needs_bump(text, argv[2]):
-                print(f"bump {current_tag(text)} -> {argv[2]}")
+            if needs_bump(text, tag, pending):
+                print(f"bump {current_tag(text)} -> {tag}")
                 return 0
-            print(f"skip: {argv[2]} is not newer than the pinned {current_tag(text)}")
+            print(f"skip: {tag} is not newer than the pinned {current_tag(text)}"
+                  f" or a pending bump ({', '.join(pending) or 'none'})")
             return SKIP
         if len(argv) == 5 and argv[0] == "apply":
             path, repo, tag, sha = argv[1:]
