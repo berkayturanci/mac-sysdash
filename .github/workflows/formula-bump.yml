@@ -1,0 +1,127 @@
+name: Bump Homebrew formula
+
+# `released` fires when a non-pre-release is published and when a pre-release is
+# promoted — never for a pre-release itself — so promoted pre-releases still bump.
+# GitHub runs this file from the tagged commit, so the first bump comes from the
+# first release tagged after this workflow landed on main.
+'on':
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+# One bump at a time, so two releases never race on the formula or a branch.
+# GitHub keeps only the newest *pending* run per group: with three releases in
+# quick succession a middle one can be cancelled — re-run it from the Actions tab.
+concurrency:
+  group: formula-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump formula
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Bump formula and open PR
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          FORMULA_FILE="Formula/mac-sysdash.rb"
+          BUMP=".github/scripts/bump_formula.py"
+          SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          BOT_EMAIL="github-actions[bot]@users.noreply.github.com"
+
+          # Tag format, current pin and "strictly newer" are all decided by one
+          # parser (exit 10 = skip: same or older than main's pin or than a bump
+          # branch still waiting to merge, so no downgrade or conflicting PR).
+          PENDING=$(git ls-remote --heads origin 'refs/heads/chore/formula-v*' | sed -n 's|.*refs/heads/chore/formula-||p')
+          set +e
+          # shellcheck disable=SC2086  # PENDING is a list of validated-later tag names
+          python3 "$BUMP" check "$FORMULA_FILE" "$TAG_NAME" $PENDING
+          CHECK=$?
+          set -e
+          if [ "$CHECK" -eq 10 ]; then exit 0; fi
+          if [ "$CHECK" -ne 0 ]; then echo "Refusing to bump for '$TAG_NAME'." >&2; exit 1; fi
+
+          TARBALL_URL="https://github.com/${REPO}/archive/refs/tags/${TAG_NAME}.tar.gz"
+          for attempt in 1 2 3 4 5; do
+            # The tag archive can 404 for a few seconds right after publishing.
+            if curl -fsSL -o tarball.tar.gz "$TARBALL_URL" && gzip -t tarball.tar.gz; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Could not download ${TARBALL_URL}." >&2
+              exit 1
+            fi
+            sleep 3
+          done
+          SHA256=$(sha256sum tarball.tar.gz | awk '{print $1}')
+          rm -f tarball.tar.gz
+          python3 "$BUMP" apply "$FORMULA_FILE" "$REPO" "$TAG_NAME" "$SHA256"
+
+          BRANCH="chore/formula-${TAG_NAME}"
+          PR_TITLE="chore(brew): point formula at ${TAG_NAME}"
+          git config user.name "github-actions[bot]"
+          git config user.email "$BOT_EMAIL"
+          git checkout -B "$BRANCH"
+          git add "$FORMULA_FILE"
+          git commit -m "$PR_TITLE"
+
+          # Never overwrite a maintainer's work: if the branch already exists and any
+          # commit on it was authored *or committed* by someone else (an amend keeps
+          # the bot as author), leave it alone.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            git fetch --quiet origin "$BRANCH"
+            PEOPLE=$(git log --format='%ae%n%ce' "origin/main..origin/${BRANCH}" | sort -u)
+            if [ -n "$PEOPLE" ] && [ "$PEOPLE" != "$BOT_EMAIL" ]; then
+              {
+                echo "### Homebrew formula bump: \`${TAG_NAME}\`"
+                echo ""
+                echo "Branch \`${BRANCH}\` already has commits from someone other than the bot, so it was left untouched. Update it by hand or delete it and re-run this job."
+              } >> "$SUMMARY"
+              exit 0
+            fi
+            if git diff --quiet "origin/${BRANCH}" HEAD -- "$FORMULA_FILE"; then
+              echo "Branch ${BRANCH} already pins ${TAG_NAME}; not pushing."
+            else
+              git push --force-with-lease="${BRANCH}:$(git rev-parse "origin/${BRANCH}")" origin "$BRANCH"
+            fi
+          else
+            git push origin "$BRANCH"
+          fi
+
+          NOTE="> Opened by GitHub Actions, so CI does not start on its own: close and reopen this PR (or push an empty commit) to run it."
+          PR_BODY=$(printf 'Bumps the Homebrew formula `url` and `sha256` to `%s`.\n\n%s\n' "$TAG_NAME" "$NOTE")
+          EXISTING=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json url -q '.[0].url' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            printf '### Homebrew formula bump: `%s`\n\nPull request already open: %s\n' "$TAG_NAME" "$EXISTING" >> "$SUMMARY"
+          elif PR_URL=$(gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY" 2>&1); then
+            printf '### Homebrew formula bump: `%s`\n\nPull request opened: %s\n\n%s\n' "$TAG_NAME" "$PR_URL" "$NOTE" >> "$SUMMARY"
+          elif ! printf '%s' "$PR_URL" | grep -qi 'not permitted to create'; then
+            # Anything other than the known permission refusal is a real failure.
+            echo "gh pr create failed: ${PR_URL}" >&2
+            exit 1
+          else
+            # Expected while "Allow GitHub Actions to create pull requests" is off.
+            echo "gh pr create was refused: ${PR_URL}"
+            {
+              echo "### Homebrew formula bump: \`${TAG_NAME}\`"
+              echo ""
+              echo "Branch \`${BRANCH}\` is pushed but the workflow may not open pull requests here."
+              echo "[Open the pull request](https://github.com/${REPO}/compare/main...${BRANCH}?expand=1) — a PR you open runs CI normally."
+              echo ""
+              echo "Title: \`${PR_TITLE}\`"
+            } >> "$SUMMARY"
+          fi

@@ -26,7 +26,10 @@ database server, no cloud.
   bootstrap (git-clone path).
 - `Formula/mac-sysdash.rb` — Homebrew formula (same repo). Tap with
   `brew tap berkayturanci/mac-sysdash https://github.com/berkayturanci/mac-sysdash`.
-  Bump `url`/`sha256` when cutting a GitHub release.
+  Bump `url`/`sha256` when cutting a GitHub release (automated via `.github/workflows/formula-bump.yml`).
+- `.github/scripts/bump_formula.py` — the formula-bump logic (tag check, current
+  pin, strictly-newer test, url/sha256 rewrite), stdlib only; tested by
+  `tests/test_bump_formula.py`, which the same `unittest discover` run picks up.
 - `menubar/SysdashBar.swift` — optional **menu bar app** (single-file SwiftUI
   `MenuBarExtra`, macOS 14+), built by `menubar/build.sh` (plain `swiftc`, no
   Xcode project, no packages). It reads **only the hub's HTTP API**
@@ -209,8 +212,17 @@ Runs as launchd agent `com.berkay.sysdash` (git clone) or
 `main`. Deploy = land on `main`, then on each Mac either:
 
 - **git:** `git pull --ff-only` + `launchctl kickstart -k gui/$(id -u)/com.berkay.sysdash`
-- **brew:** bump `Formula/mac-sysdash.rb` `url`/`sha256` for the new tag, then
-  `brew update && brew upgrade mac-sysdash`
+- **brew:** a full release (`released`: published, or a pre-release promoted)
+  runs `.github/workflows/formula-bump.yml`. `.github/scripts/bump_formula.py`
+  (tested in `tests/test_bump_formula.py`) skips non-`vX.Y.Z` tags and anything
+  not newer than the pinned version or than a `chore/formula-v*` branch still
+  waiting to merge, then rewrites only the top-level `url`/`sha256`. The job
+  pushes `chore/formula-vX.Y.Z` — never over a branch with commits authored or
+  committed by anyone but the bot — and opens a PR, or reports an open one; a
+  `gh` failure other than the permission refusal fails the job. With
+  "Allow GitHub Actions to create pull requests" off, open it from the compare
+  link in the job summary; a bot-opened PR needs close/reopen or an empty
+  commit to start CI. Merge to `main`, then `brew update && brew upgrade mac-sysdash`
 
 `index.html` changes need no restart (served fresh); `server.py` changes do.
 
