@@ -1020,15 +1020,18 @@ def _read_codexbar_history():
                     accs = d.get("accounts", {})
                     acc = accs.get(pref) if pref else (list(accs.values())[0] if accs else None)
                     if acc:
-                        res[m] = {}
+                        entry = {}
                         for tracker in acc:
                             name = tracker.get("name")
                             if name in ("session", "weekly"):
                                 entries = tracker.get("entries", [])
                                 if entries:
-                                    res[m][name] = entries[-1].get("usedPercent", 0)
+                                    entry[name] = entries[-1].get("usedPercent", 0)
                                     if entries[-1].get("resetsAt"):
-                                        res[m][name + "_reset"] = entries[-1]["resetsAt"]
+                                        entry[name + "_reset"] = entries[-1]["resetsAt"]
+                        # An empty entry is "not stale" and would shadow CLI data forever.
+                        if entry:
+                            res[m] = entry
         except Exception:
             pass
     return res

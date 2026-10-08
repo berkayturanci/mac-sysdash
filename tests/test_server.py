@@ -1258,8 +1258,11 @@ class AiStatsTests(unittest.TestCase):
     def test_invalid_reset_date_does_not_break_stats(self):
         # 2026-02-30 matches the timestamp regex but is no date; it used to raise
         # ValueError out of the cache-hit merge and 500 all of /api/stats.
-        self.assertIsNone(server._parse_ts("2026-02-30T00:00:00Z"))
-        self.assertFalse(server._ai_entry_is_stale({"session_reset": "2026-02-30T00:00:00Z"}))
+        try:
+            self.assertIsNone(server._parse_ts("2026-02-30T00:00:00Z"))
+            self.assertFalse(server._ai_entry_is_stale({"session_reset": "2026-02-30T00:00:00Z"}))
+        except ValueError as e:
+            self.fail(f"an impossible reset date must not raise: {e}")
         with tempfile.TemporaryDirectory() as tmp:
             hist = os.path.join(tmp, "history")
             os.makedirs(hist)
@@ -1276,8 +1279,11 @@ class AiStatsTests(unittest.TestCase):
             with server._AI_CLI_LOCK:
                 server._AI_CLI.update(ts=time.time(), data={"claude": {"session": 42}}, order=["claude"])
             with mock.patch("server._ai_cli_kick"):
-                miss = server._get_ai_stats()
-                hit = server._get_ai_stats()      # cache-hit merge path
+                try:
+                    miss = server._get_ai_stats()
+                    hit = server._get_ai_stats()      # cache-hit merge path
+                except ValueError as e:
+                    self.fail(f"/api/stats AI merge raised on an impossible date: {e}")
             self.assertEqual(miss["claude"]["session"], 10)
             self.assertEqual(hit["claude"]["session"], 10)
 
@@ -1307,6 +1313,16 @@ class AiStatsTests(unittest.TestCase):
         self.assertNotIn("claude", res)
         self.assertEqual(res.get("codex"), {"weekly": 30})
 
+    def test_wrong_shape_history_leaves_no_empty_entry(self):
+        # An empty {} entry is never stale, so it would block CLI data for good.
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "claude.json"), "w", encoding="utf-8") as f:
+                json.dump({"preferredAccountKey": "a", "accounts": {"a": [
+                    {"name": "other", "entries": [{"usedPercent": 1}]}]}}, f)
+            self.addCleanup(setattr, server, "_CODEXBAR_HISTORY", server._CODEXBAR_HISTORY)
+            server._CODEXBAR_HISTORY = tmp + os.sep
+            self.assertNotIn("claude", server._read_codexbar_history())
+
     def test_empty_cli_result_does_not_retrigger_kick_when_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:
             hist = os.path.join(tmp, "history")
@@ -1321,9 +1337,11 @@ class AiStatsTests(unittest.TestCase):
             server._CODEXBAR_HISTORY = hist + os.sep
             server._CODEXBAR_SNAPSHOT = os.path.join(tmp, "missing.json")
             server._AI_STATS_CACHE["ts"] = 0
+            # Last attempt older than the period, so only the "nothing is stale"
+            # clause can keep the kick from firing.
             with server._AI_CLI_LOCK:
                 server._AI_CLI.update(
-                    ts=time.time(),
+                    ts=time.time() - server._AI_CLI_PERIOD - 5,
                     data={},
                     order=["codex"],
                     busy=False,
